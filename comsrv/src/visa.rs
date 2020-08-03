@@ -18,7 +18,7 @@ cfg_if::cfg_if! {
 }
 
 #[derive(Error, Debug)]
-struct VisaError {
+pub struct VisaError {
     desc: String,
     code: i32,
 }
@@ -30,8 +30,8 @@ impl Display for VisaError {
 }
 
 impl VisaError {
-    fn new(code: i32) -> Self {
-        let desc = VISA.describe_status(code);
+    pub fn new(code: i32) -> Self {
+        let desc = describe_status(code);
         Self {
             desc,
             code
@@ -66,7 +66,7 @@ pub struct Visa {
 }
 
 lazy_static! {
-    pub static ref VISA: Visa = Visa::new();
+    static ref VISA: Visa = Visa::new();
 }
 
 impl Visa {
@@ -85,33 +85,33 @@ impl Visa {
             rm
         }
     }
+}
 
-    fn open(&self, name: String, timeout: Option<f32>) -> Result<Instrument, VisaError> {
-        let instr = unsafe {
-            let cstr = CString::new(name).unwrap();
-            let tmo = if let Some(tmo) = timeout {
-                (tmo * 1000.0).round() as u32
-            } else {
-                0
-            };
-            let mut handle: ViObject = 0;
-            let status = self.api.viOpen(self.rm, cstr.as_ptr(), 0, tmo, &mut handle as *mut ViObject);
-            if status < 0 {
-                return Err(VisaError::new(status));
-            }
-            handle
+pub fn open_instrument(name: String, timeout: Option<f32>) -> Result<Instrument, VisaError> {
+    let instr = unsafe {
+        let cstr = CString::new(name).unwrap();
+        let tmo = if let Some(tmo) = timeout {
+            (tmo * 1000.0).round() as u32
+        } else {
+            0
         };
-        Ok(Instrument { instr })
-    }
-
-    fn describe_status(&self, status: ViStatus) -> String {
-        unsafe {
-            let mut data: [c_char; 512] = MaybeUninit::uninit().assume_init();
-            let new_status = self.api.viStatusDesc(self.rm,  status, data.as_mut_ptr());
-            println!("{}", new_status);
-            let ret = CStr::from_ptr(data.as_ptr());
-            ret.to_str().unwrap().to_string()
+        let mut handle: ViObject = 0;
+        let status = VISA.api.viOpen(VISA.rm, cstr.as_ptr(), 0, tmo, &mut handle as *mut ViObject);
+        if status < 0 {
+            return Err(VisaError::new(status));
         }
+        handle
+    };
+    Ok(Instrument { instr })
+}
+
+fn describe_status(status: ViStatus) -> String {
+    unsafe {
+        let mut data: [c_char; 512] = MaybeUninit::uninit().assume_init();
+        let new_status = VISA.api.viStatusDesc(VISA.rm,  status, data.as_mut_ptr());
+        println!("{}", new_status);
+        let ret = CStr::from_ptr(data.as_ptr());
+        ret.to_str().unwrap().to_string()
     }
 }
 
@@ -119,16 +119,16 @@ impl Drop for Visa {
     fn drop(&mut self) {
         let status = VISA.api.viClose(self.rm);
         if status < 0 {
-            panic!(format!("Error dropping resource manager: {}", VISA.describe_status(status)));
+            panic!(format!("Error dropping resource manager: {}", describe_status(status)));
         }
     }
 }
 
-struct Instrument {
+pub struct Instrument {
     instr: ViObject,
 }
 
-struct Attr {
+pub struct Attr {
     instr: ViObject,
     code: ViAttr,
 }
@@ -166,7 +166,7 @@ impl Attr {
 }
 
 impl Instrument {
-    fn read(&self, size: usize) -> Result<Vec<u8>, VisaError> {
+    pub fn read(&self, size: usize) -> Result<Vec<u8>, VisaError> {
         let mut data: Vec<u8> = Vec::with_capacity(size);
         unsafe {
             let ptr= data.as_mut_ptr();
@@ -180,7 +180,7 @@ impl Instrument {
         Ok(data)
     }
 
-    fn write<'a, T: Into<&'a [u8]>>(&self, data: T) -> Result<(), VisaError> {
+    pub fn write<'a, T: Into<&'a [u8]>>(&self, data: T) -> Result<(), VisaError> {
         let data = data.into();
         let ptr = data.as_ptr();
         let mut actually_written = 0_u32;
@@ -193,7 +193,7 @@ impl Instrument {
         Ok(())
     }
 
-    fn timeout(&self) -> Attr {
+    pub fn timeout(&self) -> Attr {
         Attr::new(self.instr, 0x3FFF001A)
     }
 }
@@ -202,7 +202,7 @@ impl Drop for Instrument {
     fn drop(&mut self) {
         let status = VISA.api.viClose(self.instr);
         if status < 0 {
-            panic!(format!("Error dropping instrument: {}", VISA.describe_status(status)));
+            panic!(format!("Error dropping instrument: {}", describe_status(status)));
         }
     }
 }
