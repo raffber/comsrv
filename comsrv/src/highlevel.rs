@@ -11,6 +11,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 pub struct Instrument {
     instr: VisaInstrument,
+    pub read_termination: String,
+    pub write_terminatin: String,
 }
 
 impl Instrument {
@@ -34,7 +36,7 @@ impl Instrument {
         todo!()
     }
 
-    pub fn query_binary_from_string<T: AsRef<str>>(&self, msg: T) {
+    pub fn query_binary<T: AsRef<str>>(&self, msg: T) -> Result<Vec<u8>> {
         todo!()
     }
 
