@@ -1,9 +1,10 @@
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 use std::collections::HashMap;
-use crate::highlevel::{Result, Instrument};
+use crate::highlevel::Instrument;
 use std::sync::{Arc, Mutex};
 use async_std::task;
-use futures::{Stream, StreamExt};
+use futures::StreamExt;
+use crate::{Result, Error};
 
 struct InstrumentThread {
     instr: Instrument,
@@ -12,10 +13,10 @@ struct InstrumentThread {
 
 impl InstrumentThread {
     fn spawn(instr: Instrument) -> InstrumentHandle {
-        let (tx, mut rx) = mpsc::unbounded();
+        let (tx, rx) = mpsc::unbounded();
         let mut thread = InstrumentThread { instr, rx };
         task::spawn(async move {
-            while let Some(msg) = rx.next() {
+            while let Some(msg) = thread.rx.next().await {
                 if !thread.handle_msg(msg).await {
                     return;
                 }
@@ -26,20 +27,20 @@ impl InstrumentThread {
 
     async fn handle_msg(&mut self, msg: ThreadMsg) -> bool {
         match msg {
-            ThreadMsg::Write(arg, mut tx) => {
-                tx.send(self.instr.write(arg)).await.is_ok()
+            ThreadMsg::Write(arg, tx) => {
+                tx.send(self.instr.write(arg)).is_ok()
             },
-            ThreadMsg::Query(arg, mut tx) => {
-                tx.send(self.instr.query(arg)).await.is_ok()
+            ThreadMsg::Query(arg, tx) => {
+                tx.send(self.instr.query(arg)).is_ok()
             },
-            ThreadMsg::QueryBinary(arg, mut tx) => {
-                tx.send(self.instr.query_binary(arg)).await.is_ok()
+            ThreadMsg::QueryBinary(arg, tx) => {
+                tx.send(self.instr.query_binary(arg)).is_ok()
             },
-            ThreadMsg::SetTimeout(arg, mut tx) => {
-                tx.send(self.instr.set_timeout(arg)).await.is_ok()
+            ThreadMsg::SetTimeout(arg, tx) => {
+                tx.send(self.instr.set_timeout(arg)).is_ok()
             },
-            ThreadMsg::GetTimeout(mut tx) => {
-                tx.send(self.instr.get_timeout()).await.is_ok()
+            ThreadMsg::GetTimeout(tx) => {
+                tx.send(self.instr.get_timeout()).is_ok()
             },
         }
     }
@@ -51,32 +52,62 @@ struct InstrumentHandle {
 }
 
 enum ThreadMsg {
-    Write(String, mpsc::Sender<Result<()>>),
-    Query(String, mpsc::Sender<Result<String>>),
-    QueryBinary(String, mpsc::Sender<Result<Vec<u8>>>),
-    SetTimeout(f32, mpsc::Sender<Result<()>>),
-    GetTimeout(mpsc::Sender<Result<f32>>),
+    Write(String, oneshot::Sender<Result<()>>),
+    Query(String, oneshot::Sender<Result<String>>),
+    QueryBinary(String, oneshot::Sender<Result<Vec<u8>>>),
+    SetTimeout(f32, oneshot::Sender<Result<()>>),
+    GetTimeout(oneshot::Sender<Result<f32>>),
 }
 
 impl InstrumentHandle {
-    pub async fn write<T: AsRef<str>>(&self, msg: T) -> Result<()> {
-        todo!()
+    pub async fn write<T: AsRef<str>>(&mut self, msg: T) -> Result<()> {
+        let (tx, rx) = oneshot::channel();
+        self.tx.unbounded_send(ThreadMsg::Write(msg.as_ref().to_string(), tx))
+            .map_err(|_| Error::ChannelBroken)?;
+        match rx.await {
+            Err(_) => Err(Error::ChannelBroken),
+            Ok(x) => x,
+        }
     }
 
-    pub async fn query<T: AsRef<str>>(&self, msg: T) -> Result<String> {
-        todo!()
+    pub async fn query<T: AsRef<str>>(&mut self, msg: T) -> Result<String> {
+        let (tx, rx) = oneshot::channel();
+        self.tx.unbounded_send(ThreadMsg::Query(msg.as_ref().to_string(), tx))
+            .map_err(|_| Error::ChannelBroken)?;
+        match rx.await {
+            Err(_) => Err(Error::ChannelBroken),
+            Ok(x) => x,
+        }
     }
 
-    pub async fn set_timeout(&self, timeout: f32) -> Result<()> {
-        todo!()
+    pub async fn set_timeout(&mut self, timeout: f32) -> Result<()> {
+        let (tx, rx) = oneshot::channel();
+        self.tx.unbounded_send(ThreadMsg::SetTimeout(timeout, tx))
+            .map_err(|_| Error::ChannelBroken)?;
+        match rx.await {
+            Err(_) => Err(Error::ChannelBroken),
+            Ok(x) => x,
+        }
     }
 
-    pub async fn get_timeout(&self) -> Result<f32> {
-        todo!()
+    pub async fn get_timeout(&mut self) -> Result<f32> {
+        let (tx, rx) = oneshot::channel();
+        self.tx.unbounded_send(ThreadMsg::GetTimeout(tx))
+            .map_err(|_| Error::ChannelBroken)?;
+        match rx.await {
+            Err(_) => Err(Error::ChannelBroken),
+            Ok(x) => x,
+        }
     }
 
-    pub async fn query_binary<T: AsRef<str>>(&self, msg: T) -> Result<Vec<u8>> {
-        todo!()
+    pub async fn query_binary<T: AsRef<str>>(&mut self, msg: T) -> Result<Vec<u8>> {
+        let (tx, rx) = oneshot::channel();
+        self.tx.unbounded_send(ThreadMsg::QueryBinary(msg.as_ref().to_string(), tx))
+            .map_err(|_| Error::ChannelBroken)?;
+        match rx.await {
+            Err(_) => Err(Error::ChannelBroken),
+            Ok(x) => x,
+        }
     }
 }
 
@@ -129,16 +160,24 @@ struct InventoryMonitor {
 }
 
 impl InventoryMonitor {
-    fn start(inventory: Arc<Mutex<InventoryShared>>, mut rx: mpsc::UnboundedReceiver<InventoryMsg>) {
+    fn start(inventory: Arc<Mutex<InventoryShared>>, rx: mpsc::UnboundedReceiver<InventoryMsg>) {
+        let mut monitor = InventoryMonitor {
+            inventory,
+            rx
+        };
         task::spawn(async move {
-            while let Some(msg) = rx.next().await {
-                match msg {
-                    InventoryMsg::Disconnected(x) => {
-                        inventory.lock().unwrap().close(&x);
-                    },
-                }
+            while let Some(msg) = monitor.rx.next().await {
+                monitor.handle_msg(msg);
             }
         });
+    }
+
+    fn handle_msg(&mut self, msg: InventoryMsg) {
+        match msg {
+            InventoryMsg::Disconnected(x) => {
+                self.inventory.lock().unwrap().close(&x);
+            },
+        }
     }
 }
 

@@ -1,13 +1,6 @@
 use crate::visa::{open_instrument as visa_open_instrument, VisaError};
 use crate::visa::Instrument as VisaInstrument;
-use std::io;
-
-pub enum Error {
-    Visa(VisaError),
-    Io(io::Error)
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
+use crate::Result;
 
 pub struct Instrument {
     instr: VisaInstrument,
