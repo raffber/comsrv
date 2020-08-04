@@ -87,9 +87,9 @@ impl Visa {
     }
 }
 
-pub fn open_instrument(name: String, timeout: Option<f32>) -> Result<Instrument, VisaError> {
+pub fn open_instrument(addr: String, timeout: Option<f32>) -> Result<Instrument, VisaError> {
     let instr = unsafe {
-        let cstr = CString::new(name).unwrap();
+        let cstr = CString::new(addr.clone()).unwrap();
         let tmo = if let Some(tmo) = timeout {
             (tmo * 1000.0).round() as u32
         } else {
@@ -102,7 +102,7 @@ pub fn open_instrument(name: String, timeout: Option<f32>) -> Result<Instrument,
         }
         handle
     };
-    Ok(Instrument { instr })
+    Ok(Instrument { instr, addr })
 }
 
 fn describe_status(status: ViStatus) -> String {
@@ -122,10 +122,6 @@ impl Drop for Visa {
             panic!(format!("Error dropping resource manager: {}", describe_status(status)));
         }
     }
-}
-
-pub struct Instrument {
-    instr: ViObject,
 }
 
 pub struct Attr {
@@ -165,6 +161,12 @@ impl Attr {
     }
 }
 
+#[derive(Clone)]
+pub struct Instrument {
+    instr: ViObject,
+    addr: String,
+}
+
 impl Instrument {
     pub fn read(&self, size: usize) -> Result<Vec<u8>, VisaError> {
         let mut data: Vec<u8> = Vec::with_capacity(size);
@@ -195,6 +197,10 @@ impl Instrument {
 
     pub fn timeout(&self) -> Attr {
         Attr::new(self.instr, 0x3FFF001A)
+    }
+
+    pub fn addr(&self) -> &str {
+        &self.addr
     }
 }
 
