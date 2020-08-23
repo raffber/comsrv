@@ -7,27 +7,10 @@ use visa_sys::Instrument as VisaInstrument;
 
 use crate::Result;
 use crate::visa::visa_sys::describe_status;
+use crate::app::{Request, Response};
 
 pub mod asynced;
 mod visa_sys;
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum VisaRequest {
-    Write(String),
-    QueryString(String),
-    QueryBinary(String),
-    SetTimeout(f32),
-    GetTimeout,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum VisaReply {
-    NoValue,
-    String(String),
-    Binary(Vec<u8>),
-    Float(f32),
-}
-
 
 #[derive(Error, Clone, Debug, Serialize, Deserialize)]
 pub struct VisaError {
@@ -89,7 +72,7 @@ impl Instrument {
         self.instr.addr()
     }
 
-    pub fn handle(&self, _req: VisaRequest) -> VisaResult<VisaReply> {
+    pub fn handle(&self, _req: Request) -> VisaResult<Response> {
         todo!()
     }
 }

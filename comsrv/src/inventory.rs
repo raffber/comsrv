@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -6,8 +6,9 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::task;
 
-use crate::{Error, Result};
+use crate::Result;
 use crate::visa::asynced as async_visa;
+use crate::app::{Request, Response};
 
 enum InventoryMsg {
     Disconnected(String),
@@ -18,11 +19,16 @@ pub enum Instrument {
     Visa(async_visa::Instrument),
 }
 
+impl Instrument {
+    pub fn handle(&self, _req: Request) -> Result<Response> {
+        Err(crate::Error::NotSupported) // TODO: ...
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ConnectOptions {}
 
 struct InventoryShared {
-    connecting: HashSet<String>,
     instruments: HashMap<String, Instrument>,
     tx: mpsc::UnboundedSender<InventoryMsg>,
 }
@@ -34,7 +40,6 @@ impl Inventory {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
         let inner = InventoryShared {
-            connecting: Default::default(),
             instruments: Default::default(),
             tx,
         };
@@ -46,19 +51,16 @@ impl Inventory {
 
     pub async fn connect(&mut self, addr: String, options: Option<ConnectOptions>) -> Result<Instrument> {
         {
-            let mut inner = self.0.lock().await;
+            let inner = self.0.lock().await;
             if let Some(ret) = inner.instruments.get(&addr) {
                 return Ok(ret.clone());
             }
-            if inner.connecting.contains(&addr) {
-                return Err(Error::AlreadyConnecting);
-            }
-            inner.connecting.insert(addr.clone());
         }
+        // TODO: make sure not to connect multiple instruments at the same time by directly retrieving
+        // the handle first and spawning the connection in another task
         let instr = async_visa::Instrument::connect(addr.clone(), options).await;
         {
             let mut inner = self.0.lock().await;
-            inner.connecting.remove(&addr);
             let instr = instr?;
             inner.instruments.insert(addr.clone(), Instrument::Visa(instr));
             Ok(inner.instruments.get(&addr).unwrap().clone())

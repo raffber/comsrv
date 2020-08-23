@@ -6,7 +6,8 @@ use tokio::task::spawn_blocking;
 
 use crate::Error;
 use crate::inventory::ConnectOptions;
-use crate::visa::{Instrument as BlockingInstrument, VisaReply, VisaRequest, VisaResult};
+use crate::visa::{Instrument as BlockingInstrument};
+use crate::app::{Request, Response};
 
 pub struct Thread {
     instr: BlockingInstrument,
@@ -20,8 +21,8 @@ pub struct Instrument {
 
 enum Msg {
     Request {
-        request: VisaRequest,
-        reply: oneshot::Sender<VisaResult<VisaReply>>,
+        request: Request,
+        reply: oneshot::Sender<crate::Result<Response>>,
     },
     Drop,
 }
@@ -31,8 +32,7 @@ impl Instrument {
         let addr = addr.into();
         let instr = spawn_blocking(move || {
             BlockingInstrument::new(addr)
-        }).await;
-        let instr = instr.map_err(|_| Error::ChannelBroken)?;
+        }).await.unwrap();
         Ok(Self::spawn(instr?))
     }
 
@@ -42,7 +42,7 @@ impl Instrument {
         let mut thread = Thread { instr, rx };
         thread::spawn(move || {
             while let Ok(msg) = thread.rx.recv() {
-                if !thread.handle_msg(msg) {
+                if !thread.handle(msg) {
                     return;
                 }
             }
@@ -51,15 +51,14 @@ impl Instrument {
         Instrument { tx }
     }
 
-    async fn handle(&self, req: VisaRequest) -> crate::Result<VisaReply> {
+    async fn handle(&self, req: Request) -> crate::Result<Response> {
         let (tx, rx) = oneshot::channel();
         let thmsg = Msg::Request {
             request: req,
             reply: tx,
         };
         self.tx.send(thmsg).map_err(|_| Error::Disconnected)?;
-        let ret: VisaResult<VisaReply> = rx.await.map_err(|_| Error::ChannelBroken)?;
-        ret.map_err(Error::Visa)
+        rx.await.map_err(|_| Error::Disconnected)?
     }
 
     fn disconnect(self) {
@@ -68,10 +67,10 @@ impl Instrument {
 }
 
 impl Thread {
-    fn handle_msg(&mut self, msg: Msg) -> bool {
+    fn handle(&mut self, msg: Msg) -> bool {
         match msg {
             Msg::Request { request, reply } => {
-                let _ = reply.send(self.instr.handle(request));
+                let _ = reply.send(self.instr.handle(request).map_err(Error::Visa));
                 true
             }
             Msg::Drop => false,
