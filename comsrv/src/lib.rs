@@ -1,14 +1,13 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
-mod highlevel;
 mod inventory;
 pub mod visa;
 
 #[macro_use] extern crate dlopen_derive;
 #[macro_use] extern crate lazy_static;
 
-use crate::visa::VisaError;
+use visa::VisaError;
 use std::io;
 
 

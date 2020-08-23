@@ -5,37 +5,14 @@ use std::os::raw::c_char;
 use lazy_static;
 use std::ffi::{CStr, CString};
 use std::mem::MaybeUninit;
-use thiserror::Error;
-use std::fmt::{Display, Formatter};
+use crate::visa::VisaError;
 
 
 cfg_if::cfg_if! {
     if #[cfg(unix)] {
-        const VISA_LIB: &'static [u8] = include_bytes!("../lib/libvisa.so");
+        const VISA_LIB: &'static [u8] = include_bytes!("../../lib/libvisa.so");
     } else {
         const VISA_LIB: &'static [u8] = include_bytes!("todo.lib");
-    }
-}
-
-#[derive(Error, Debug)]
-pub struct VisaError {
-    desc: String,
-    code: i32,
-}
-
-impl Display for VisaError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("VisaError({}): `{}`", self.code, self.desc))
-    }
-}
-
-impl VisaError {
-    pub fn new(code: i32) -> Self {
-        let desc = describe_status(code);
-        Self {
-            desc,
-            code
-        }
     }
 }
 
@@ -105,7 +82,7 @@ pub fn open_instrument(addr: String, timeout: Option<f32>) -> Result<Instrument,
     Ok(Instrument { instr, addr })
 }
 
-fn describe_status(status: ViStatus) -> String {
+pub fn describe_status(status: ViStatus) -> String {
     unsafe {
         let mut data: [c_char; 512] = MaybeUninit::uninit().assume_init();
         let new_status = VISA.api.viStatusDesc(VISA.rm,  status, data.as_mut_ptr());

@@ -1,10 +1,10 @@
 use futures::channel::{mpsc, oneshot};
 use std::collections::HashMap;
-use crate::highlevel::Instrument;
 use std::sync::{Arc, Mutex};
 use async_std::task;
 use futures::StreamExt;
 use crate::{Result, Error};
+use crate::visa::Instrument;
 
 struct InstrumentThread {
     instr: Instrument,
