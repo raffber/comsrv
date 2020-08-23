@@ -1,9 +1,12 @@
-use visa_sys::Instrument as VisaInstrument;
-use thiserror::Error;
 use std::fmt::{Display, Formatter};
-use serde::{Serialize, Deserialize};
-use crate::visa::visa_sys::describe_status;
+
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+use visa_sys::Instrument as VisaInstrument;
+
 use crate::Result;
+use crate::visa::visa_sys::describe_status;
 
 pub mod asynced;
 mod visa_sys;
@@ -14,7 +17,7 @@ pub enum VisaRequest {
     QueryString(String),
     QueryBinary(String),
     SetTimeout(f32),
-    GetTimeout
+    GetTimeout,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -45,7 +48,7 @@ impl VisaError {
         let desc = describe_status(code);
         Self {
             desc,
-            code
+            code,
         }
     }
 }

@@ -1,12 +1,13 @@
-use tokio::sync::mpsc;
 use std::collections::{HashMap, HashSet};
-use tokio::sync::Mutex;
 use std::sync::Arc;
-use tokio::task;
-use crate::{Result, Error};
-use crate::visa::asynced as async_visa;
-use serde::{Serialize, Deserialize};
 
+use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
+use tokio::sync::Mutex;
+use tokio::task;
+
+use crate::{Error, Result};
+use crate::visa::asynced as async_visa;
 
 enum InventoryMsg {
     Disconnected(String),

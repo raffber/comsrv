@@ -1,15 +1,17 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
-mod inventory;
-pub mod visa;
+#[macro_use]
+extern crate dlopen_derive;
+#[macro_use]
+extern crate lazy_static;
 
-#[macro_use] extern crate dlopen_derive;
-#[macro_use] extern crate lazy_static;
-
-use visa::VisaError;
 use std::io;
 
+use visa::VisaError;
+
+mod inventory;
+pub mod visa;
 
 pub enum Error {
     Visa(VisaError),

@@ -1,12 +1,13 @@
-use tempfile::NamedTempFile;
-use std::io::Write;
-use dlopen::wrapper::{Container, WrapperApi};
-use std::os::raw::c_char;
-use lazy_static;
 use std::ffi::{CStr, CString};
+use std::io::Write;
 use std::mem::MaybeUninit;
-use crate::visa::VisaError;
+use std::os::raw::c_char;
 
+use dlopen::wrapper::{Container, WrapperApi};
+use lazy_static;
+use tempfile::NamedTempFile;
+
+use crate::visa::VisaError;
 
 cfg_if::cfg_if! {
     if #[cfg(unix)] {
@@ -26,7 +27,7 @@ type ViAttrState = u64;
 #[derive(Clone, WrapperApi)]
 struct Api {
     viOpen: unsafe extern "C" fn(session: ViSession, rsrc: *const c_char,
-                                  access_mode: ViAccessMode, timeout: u32, vi: *mut ViObject) -> ViStatus,
+                                 access_mode: ViAccessMode, timeout: u32, vi: *mut ViObject) -> ViStatus,
     viOpenDefaultRM: extern "C" fn(vi: *mut ViSession) -> ViStatus,
     viClose: extern "C" fn(vi: ViObject) -> ViStatus,
     viSetAttribute: extern "C" fn(vi: ViObject, attr: ViAttr, value: ViAttrState) -> ViStatus,
@@ -59,7 +60,7 @@ impl Visa {
         }
         Visa {
             api: cont,
-            rm
+            rm,
         }
     }
 }
@@ -85,7 +86,7 @@ pub fn open_instrument(addr: String, timeout: Option<f32>) -> Result<Instrument,
 pub fn describe_status(status: ViStatus) -> String {
     unsafe {
         let mut data: [c_char; 512] = MaybeUninit::uninit().assume_init();
-        let new_status = VISA.api.viStatusDesc(VISA.rm,  status, data.as_mut_ptr());
+        let new_status = VISA.api.viStatusDesc(VISA.rm, status, data.as_mut_ptr());
         println!("{}", new_status);
         let ret = CStr::from_ptr(data.as_ptr());
         ret.to_str().unwrap().to_string()
@@ -110,7 +111,7 @@ impl Attr {
     fn new(instr: ViObject, code: ViAttr) -> Self {
         Attr {
             instr,
-            code
+            code,
         }
     }
 
@@ -134,7 +135,6 @@ impl Attr {
         } else {
             Ok(ret)
         }
-
     }
 }
 
@@ -148,7 +148,7 @@ impl Instrument {
     pub fn read(&self, size: usize) -> Result<Vec<u8>, VisaError> {
         let mut data: Vec<u8> = Vec::with_capacity(size);
         unsafe {
-            let ptr= data.as_mut_ptr();
+            let ptr = data.as_mut_ptr();
             let mut actually_read = 0_u32;
             let ret = VISA.api.viRead(self.instr, ptr, size as u32, &mut actually_read as *mut u32);
             if ret < 0 {
@@ -209,7 +209,7 @@ impl Timeout {
     }
 
     fn get(&self) -> Result<f32, VisaError> {
-        let ret= self.attr.get()? as u32;
+        let ret = self.attr.get()? as u32;
         if ret == VI_TMO_INFINITE {
             return Ok(f32::INFINITY);
         }

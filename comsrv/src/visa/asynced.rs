@@ -1,10 +1,12 @@
-use crate::visa::{Instrument as BlockingInstrument, VisaRequest, VisaReply, VisaResult};
-use tokio::sync::oneshot;
-use crate::Error;
 use std::sync::mpsc;
 use std::thread;
+
+use tokio::sync::oneshot;
 use tokio::task::spawn_blocking;
+
+use crate::Error;
 use crate::inventory::ConnectOptions;
+use crate::visa::{Instrument as BlockingInstrument, VisaReply, VisaRequest, VisaResult};
 
 pub struct Thread {
     instr: BlockingInstrument,
@@ -21,7 +23,7 @@ enum Msg {
         request: VisaRequest,
         reply: oneshot::Sender<VisaResult<VisaReply>>,
     },
-    Drop
+    Drop,
 }
 
 impl Instrument {
@@ -46,14 +48,14 @@ impl Instrument {
             }
         });
 
-        Instrument {  tx }
+        Instrument { tx }
     }
 
     async fn handle(&self, req: VisaRequest) -> crate::Result<VisaReply> {
         let (tx, rx) = oneshot::channel();
         let thmsg = Msg::Request {
             request: req,
-            reply: tx
+            reply: tx,
         };
         self.tx.send(thmsg).map_err(|_| Error::Disconnected)?;
         let ret: VisaResult<VisaReply> = rx.await.map_err(|_| Error::ChannelBroken)?;
@@ -63,7 +65,6 @@ impl Instrument {
     fn disconnect(self) {
         let _ = self.tx.send(Msg::Drop);
     }
-
 }
 
 impl Thread {
@@ -72,7 +73,7 @@ impl Thread {
             Msg::Request { request, reply } => {
                 let _ = reply.send(self.instr.handle(request));
                 true
-            },
+            }
             Msg::Drop => false,
         }
     }
