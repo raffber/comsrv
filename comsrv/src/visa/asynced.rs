@@ -46,7 +46,7 @@ impl Instrument {
             }
         });
 
-        Instrument { tx }
+        Instrument {  tx }
     }
 
     async fn handle(&self, req: VisaRequest) -> crate::Result<VisaReply> {

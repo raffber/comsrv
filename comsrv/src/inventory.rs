@@ -1,6 +1,6 @@
 use tokio::sync::mpsc;
 use std::collections::{HashMap, HashSet};
-use tokio::sync::RwLock;
+use tokio::sync::Mutex;
 use std::sync::Arc;
 use tokio::task;
 use crate::{Result, Error};
@@ -18,9 +18,7 @@ pub enum Instrument {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct ConnectOptions {
-
-}
+pub struct ConnectOptions {}
 
 struct InventoryShared {
     connecting: HashSet<String>,
@@ -28,24 +26,26 @@ struct InventoryShared {
     tx: mpsc::UnboundedSender<InventoryMsg>,
 }
 
-struct Inventory(Arc<RwLock<InventoryShared>>);
+#[derive(Clone)]
+struct Inventory(Arc<Mutex<InventoryShared>>);
 
 impl Inventory {
     pub fn new() -> Self {
-        let (tx,rx) = mpsc::unbounded_channel();
+        let (tx, rx) = mpsc::unbounded_channel();
         let inner = InventoryShared {
             connecting: Default::default(),
             instruments: Default::default(),
-            tx
+            tx,
         };
-        let inner =  Arc::new(RwLock::new(inner));
-        InventoryMonitor::start(inner.clone(), rx);
-        Self(inner)
+        let inner = Arc::new(Mutex::new(inner));
+        let ret = Self(inner);
+        InventoryMonitor::start(ret.clone(), rx);
+        ret
     }
 
     pub async fn connect(&mut self, addr: String, options: Option<ConnectOptions>) -> Result<Instrument> {
         {
-            let mut inner = self.0.write().await;
+            let mut inner = self.0.lock().await;
             if let Some(ret) = inner.instruments.get(&addr) {
                 return Ok(ret.clone());
             }
@@ -56,7 +56,7 @@ impl Inventory {
         }
         let instr = async_visa::Instrument::connect(addr.clone(), options).await;
         {
-            let mut inner = self.0.write().await;
+            let mut inner = self.0.lock().await;
             inner.connecting.remove(&addr);
             let instr = instr?;
             inner.instruments.insert(addr.clone(), Instrument::Visa(instr));
@@ -65,43 +65,43 @@ impl Inventory {
     }
 
     pub async fn get<T: AsRef<str>>(&self, addr: T) -> Option<Instrument> {
-        let read = self.0.read().await;
+        let read = self.0.lock().await;
         read.instruments.get(addr.as_ref()).map(|x| x.clone())
     }
 
     pub async fn close<T: AsRef<str>>(&mut self, addr: T) {
-        self.0.write().await.instruments.remove(addr.as_ref());
+        self.0.lock().await.instruments.remove(addr.as_ref());
     }
 
     pub async fn list(&self) -> Vec<String> {
-        self.0.read().await.instruments.keys().map(|x| x.clone()).collect()
+        self.0.lock().await.instruments.keys().map(|x| x.clone()).collect()
     }
 }
 
 struct InventoryMonitor {
-    // inventory: Arc<RwLock<InventoryShared>>,
+    inventory: Inventory,
     rx: mpsc::UnboundedReceiver<InventoryMsg>,
 }
 
 impl InventoryMonitor {
-    fn start(_inventory: Arc<RwLock<InventoryShared>>, rx: mpsc::UnboundedReceiver<InventoryMsg>) {
+    fn start(inventory: Inventory, rx: mpsc::UnboundedReceiver<InventoryMsg>) {
         let mut monitor = InventoryMonitor {
-            // inventory,
-            rx
+            inventory,
+            rx,
         };
         task::spawn(async move {
-            while let Some(_msg) = monitor.rx.recv().await {
-            //     monitor.handle_msg(msg);
+            while let Some(msg) = monitor.rx.recv().await {
+                monitor.handle_msg(msg).await;
             }
         });
     }
 
     async fn handle_msg(&mut self, msg: InventoryMsg) {
         match msg {
-            InventoryMsg::Disconnected(_x) => {
-                // let mut write = self.inventory.write().await;
-                // write.instruments.remove(&x);
-            },
+            InventoryMsg::Disconnected(x) => {
+                let mut write = self.inventory.0.lock().await;
+                write.instruments.remove(&x);
+            }
         }
     }
 }
