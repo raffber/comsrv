@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::task;
@@ -9,7 +8,7 @@ use either::Either;
 
 use crate::Result;
 use crate::visa::{asynced as async_visa, VisaOptions};
-use crate::app::{Request, Response};
+use crate::app::{Request, Response, InstrumentOptions};
 
 enum InventoryMsg {
     Disconnected(String),
@@ -29,12 +28,6 @@ impl Instrument {
     pub fn handle(&self, _req: Request) -> Result<Response> {
         Err(crate::Error::NotSupported) // TODO: ...
     }
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum InstrumentOptions {
-    Visa(VisaOptions),
-    Default,
 }
 
 struct InventoryShared {

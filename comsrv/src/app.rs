@@ -5,19 +5,21 @@ use wsrpc::server::Server;
 
 use crate::{ScpiRequest, ScpiResponse};
 use crate::inventory::Inventory;
-use crate::visa::VisaError;
+use crate::visa::{VisaError, VisaOptions};
+
+#[derive(Clone, Serialize, Deserialize)]
+pub enum InstrumentOptions {
+    Visa(VisaOptions),
+    Default,
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
     Scpi {
         addr: String,
         task: ScpiRequest,
+        options: InstrumentOptions,
     },
-    SetTimeout {
-        addr: String,
-        timeout: f32,
-    },
-    GetTimeout(String),
 }
 
 #[derive(Clone, Serialize, Deserialize)]
