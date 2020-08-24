@@ -43,7 +43,7 @@ struct InventoryShared {
 }
 
 #[derive(Clone)]
-struct Inventory(Arc<Mutex<InventoryShared>>);
+pub struct Inventory(Arc<Mutex<InventoryShared>>);
 
 impl Inventory {
     pub fn new() -> Self {

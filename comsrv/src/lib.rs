@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 mod inventory;
 pub mod visa;
-mod app;
+pub mod app;
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
