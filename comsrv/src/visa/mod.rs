@@ -12,6 +12,18 @@ use crate::app::{Request, Response};
 pub mod asynced;
 mod visa_sys;
 
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct VisaOptions {
+
+}
+
+impl Default for VisaOptions {
+    fn default() -> Self {
+        Self {}
+    }
+}
+
 #[derive(Error, Clone, Debug, Serialize, Deserialize)]
 pub struct VisaError {
     desc: String,

@@ -12,6 +12,7 @@ use std::io;
 use visa::VisaError;
 use serde::{Serialize, Deserialize};
 use thiserror::Error;
+use std::sync::Arc;
 
 mod inventory;
 pub mod visa;
@@ -32,16 +33,18 @@ pub enum ScpiResponse {
     Binary(Vec<u8>),
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum Error {
     #[error("Error while communicating with device: {0}")]
     Visa(VisaError),
     #[error("IO Error occurred: {0}")]
-    Io(io::Error),
+    Io(Arc<io::Error>),
     #[error("Instrument is disconnected")]
     Disconnected,
     #[error("Operation not supported")]
     NotSupported,
+    #[error("Cannot connect")]
+    CannotConnect,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

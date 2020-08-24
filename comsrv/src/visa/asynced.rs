@@ -5,8 +5,7 @@ use tokio::sync::oneshot;
 use tokio::task::spawn_blocking;
 
 use crate::Error;
-use crate::inventory::ConnectOptions;
-use crate::visa::{Instrument as BlockingInstrument};
+use crate::visa::{Instrument as BlockingInstrument, VisaOptions};
 use crate::app::{Request, Response};
 
 pub struct Thread {
@@ -28,7 +27,7 @@ enum Msg {
 }
 
 impl Instrument {
-    pub async fn connect<T: Into<String>>(addr: T, _options: Option<ConnectOptions>) -> crate::Result<Instrument> {
+    pub async fn connect<T: Into<String>>(addr: T, _options: VisaOptions) -> crate::Result<Instrument> {
         let addr = addr.into();
         let instr = spawn_blocking(move || {
             BlockingInstrument::new(addr)

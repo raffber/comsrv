@@ -5,9 +5,10 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::task;
+use either::Either;
 
 use crate::Result;
-use crate::visa::asynced as async_visa;
+use crate::visa::{asynced as async_visa, VisaOptions};
 use crate::app::{Request, Response};
 
 enum InventoryMsg {
@@ -19,6 +20,11 @@ pub enum Instrument {
     Visa(async_visa::Instrument),
 }
 
+pub enum LockOrInstrument {
+    Instrument(Instrument),
+    Lock(Arc<Mutex<Result<Instrument>>>),
+}
+
 impl Instrument {
     pub fn handle(&self, _req: Request) -> Result<Response> {
         Err(crate::Error::NotSupported) // TODO: ...
@@ -26,10 +32,13 @@ impl Instrument {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct ConnectOptions {}
+pub enum InstrumentOptions {
+    Visa(VisaOptions),
+    Default,
+}
 
 struct InventoryShared {
-    instruments: HashMap<String, Instrument>,
+    instruments: HashMap<String, LockOrInstrument>,
     tx: mpsc::UnboundedSender<InventoryMsg>,
 }
 
@@ -49,27 +58,51 @@ impl Inventory {
         ret
     }
 
-    pub async fn connect(&mut self, addr: String, options: Option<ConnectOptions>) -> Result<Instrument> {
-        {
-            let inner = self.0.lock().await;
+    pub async fn connect(&mut self, addr: String, options: InstrumentOptions) -> Result<Instrument> {
+        let new_lock = Arc::new(Mutex::new(Err(crate::Error::NotSupported)));
+        let old_or_new = {
+            let mut inner = self.0.lock().await;
             if let Some(ret) = inner.instruments.get(&addr) {
-                return Ok(ret.clone());
+                match ret {
+                    LockOrInstrument::Instrument(instr) => {
+                        return Ok(instr.clone());
+                    },
+                    LockOrInstrument::Lock(lock) => {
+                        Either::Left(lock.clone())
+                    },
+                }
+            } else {
+                // place a lock into the hashmap for other threads to wait for
+                inner.instruments.insert(addr.clone(), LockOrInstrument::Lock(new_lock.clone()));
+                Either::Right(new_lock.lock().await)
             }
-        }
-        // TODO: make sure not to connect multiple instruments at the same time by directly retrieving
-        // the handle first and spawning the connection in another task
-        let instr = async_visa::Instrument::connect(addr.clone(), options).await;
+        };
+
+        let mut guard = match old_or_new {
+            Either::Left(old_lock) => {
+                // wait for the connection to be there
+                return old_lock.lock().await.clone();
+            },
+            // or proceed with the guard
+            Either::Right(guard) => guard,
+        };
+
+        // perform the actual connection...
+        let visa_options = match options {
+            InstrumentOptions::Visa(visa) => visa,
+            InstrumentOptions::Default => VisaOptions::default(),
+        };
+        let instr = async_visa::Instrument::connect(addr.clone(), visa_options)
+            .await.map(Instrument::Visa);
+        *guard = instr.clone();
+
+        let instr = instr?;
+
         {
             let mut inner = self.0.lock().await;
-            let instr = instr?;
-            inner.instruments.insert(addr.clone(), Instrument::Visa(instr));
-            Ok(inner.instruments.get(&addr).unwrap().clone())
+            inner.instruments.insert(addr.clone(), LockOrInstrument::Instrument(instr.clone()));
+            Ok(instr)
         }
-    }
-
-    pub async fn get<T: AsRef<str>>(&self, addr: T) -> Option<Instrument> {
-        let read = self.0.lock().await;
-        read.instruments.get(addr.as_ref()).map(|x| x.clone())
     }
 
     pub async fn close<T: AsRef<str>>(&mut self, addr: T) {
