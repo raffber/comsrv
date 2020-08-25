@@ -1,3 +1,5 @@
+mod consts;
+
 use serde::{Deserialize, Serialize};
 pub use visa_sys::{VisaError, VisaResult};
 use visa_sys::Instrument as VisaInstrument;
@@ -8,6 +10,7 @@ pub mod asynced;
 mod visa_sys;
 
 const DEFAULT_TIMEOUT: f32 = 3.0;
+const DEFAULT_CHUNK_SIZE: usize = 20*1024; // from pyvisa
 
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -32,11 +35,26 @@ impl Instrument {
         })
     }
 
-    pub fn write<T: AsRef<str>>(&self, _msg: T) -> VisaResult<()> {
-        todo!()
+    pub fn write<T: AsRef<str>>(&self, msg: T, _options: VisaOptions) -> VisaResult<()> {
+        let msg = msg.as_ref().as_bytes();
+        self.instr.write(msg)
     }
 
-    pub fn query_string<T: AsRef<str>>(&self, _msg: T) -> VisaResult<String> {
+    fn read(&self) -> VisaResult<Vec<u8>> {
+        let mut ret = Vec::new();
+        loop {
+            let (data, status) = self.instr.read(DEFAULT_CHUNK_SIZE)?;
+            ret.extend(data);
+            if status != (consts::VI_SUCCESS_MAX_CNT as i32) {
+                break
+            }
+        }
+        Ok(ret)
+    }
+
+    pub fn query_string<T: AsRef<str>>(&self, _msg: T, _options: VisaOptions) -> VisaResult<String> {
+        // self.write(msg)?;
+
         todo!()
     }
 

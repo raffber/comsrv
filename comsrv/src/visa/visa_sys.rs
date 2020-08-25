@@ -176,9 +176,9 @@ impl Instrument {
         };
         Ok(Instrument { instr, addr })
     }
-    pub fn read(&self, size: usize) -> Result<Vec<u8>, VisaError> {
+    pub fn read(&self, size: usize) -> Result<(Vec<u8>, i32), VisaError> {
         let mut data: Vec<u8> = Vec::with_capacity(size);
-        unsafe {
+        let code = unsafe {
             let ptr = data.as_mut_ptr();
             let mut actually_read = 0_u32;
             let ret = VISA.api.viRead(self.instr, ptr, size as u32, &mut actually_read as *mut u32);
@@ -186,8 +186,9 @@ impl Instrument {
                 return Err(VisaError::new(ret));
             }
             data.set_len(size);
-        }
-        Ok(data)
+            ret
+        };
+        Ok((data, code))
     }
 
     pub fn write<'a, T: Into<&'a [u8]>>(&self, data: T) -> Result<(), VisaError> {
