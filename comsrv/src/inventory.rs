@@ -4,11 +4,13 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::task;
-use either::Either;
 
 use crate::Result;
 use crate::visa::{asynced as async_visa, VisaOptions};
 use crate::app::{Request, Response, InstrumentOptions};
+use futures::future::Shared;
+use futures::FutureExt;
+use futures::channel::oneshot;
 
 enum InventoryMsg {
     Disconnected(String),
@@ -19,9 +21,9 @@ pub enum Instrument {
     Visa(async_visa::Instrument),
 }
 
-pub enum LockOrInstrument {
+pub enum ConnectingInstrument {
     Instrument(Instrument),
-    Lock(Arc<Mutex<Result<Instrument>>>),
+    Future(Shared<oneshot::Receiver<Arc<Mutex<Result<Instrument>>>>>),
 }
 
 impl Instrument {
@@ -31,7 +33,7 @@ impl Instrument {
 }
 
 struct InventoryShared {
-    instruments: HashMap<String, LockOrInstrument>,
+    instruments: HashMap<String, ConnectingInstrument>,
     tx: mpsc::UnboundedSender<InventoryMsg>,
 }
 
@@ -51,35 +53,37 @@ impl Inventory {
         ret
     }
 
-    pub async fn connect(&mut self, addr: String, options: InstrumentOptions) -> Result<Instrument> {
-        let new_lock = Arc::new(Mutex::new(Err(crate::Error::NotSupported)));
-        let old_or_new = {
+    pub async fn connect(&self, addr: String, options: InstrumentOptions) -> Result<Instrument> {
+        let (tx, rx) = oneshot::channel();
+        let rx = rx.shared();
+        let rx = {
             let mut inner = self.0.lock().await;
             if let Some(ret) = inner.instruments.get(&addr) {
                 match ret {
-                    LockOrInstrument::Instrument(instr) => {
+                    ConnectingInstrument::Instrument(instr) => {
                         return Ok(instr.clone());
                     },
-                    LockOrInstrument::Lock(lock) => {
-                        Either::Left(lock.clone())
+                    ConnectingInstrument::Future(fut) => {
+                        Some(fut.clone())
                     },
                 }
             } else {
                 // place a lock into the hashmap for other threads to wait for
-                inner.instruments.insert(addr.clone(), LockOrInstrument::Lock(new_lock.clone()));
-                Either::Right(new_lock.lock().await)
+                inner.instruments.insert(addr.clone(), ConnectingInstrument::Future(rx));
+                None
             }
         };
 
-        let mut guard = match old_or_new {
-            Either::Left(old_lock) => {
-                // wait for the connection to be there
-                return old_lock.lock().await.clone();
-            },
-            // or proceed with the guard
-            Either::Right(guard) => guard,
-        };
+        if let Some(rx) = rx {
+            return match rx.await {
+                Ok(res) => res.lock().await.clone(),
+                Err(_) => Err(crate::Error::CannotConnect),
+            };
+        }
+        self.do_connect(tx, addr, options).await
+    }
 
+    async fn do_connect(&self, tx: oneshot::Sender<Arc<Mutex<Result<Instrument>>>>, addr: String, options: InstrumentOptions) -> Result<Instrument> {
         // perform the actual connection...
         let visa_options = match options {
             InstrumentOptions::Visa(visa) => visa,
@@ -87,13 +91,13 @@ impl Inventory {
         };
         let instr = async_visa::Instrument::connect(addr.clone(), visa_options)
             .await.map(Instrument::Visa);
-        *guard = instr.clone();
+        let _ = tx.send(Arc::new(Mutex::new(instr.clone())));
 
         let instr = instr?;
 
         {
             let mut inner = self.0.lock().await;
-            inner.instruments.insert(addr.clone(), LockOrInstrument::Instrument(instr.clone()));
+            inner.instruments.insert(addr.clone(), ConnectingInstrument::Instrument(instr.clone()));
             Ok(instr)
         }
     }

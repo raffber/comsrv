@@ -91,7 +91,6 @@ dependencies = [
  "clap",
  "dlopen",
  "dlopen_derive",
- "either",
  "futures",
  "lazy_static",
  "serde",
@@ -138,12 +137,6 @@ dependencies = [
  "quote 0.6.13",
  "syn 0.15.44",
 ]
-
-[[package]]
-name = "either"
-version = "1.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd56b59865bce947ac5958779cfa508f6c3b9497cc762b7e24a12d11ccde2c4f"
 
 [[package]]
 name = "env_logger"

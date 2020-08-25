@@ -3,7 +3,7 @@ use tokio::task;
 
 use wsrpc::server::Server;
 
-use crate::{ScpiRequest, ScpiResponse};
+use crate::{ScpiRequest, ScpiResponse, Error};
 use crate::inventory::Inventory;
 use crate::visa::{VisaError, VisaOptions};
 
@@ -20,6 +20,7 @@ pub enum Request {
         task: ScpiRequest,
         options: InstrumentOptions,
     },
+    ListInstruments,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -33,6 +34,7 @@ pub enum RpcError {
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Response {
     Error(RpcError),
+    Instruments(Vec<String>),
     Scpi(ScpiResponse),
 }
 
@@ -63,8 +65,29 @@ impl App {
         }
     }
 
-    async fn handle_request(&self, _req: Request) -> Response {
+    fn map_error(err: Error) -> RpcError {
         todo!()
+
+    }
+
+    async fn handle_scpi(&self, addr: String, task: ScpiRequest, options: InstrumentOptions) -> Result<ScpiResponse, RpcError> {
+        let inventory = self.inventory.clone();
+        let instr = inventory.connect(addr, options).await.map_err(Self::map_error)?;
+        todo!()
+    }
+
+    async fn handle_request(&self, req: Request) -> Response {
+        match req {
+            Request::Scpi { addr, task, options } => {
+                match self.handle_scpi(addr, task, options).await {
+                    Ok(result) => Response::Scpi(result),
+                    Err(err) => Response::Error(err)
+                }
+            }
+            Request::ListInstruments => {
+                Response::Instruments(self.inventory.list().await)
+            }
+        }
     }
 }
 
