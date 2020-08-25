@@ -5,9 +5,8 @@ use thiserror::Error;
 
 use visa_sys::Instrument as VisaInstrument;
 
-use crate::Result;
+use crate::{Result, ScpiRequest, ScpiResponse};
 use crate::visa::visa_sys::describe_status;
-use crate::app::{Request, Response};
 
 pub mod asynced;
 mod visa_sys;
@@ -84,7 +83,7 @@ impl Instrument {
         self.instr.addr()
     }
 
-    pub fn handle(&self, _req: Request) -> VisaResult<Response> {
+    pub fn handle_scpi(&self, _req: ScpiRequest) -> VisaResult<ScpiResponse> {
         todo!()
     }
 }

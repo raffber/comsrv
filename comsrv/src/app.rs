@@ -4,7 +4,7 @@ use tokio::task;
 use wsrpc::server::Server;
 
 use crate::{ScpiRequest, ScpiResponse, Error};
-use crate::inventory::Inventory;
+use crate::inventory::{Inventory, Instrument};
 use crate::visa::{VisaError, VisaOptions};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -24,6 +24,13 @@ pub enum Request {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+pub enum Response {
+    Error(RpcError),
+    Instruments(Vec<String>),
+    Scpi(ScpiResponse),
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub enum RpcError {
     Io(String),
     Visa(VisaError),
@@ -31,11 +38,16 @@ pub enum RpcError {
     NotSupported,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-pub enum Response {
-    Error(RpcError),
-    Instruments(Vec<String>),
-    Scpi(ScpiResponse),
+impl RpcError {
+    fn map_result<T>(result: Result<T, Error>) -> Result<T, RpcError> {
+        result.map_err(|x| x.into())
+    }
+}
+
+impl From<Error> for RpcError {
+    fn from(_: Error) -> Self {
+        unimplemented!()
+    }
 }
 
 #[derive(Clone)]
@@ -65,15 +77,15 @@ impl App {
         }
     }
 
-    fn map_error(err: Error) -> RpcError {
-        todo!()
-
-    }
-
     async fn handle_scpi(&self, addr: String, task: ScpiRequest, options: InstrumentOptions) -> Result<ScpiResponse, RpcError> {
         let inventory = self.inventory.clone();
-        let instr = inventory.connect(addr, options).await.map_err(Self::map_error)?;
-        todo!()
+        let instr = RpcError::map_result(inventory.connect(addr, options).await)?;
+        match instr {
+            Instrument::Visa(instr) => {
+                let ret = instr.handle_scpi(task).await;
+                RpcError::map_result(ret)
+            },
+        }
     }
 
     async fn handle_request(&self, req: Request) -> Response {

@@ -4,9 +4,8 @@ use std::thread;
 use tokio::sync::oneshot;
 use tokio::task::spawn_blocking;
 
-use crate::Error;
+use crate::{Error, ScpiRequest, ScpiResponse};
 use crate::visa::{Instrument as BlockingInstrument, VisaOptions};
-use crate::app::{Request, Response};
 
 pub struct Thread {
     instr: BlockingInstrument,
@@ -19,9 +18,9 @@ pub struct Instrument {
 }
 
 enum Msg {
-    Request {
-        request: Request,
-        reply: oneshot::Sender<crate::Result<Response>>,
+    Scpi {
+        request: ScpiRequest,
+        reply: oneshot::Sender<crate::Result<ScpiResponse>>,
     },
     Drop,
 }
@@ -50,9 +49,9 @@ impl Instrument {
         Instrument { tx }
     }
 
-    async fn handle(&self, req: Request) -> crate::Result<Response> {
+    pub async fn handle_scpi(self, req: ScpiRequest) -> crate::Result<ScpiResponse> {
         let (tx, rx) = oneshot::channel();
-        let thmsg = Msg::Request {
+        let thmsg = Msg::Scpi {
             request: req,
             reply: tx,
         };
@@ -68,8 +67,8 @@ impl Instrument {
 impl Thread {
     fn handle(&mut self, msg: Msg) -> bool {
         match msg {
-            Msg::Request { request, reply } => {
-                let _ = reply.send(self.instr.handle(request).map_err(Error::Visa));
+            Msg::Scpi { request, reply } => {
+                let _ = reply.send(self.instr.handle_scpi(request).map_err(Error::Visa));
                 true
             }
             Msg::Drop => false,

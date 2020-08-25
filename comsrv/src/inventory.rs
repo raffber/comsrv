@@ -7,7 +7,7 @@ use tokio::task;
 
 use crate::Result;
 use crate::visa::{asynced as async_visa, VisaOptions};
-use crate::app::{Request, Response, InstrumentOptions};
+use crate::app::InstrumentOptions;
 use futures::future::Shared;
 use futures::FutureExt;
 use futures::channel::oneshot;
@@ -24,12 +24,6 @@ pub enum Instrument {
 pub enum ConnectingInstrument {
     Instrument(Instrument),
     Future(Shared<oneshot::Receiver<Arc<Mutex<Result<Instrument>>>>>),
-}
-
-impl Instrument {
-    pub fn handle(&self, _req: Request) -> Result<Response> {
-        Err(crate::Error::NotSupported) // TODO: ...
-    }
 }
 
 struct InventoryShared {
