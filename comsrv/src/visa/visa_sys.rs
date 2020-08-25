@@ -2,12 +2,44 @@ use std::ffi::{CStr, CString};
 use std::io::Write;
 use std::mem::MaybeUninit;
 use std::os::raw::c_char;
+use std::fmt::{Display, Formatter};
+use thiserror::Error;
+use serde::{Deserialize, Serialize};
 
 use dlopen::wrapper::{Container, WrapperApi};
 use lazy_static;
 use tempfile::NamedTempFile;
 
-use crate::visa::VisaError;
+#[derive(Error, Clone, Debug, Serialize, Deserialize)]
+pub struct VisaError {
+    desc: String,
+    code: i32,
+}
+
+pub type VisaResult<T> = std::result::Result<T, VisaError>;
+
+impl Display for VisaError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("VisaError({}): `{}`", self.code, self.desc))
+    }
+}
+
+impl VisaError {
+    pub fn new(code: i32) -> Self {
+        let desc = describe_status(code);
+        Self {
+            desc,
+            code,
+        }
+    }
+}
+
+impl From<VisaError> for crate::Error {
+    fn from(err: VisaError) -> Self {
+        crate::Error::Visa(err)
+    }
+}
+
 
 cfg_if::cfg_if! {
     if #[cfg(unix)] {
@@ -65,25 +97,7 @@ impl Visa {
     }
 }
 
-pub fn open_instrument(addr: String, timeout: Option<f32>) -> Result<Instrument, VisaError> {
-    let instr = unsafe {
-        let cstr = CString::new(addr.clone()).unwrap();
-        let tmo = if let Some(tmo) = timeout {
-            (tmo * 1000.0).round() as u32
-        } else {
-            0
-        };
-        let mut handle: ViObject = 0;
-        let status = VISA.api.viOpen(VISA.rm, cstr.as_ptr(), 0, tmo, &mut handle as *mut ViObject);
-        if status < 0 {
-            return Err(VisaError::new(status));
-        }
-        handle
-    };
-    Ok(Instrument { instr, addr })
-}
-
-pub fn describe_status(status: ViStatus) -> String {
+fn describe_status(status: ViStatus) -> String {
     unsafe {
         let mut data: [c_char; 512] = MaybeUninit::uninit().assume_init();
         let new_status = VISA.api.viStatusDesc(VISA.rm, status, data.as_mut_ptr());
@@ -145,6 +159,23 @@ pub struct Instrument {
 }
 
 impl Instrument {
+    pub fn open(addr: String, timeout: Option<f32>) -> Result<Instrument, VisaError> {
+        let instr = unsafe {
+            let cstr = CString::new(addr.clone()).unwrap();
+            let tmo = if let Some(tmo) = timeout {
+                (tmo * 1000.0).round() as u32
+            } else {
+                0
+            };
+            let mut handle: ViObject = 0;
+            let status = VISA.api.viOpen(VISA.rm, cstr.as_ptr(), 0, tmo, &mut handle as *mut ViObject);
+            if status < 0 {
+                return Err(VisaError::new(status));
+            }
+            handle
+        };
+        Ok(Instrument { instr, addr })
+    }
     pub fn read(&self, size: usize) -> Result<Vec<u8>, VisaError> {
         let mut data: Vec<u8> = Vec::with_capacity(size);
         unsafe {

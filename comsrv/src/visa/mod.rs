@@ -1,20 +1,17 @@
-use std::fmt::{Display, Formatter};
-
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
-
+pub use visa_sys::{VisaError, VisaResult};
 use visa_sys::Instrument as VisaInstrument;
 
-use crate::{Result, ScpiRequest, ScpiResponse};
-use crate::visa::visa_sys::describe_status;
+use crate::{ScpiRequest, ScpiResponse};
 
 pub mod asynced;
 mod visa_sys;
 
+const DEFAULT_TIMEOUT: f32 = 3.0;
+
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct VisaOptions {
-
 }
 
 impl Default for VisaOptions {
@@ -23,40 +20,16 @@ impl Default for VisaOptions {
     }
 }
 
-#[derive(Error, Clone, Debug, Serialize, Deserialize)]
-pub struct VisaError {
-    desc: String,
-    code: i32,
-}
-
-type VisaResult<T> = std::result::Result<T, VisaError>;
-
-impl Display for VisaError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("VisaError({}): `{}`", self.code, self.desc))
-    }
-}
-
-impl VisaError {
-    pub fn new(code: i32) -> Self {
-        let desc = describe_status(code);
-        Self {
-            desc,
-            code,
-        }
-    }
-}
-
 
 pub struct Instrument {
     instr: VisaInstrument,
-    pub read_termination: String,
-    pub write_terminatin: String,
 }
 
 impl Instrument {
-    pub fn new(_addr: String) -> Result<Self> {
-        todo!()
+    pub fn open(addr: String, _options: VisaOptions) -> VisaResult<Self> {
+        Ok(Self {
+            instr: VisaInstrument::open(addr, Some(DEFAULT_TIMEOUT))?
+        })
     }
 
     pub fn write<T: AsRef<str>>(&self, _msg: T) -> VisaResult<()> {

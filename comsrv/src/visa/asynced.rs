@@ -26,10 +26,10 @@ enum Msg {
 }
 
 impl Instrument {
-    pub async fn connect<T: Into<String>>(addr: T, _options: VisaOptions) -> crate::Result<Instrument> {
+    pub async fn connect<T: Into<String>>(addr: T, options: VisaOptions) -> crate::Result<Instrument> {
         let addr = addr.into();
         let instr = spawn_blocking(move || {
-            BlockingInstrument::new(addr)
+            BlockingInstrument::open(addr, options)
         }).await.unwrap();
         Ok(Self::spawn(instr?))
     }

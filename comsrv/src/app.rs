@@ -38,12 +38,6 @@ pub enum RpcError {
     NotSupported,
 }
 
-impl RpcError {
-    fn map_result<T>(result: Result<T, Error>) -> Result<T, RpcError> {
-        result.map_err(|x| x.into())
-    }
-}
-
 impl From<Error> for RpcError {
     fn from(_: Error) -> Self {
         unimplemented!()
@@ -79,11 +73,11 @@ impl App {
 
     async fn handle_scpi(&self, addr: String, task: ScpiRequest, options: InstrumentOptions) -> Result<ScpiResponse, RpcError> {
         let inventory = self.inventory.clone();
-        let instr = RpcError::map_result(inventory.connect(addr, options).await)?;
+        let instr = inventory.connect(addr, options).await?;
         match instr {
             Instrument::Visa(instr) => {
-                let ret = instr.handle_scpi(task).await;
-                RpcError::map_result(ret)
+                let ret = instr.handle_scpi(task).await?;
+                Ok(ret)
             },
         }
     }
