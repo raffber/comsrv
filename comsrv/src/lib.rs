@@ -13,6 +13,7 @@ use visa::VisaError;
 use serde::{Serialize, Deserialize};
 use thiserror::Error;
 use std::sync::Arc;
+use std::string::FromUtf8Error;
 
 mod inventory;
 pub mod visa;
@@ -45,6 +46,12 @@ pub enum Error {
     NotSupported,
     #[error("Cannot connect")]
     CannotConnect,
+    #[error("Cannot decode: {0}")]
+    DecodeError(FromUtf8Error),
+    #[error("Invalid binary header")]
+    InvalidBinaryHeader,
+    #[error("String message not terminated")]
+    NotTerminated,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

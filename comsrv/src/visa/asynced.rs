@@ -20,6 +20,7 @@ pub struct Instrument {
 enum Msg {
     Scpi {
         request: ScpiRequest,
+        options: VisaOptions,
         reply: oneshot::Sender<crate::Result<ScpiResponse>>,
     },
     Drop,
@@ -29,7 +30,7 @@ impl Instrument {
     pub async fn connect<T: Into<String>>(addr: T, options: VisaOptions) -> crate::Result<Instrument> {
         let addr = addr.into();
         let instr = spawn_blocking(move || {
-            BlockingInstrument::open(addr, options)
+            BlockingInstrument::open(addr, &options)
         }).await.unwrap();
         Ok(Self::spawn(instr?))
     }
@@ -53,6 +54,7 @@ impl Instrument {
         let (tx, rx) = oneshot::channel();
         let thmsg = Msg::Scpi {
             request: req,
+            options: VisaOptions::default(),
             reply: tx,
         };
         self.tx.send(thmsg).map_err(|_| Error::Disconnected)?;
@@ -67,8 +69,8 @@ impl Instrument {
 impl Thread {
     fn handle(&mut self, msg: Msg) -> bool {
         match msg {
-            Msg::Scpi { request, reply } => {
-                let _ = reply.send(self.instr.handle_scpi(request).map_err(Error::Visa));
+            Msg::Scpi { request, options, reply } => {
+                let _ = reply.send(self.instr.handle_scpi(request, &options));
                 true
             }
             Msg::Drop => false,
