@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::sync::{Mutex, MutexGuard};
 use std::time::Instant;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -16,13 +18,27 @@ const TIMEOUT: f32 = 1.0;
 
 #[derive(Clone)]
 pub struct PrologixPort {
+    addr: String,
     tx: mpsc::UnboundedSender<Msg>,
+}
+
+impl PrologixPort {
+    fn connect(serial_addr: &str) -> Self {
+        let mut ports: MutexGuard<Ports> = PORTS.lock().unwrap();
+        ports.ports.get(serial_addr)
+            .map(|x| x.clone())
+            .unwrap_or_else(|| {
+                let handle = spawn_prologix(serial_addr);
+                ports.ports.insert(serial_addr.to_string(), handle.clone());
+                handle
+            })
+    }
 }
 
 #[derive(Clone)]
 pub struct Instrument {
-    port: PrologixPort,
-    addr: u8,
+    serial_addr: String,
+    gpib_addr: u8,
 }
 
 struct Request {
@@ -38,23 +54,34 @@ enum Msg {
     Drop,
 }
 
+#[derive(Default)]
+struct Ports {
+    ports: HashMap<String, PrologixPort>,
+}
+
+
+lazy_static! {
+    static ref PORTS: Mutex<Ports> = Mutex::new(Default::default());
+}
+
 impl Instrument {
-    pub async fn connect(port: PrologixPort, addr: u8) -> Self {
+    pub fn connect(serial_addr: &str, addr: u8) -> Self {
         Self {
-            port,
-            addr,
+            serial_addr: serial_addr.to_string(),
+            gpib_addr: addr,
         }
     }
 
-    pub async fn handle(&self, request: ScpiRequest) -> Result<ScpiResponse> {
+    pub async fn handle(&mut self, request: ScpiRequest) -> Result<ScpiResponse> {
+        let port = PrologixPort::connect(&self.serial_addr);
         let (tx, rx) = oneshot::channel();
         let msg = Msg::Request(Request {
-            addr: self.addr,
-            request,
+            addr: self.gpib_addr,
+            request: request.clone(),
             options: Default::default(),
             reply: tx,
         });
-        if self.port.tx.send(msg).is_err() {
+        if port.tx.send(msg).is_err() {
             return Err(Error::Disconnected);
         }
         let ret = rx.await.map_err(|_| Error::Disconnected)?;
@@ -62,10 +89,20 @@ impl Instrument {
     }
 }
 
-fn spawn_prologix(addr: String) -> PrologixPort {
+impl Drop for Instrument {
+    fn drop(&mut self) {
+        let mut ports: MutexGuard<Ports> = PORTS.lock().unwrap();
+        if let Some(port) = ports.ports.get(&self.serial_addr) {
+            let _ = port.tx.send(Msg::Drop);
+            ports.ports.remove(&self.serial_addr);
+        }
+    }
+}
+
+pub fn spawn_prologix(addr: &str) -> PrologixPort {
     let (tx, rx) = mpsc::unbounded_channel();
-    task::spawn(run_prologix(addr, rx));
-    PrologixPort { tx }
+    task::spawn(run_prologix(addr.to_string(), rx));
+    PrologixPort { addr: addr.to_string(), tx }
 }
 
 async fn run_prologix(addr: String, mut rx: mpsc::UnboundedReceiver<Msg>) -> Result<()> {

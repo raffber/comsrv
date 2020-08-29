@@ -105,6 +105,13 @@ impl App {
             Instrument::Modbus(_) => {
                 Err(RpcError::NotSupported)
             }
+            Instrument::Prologix(mut instr) => {
+                let ret = instr.handle(task).await;
+                if ret.is_err() {
+                    self.inventory.close(&addr).await;
+                }
+                Ok(ret?)
+            }
         }
     }
 
@@ -119,6 +126,7 @@ impl App {
                 }
                 Ok(ret?)
             }
+            Instrument::Prologix(_) => Err(RpcError::NotSupported),
         }
     }
 

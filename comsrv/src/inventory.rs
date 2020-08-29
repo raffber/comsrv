@@ -10,6 +10,7 @@ use tokio::task;
 
 use crate::instrument::{Instrument, InstrumentOptions};
 use crate::Result;
+use crate::prologix::PrologixPort;
 
 enum InventoryMsg {
     Disconnected(String),
@@ -23,6 +24,7 @@ pub enum ConnectingInstrument {
 struct InventoryShared {
     instruments: HashMap<String, ConnectingInstrument>,
     tx: mpsc::UnboundedSender<InventoryMsg>,
+    prologix: HashMap<String, PrologixPort>,
 }
 
 #[derive(Clone)]
@@ -34,6 +36,7 @@ impl Inventory {
         let inner = InventoryShared {
             instruments: Default::default(),
             tx,
+            prologix: Default::default()
         };
         let inner = Arc::new(Mutex::new(inner));
         let ret = Self(inner);
@@ -74,9 +77,7 @@ impl Inventory {
     async fn do_connect(&self, tx: oneshot::Sender<Arc<Mutex<Result<Instrument>>>>, addr: &str, options: &InstrumentOptions) -> Result<Instrument> {
         let instr = Instrument::connect(addr.to_string(), options).await;
         let _ = tx.send(Arc::new(Mutex::new(instr.clone())));
-
         let instr = instr?;
-
         {
             let mut inner = self.0.lock().await;
             inner.instruments.insert(addr.to_string(), ConnectingInstrument::Instrument(instr.clone()));

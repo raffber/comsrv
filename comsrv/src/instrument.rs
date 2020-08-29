@@ -28,6 +28,7 @@ impl InstrumentOptions {
 pub enum Instrument {
     Visa(crate::visa::asynced::Instrument),
     Modbus(crate::modbus::Instrument),
+    Prologix(crate::prologix::Instrument),
 }
 
 
@@ -44,8 +45,14 @@ impl Instrument {
             let addr: SocketAddr = addr.parse().map_err(|_| Error::InvalidAddress)?;
             crate::modbus::Instrument::connect(addr).await
                 .map(Instrument::Modbus)
+        } else if splits[0] == "prologix" {
+            if splits.len() != 3 {
+                return Err(Error::InvalidAddress);
+            }
+            let serial_addr = &splits[1];
+            let addr: u8 = splits[2].parse().map_err(|_| Error::InvalidAddress)?;
+            Ok(Instrument::Prologix(crate::prologix::Instrument::connect(serial_addr, addr)))
         } else {
-            // perform the actual connection...
             let visa_options = match options {
                 InstrumentOptions::Visa(visa) => visa.clone(),
                 InstrumentOptions::Default => VisaOptions::default(),
