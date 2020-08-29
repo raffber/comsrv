@@ -45,7 +45,7 @@ cfg_if::cfg_if! {
     if #[cfg(unix)] {
         const VISA_LIB: &'static [u8] = include_bytes!("../../lib/libvisa.so");
     } else {
-        const VISA_LIB: &'static [u8] = include_bytes!("todo.lib");
+        const VISA_LIB: &'static [u8] = include_bytes!("../../lib/visa64.dll");
     }
 }
 
@@ -83,7 +83,8 @@ impl Visa {
     fn new() -> Self {
         let mut tmpfile = NamedTempFile::new().unwrap();
         tmpfile.write_all(VISA_LIB).unwrap();
-        let name = tmpfile.path().to_str().unwrap();
+        let (_, path) = tmpfile.keep().unwrap();
+        let name = path.to_str().unwrap();
         let cont: Container<Api> = unsafe { Container::load(name) }.unwrap();
         let mut rm: ViSession = 0;
         let ret = cont.viOpenDefaultRM(&mut rm as *mut ViSession);
