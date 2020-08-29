@@ -58,12 +58,12 @@ struct Msg {
 }
 
 #[derive(Clone)]
-struct Instrument {
+pub struct Instrument {
     tx: mpsc::UnboundedSender<Msg>,
 }
 
 impl Instrument {
-    async fn connect(addr: SocketAddr) -> crate::Result<Self> {
+    pub async fn connect(addr: SocketAddr) -> crate::Result<Self> {
         let (tx, rx) = mpsc::unbounded_channel();
         let ctx = tcp::connect(addr).await.map_err(Error::io)?;
         task::spawn(thread(ctx, rx));
@@ -72,7 +72,7 @@ impl Instrument {
         })
     }
 
-    async fn handle(&mut self, req: ModBusRequest) -> crate::Result<ModBusResponse> {
+    pub async fn handle(&mut self, req: ModBusRequest) -> crate::Result<ModBusResponse> {
         let (tx, rx) = oneshot::channel();
         let req = Msg {
             req,

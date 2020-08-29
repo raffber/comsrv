@@ -41,12 +41,12 @@ impl Inventory {
         ret
     }
 
-    pub async fn connect(&self, addr: String, options: InstrumentOptions) -> Result<Instrument> {
+    pub async fn connect(&self, addr: &str, options: &InstrumentOptions) -> Result<Instrument> {
         let (tx, rx) = oneshot::channel();
         let rx = rx.shared();
         let rx = {
             let mut inner = self.0.lock().await;
-            if let Some(ret) = inner.instruments.get(&addr) {
+            if let Some(ret) = inner.instruments.get(addr) {
                 match ret {
                     ConnectingInstrument::Instrument(instr) => {
                         return Ok(instr.clone());
@@ -57,7 +57,7 @@ impl Inventory {
                 }
             } else {
                 // place a lock into the hashmap for other threads to wait for
-                inner.instruments.insert(addr.clone(), ConnectingInstrument::Future(rx));
+                inner.instruments.insert(addr.to_string(), ConnectingInstrument::Future(rx));
                 None
             }
         };
@@ -71,15 +71,15 @@ impl Inventory {
         self.do_connect(tx, addr, options).await
     }
 
-    async fn do_connect(&self, tx: oneshot::Sender<Arc<Mutex<Result<Instrument>>>>, addr: String, options: InstrumentOptions) -> Result<Instrument> {
-        let instr = Instrument::connect(addr.clone(), options).await;
+    async fn do_connect(&self, tx: oneshot::Sender<Arc<Mutex<Result<Instrument>>>>, addr: &str, options: &InstrumentOptions) -> Result<Instrument> {
+        let instr = Instrument::connect(addr.to_string(), options).await;
         let _ = tx.send(Arc::new(Mutex::new(instr.clone())));
 
         let instr = instr?;
 
         {
             let mut inner = self.0.lock().await;
-            inner.instruments.insert(addr.clone(), ConnectingInstrument::Instrument(instr.clone()));
+            inner.instruments.insert(addr.to_string(), ConnectingInstrument::Instrument(instr.clone()));
             Ok(instr)
         }
     }

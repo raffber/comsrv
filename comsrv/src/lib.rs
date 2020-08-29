@@ -53,6 +53,8 @@ pub enum Error {
     InvalidBinaryHeader,
     #[error("String message not terminated")]
     NotTerminated,
+    #[error("Invalid Address")]
+    InvalidAddress,
 }
 
 impl Error {

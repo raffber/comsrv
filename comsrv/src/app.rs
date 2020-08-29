@@ -8,6 +8,7 @@ use crate::inventory::Inventory;
 use crate::instrument::Instrument;
 use crate::visa::VisaError;
 use crate::instrument::InstrumentOptions;
+use crate::modbus::{ModBusRequest, ModBusResponse};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
@@ -18,6 +19,10 @@ pub enum Request {
         #[serde(skip_serializing_if="InstrumentOptions::is_default")]
         options: InstrumentOptions,
     },
+    ModBus {
+        addr: String,
+        task: ModBusRequest,
+    },
     ListInstruments,
 }
 
@@ -26,6 +31,7 @@ pub enum Response {
     Error(RpcError),
     Instruments(Vec<String>),
     Scpi(ScpiResponse),
+    ModBus(ModBusResponse),
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -37,7 +43,8 @@ pub enum RpcError {
     CannotConnect,
     DecodeError(String),
     InvalidBinaryHeader,
-    NotTerminated
+    NotTerminated,
+    InvalidAddress,
 }
 
 impl From<Error> for RpcError {
@@ -51,6 +58,7 @@ impl From<Error> for RpcError {
             Error::DecodeError(x) => RpcError::DecodeError(format!("{}", x)),
             Error::InvalidBinaryHeader => RpcError::InvalidBinaryHeader,
             Error::NotTerminated => RpcError::NotTerminated,
+            Error::InvalidAddress => RpcError::InvalidAddress,
         }
     }
 }
@@ -82,34 +90,59 @@ impl App {
         }
     }
 
-    async fn handle_scpi(&self, addr: String, task: ScpiRequest, options: InstrumentOptions) -> Result<ScpiResponse, RpcError> {
-        let inventory = self.inventory.clone();
-        let instr = inventory.connect(addr.clone(), options).await;
-        if instr.is_err() {
-            inventory.close(&addr).await;
-        }
-        let instr = instr?;
+    async fn handle_scpi(&self, addr: String, task: ScpiRequest, options: &InstrumentOptions) -> Result<ScpiResponse, RpcError> {
+        let instr = self.get_instrument(&addr, options).await?;
         match instr {
             Instrument::Visa(instr) => {
                 let ret = instr.handle_scpi(task).await;
                 if ret.is_err() {
-                    inventory.close(&addr).await;
+                    self.inventory.close(&addr).await;
                 }
                 Ok(ret?)
             }
+            _ => todo!()
         }
+    }
+
+    async fn handle_modbus(&self, addr: String, task: ModBusRequest) -> Result<ModBusResponse, RpcError> {
+        let instr = self.get_instrument(&addr, &InstrumentOptions::Default).await?;
+        match instr {
+            Instrument::Visa(_) => {todo!()},
+            Instrument::Modbus(mut instr) => {
+                let ret = instr.handle(task).await;
+                if ret.is_err() {
+                    self.inventory.close(&addr).await;
+                }
+                Ok(ret?)
+            },
+        }
+    }
+
+    async fn get_instrument(&self, addr: &str, options: &InstrumentOptions) -> Result<Instrument, RpcError> {
+        let inventory = self.inventory.clone();
+        let instr = inventory.connect(addr, options).await;
+        if instr.is_err() {
+            inventory.close(&addr).await;
+        }
+        Ok(instr?)
     }
 
     async fn handle_request(&self, req: Request) -> Response {
         match req {
             Request::Scpi { addr, task, options } => {
-                match self.handle_scpi(addr, task, options).await {
+                match self.handle_scpi(addr, task, &options).await {
                     Ok(result) => Response::Scpi(result),
                     Err(err) => Response::Error(err)
                 }
             }
             Request::ListInstruments => {
                 Response::Instruments(self.inventory.list().await)
+            }
+            Request::ModBus { addr, task } => {
+                match self.handle_modbus(addr, task).await {
+                    Ok(result) => Response::ModBus(result),
+                    Err(err) => Response::Error(err)
+                }
             }
         }
     }
