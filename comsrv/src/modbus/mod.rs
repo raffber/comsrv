@@ -1,12 +1,13 @@
+use std::net::SocketAddr;
+
 use serde::{Deserialize, Serialize};
+use tokio::stream::StreamExt;
 use tokio::sync::{mpsc, oneshot};
-use tokio_modbus::client::{tcp, Context, Reader};
+use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::task;
+use tokio_modbus::client::{Context, Reader, tcp, Writer};
 
 use crate::Error;
-use std::net::SocketAddr;
-use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::stream::StreamExt;
-use tokio::task;
 
 fn is_one(x: &u16) -> bool {
     *x == 1
@@ -46,6 +47,7 @@ pub enum ModBusRequest {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum ModBusResponse {
+    Done,
     Number(Vec<u16>),
     Bool(Vec<bool>),
 }
@@ -85,18 +87,53 @@ async fn thread(mut ctx: Context, mut rx: UnboundedReceiver<Msg>) {
     while let Some(msg) = rx.next().await {
         match msg.req {
             ModBusRequest::ReadCoil { addr, cnt } => {
-                let _ = ctx.read_coils(addr, cnt).await;
-                // let ret = ctx.read_coils(addr, cnt).await.map_err(Error::io)?;
-                // ModBusResponse::Bool(ret)
-            },
-            ModBusRequest::ReadDiscrete { .. } => {},
-            ModBusRequest::ReadInput { .. } => {},
-            ModBusRequest::ReadHolding { .. } => {},
-            ModBusRequest::WriteCoil { .. } => {},
-            ModBusRequest::WriteRegister { .. } => {},
+                let ret = ctx.read_coils(addr, cnt).await
+                    .map_err(Error::io)
+                    .map(ModBusResponse::Bool);
+                if msg.tx.send(ret).is_err() {
+                    break;
+                }
+            }
+            ModBusRequest::ReadDiscrete { addr, cnt } => {
+                let ret = ctx.read_discrete_inputs(addr, cnt).await
+                    .map_err(Error::io)
+                    .map(ModBusResponse::Bool);
+                if msg.tx.send(ret).is_err() {
+                    break;
+                }
+            }
+            ModBusRequest::ReadInput { addr, cnt } => {
+                let ret = ctx.read_input_registers(addr, cnt).await
+                    .map_err(Error::io)
+                    .map(ModBusResponse::Number);
+                if msg.tx.send(ret).is_err() {
+                    break;
+                }
+            }
+            ModBusRequest::ReadHolding { addr, cnt } => {
+                let ret = ctx.read_holding_registers(addr, cnt).await
+                    .map_err(Error::io)
+                    .map(ModBusResponse::Number);
+                if msg.tx.send(ret).is_err() {
+                    break;
+                }
+            }
+            ModBusRequest::WriteCoil { addr, values } => {
+                let ret = ctx.write_multiple_coils(addr, &values).await
+                    .map_err(Error::io)
+                    .map(|_| ModBusResponse::Done);
+                if msg.tx.send(ret).is_err() {
+                    break;
+                }
+            }
+            ModBusRequest::WriteRegister { addr, data } => {
+                let ret = ctx.write_multiple_registers(addr, &data).await
+                    .map_err(Error::io)
+                    .map(|_| ModBusResponse::Done);
+                if msg.tx.send(ret).is_err() {
+                    break;
+                }
+            }
         }
-
-
     }
-
 }
