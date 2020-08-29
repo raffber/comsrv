@@ -1,6 +1,8 @@
-use clap::{App as ClapApp, Arg};
 use std::process::exit;
+
+use clap::{App as ClapApp, Arg};
 use tokio::runtime::Runtime;
+
 use comsrv::app::App;
 
 fn main() {
@@ -22,7 +24,7 @@ fn main() {
         Err(_) => {
             println!("Cannot parse `{}` as a port number.", port);
             exit(1);
-        },
+        }
     };
 
 

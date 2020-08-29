@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use futures::channel::oneshot;
+use futures::future::Shared;
+use futures::FutureExt;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::task;
 
-use crate::Result;
-use futures::future::Shared;
-use futures::FutureExt;
-use futures::channel::oneshot;
 use crate::instrument::{Instrument, InstrumentOptions};
+use crate::Result;
 
 enum InventoryMsg {
     Disconnected(String),
@@ -50,10 +50,10 @@ impl Inventory {
                 match ret {
                     ConnectingInstrument::Instrument(instr) => {
                         return Ok(instr.clone());
-                    },
+                    }
                     ConnectingInstrument::Future(fut) => {
                         Some(fut.clone())
-                    },
+                    }
                 }
             } else {
                 // place a lock into the hashmap for other threads to wait for

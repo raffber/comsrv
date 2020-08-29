@@ -1,8 +1,9 @@
+use std::net::SocketAddr;
+
 use serde::{Deserialize, Serialize};
 
-use crate::visa::VisaOptions;
-use std::net::SocketAddr;
 use crate::Error;
+use crate::visa::VisaOptions;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum InstrumentOptions {

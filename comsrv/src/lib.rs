@@ -7,14 +7,16 @@ extern crate dlopen_derive;
 extern crate lazy_static;
 
 use std::io;
+use std::string::FromUtf8Error;
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use visa::VisaError;
-use serde::{Serialize, Deserialize};
-use thiserror::Error;
-use std::sync::Arc;
-use std::string::FromUtf8Error;
 
 mod instrument;
+mod prologix;
 mod modbus;
 mod inventory;
 pub mod visa;
@@ -55,6 +57,8 @@ pub enum Error {
     NotTerminated,
     #[error("Invalid Address")]
     InvalidAddress,
+    #[error("Timeout Occured")]
+    Timeout,
 }
 
 impl Error {

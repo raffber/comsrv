@@ -12,7 +12,8 @@ pub mod asynced;
 mod visa_sys;
 
 const DEFAULT_TIMEOUT: f32 = 3.0;
-const DEFAULT_CHUNK_SIZE: usize = 20 * 1024; // from pyvisa
+const DEFAULT_CHUNK_SIZE: usize = 20 * 1024;
+// from pyvisa
 const DEFAULT_TERMINATION: &'static str = "\n";
 
 
@@ -100,7 +101,7 @@ impl Instrument {
         if !ret.ends_with(DEFAULT_TERMINATION) {
             return Err(Error::NotTerminated);
         }
-        Ok(ret[..ret.len()-DEFAULT_TERMINATION.len()].to_string())
+        Ok(ret[..ret.len() - DEFAULT_TERMINATION.len()].to_string())
     }
 
     pub fn set_timeout(&self, _timeout: f32) -> VisaResult<()> {
@@ -115,7 +116,7 @@ impl Instrument {
         self.write(msg, option).map_err(Error::Visa)?;
         let rx = self.read().map_err(Error::Visa)?;
         let (offset, length) = parse_binary_header(&rx)?;
-        Ok(rx[offset..offset+length].iter().cloned().collect())
+        Ok(rx[offset..offset + length].iter().cloned().collect())
     }
 
     pub fn addr(&self) -> &str {

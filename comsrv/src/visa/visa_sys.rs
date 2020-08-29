@@ -1,14 +1,14 @@
 use std::ffi::{CStr, CString};
+use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::mem::MaybeUninit;
 use std::os::raw::c_char;
-use std::fmt::{Display, Formatter};
-use thiserror::Error;
-use serde::{Deserialize, Serialize};
 
 use dlopen::wrapper::{Container, WrapperApi};
 use lazy_static;
+use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
+use thiserror::Error;
 
 #[derive(Error, Clone, Debug, Serialize, Deserialize)]
 pub struct VisaError {
@@ -185,6 +185,7 @@ impl Instrument {
                 return Err(VisaError::new(ret));
             }
             data.set_len(actually_read as usize);
+            data.shrink_to_fit();
             ret
         };
         Ok((data, code))
