@@ -3,8 +3,8 @@ use tokio::task;
 
 use wsrpc::server::Server;
 
-use crate::{ScpiRequest, ScpiResponse, Error};
-use crate::inventory::{Inventory, Instrument};
+use crate::{Error, ScpiRequest, ScpiResponse};
+use crate::inventory::{Instrument, Inventory};
 use crate::visa::{VisaError, VisaOptions};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -36,11 +36,24 @@ pub enum RpcError {
     Visa(VisaError),
     Disconnected,
     NotSupported,
+    CannotConnect,
+    DecodeError(String),
+    InvalidBinaryHeader,
+    NotTerminated
 }
 
 impl From<Error> for RpcError {
-    fn from(_: Error) -> Self {
-        unimplemented!()
+    fn from(x: Error) -> Self {
+        match x {
+            Error::Visa(x) => RpcError::Visa(x),
+            Error::Io(x) => RpcError::Io(format!("{}", x)),
+            Error::Disconnected => RpcError::Disconnected,
+            Error::NotSupported => RpcError::NotSupported,
+            Error::CannotConnect => RpcError::CannotConnect,
+            Error::DecodeError(x) => RpcError::DecodeError(format!("{}", x)),
+            Error::InvalidBinaryHeader => RpcError::InvalidBinaryHeader,
+            Error::NotTerminated => RpcError::NotTerminated,
+        }
     }
 }
 
@@ -73,12 +86,19 @@ impl App {
 
     async fn handle_scpi(&self, addr: String, task: ScpiRequest, options: InstrumentOptions) -> Result<ScpiResponse, RpcError> {
         let inventory = self.inventory.clone();
-        let instr = inventory.connect(addr, options).await?;
+        let instr = inventory.connect(addr.clone(), options).await;
+        if instr.is_err() {
+            inventory.close(&addr).await;
+        }
+        let instr = instr?;
         match instr {
             Instrument::Visa(instr) => {
-                let ret = instr.handle_scpi(task).await?;
-                Ok(ret)
-            },
+                let ret = instr.handle_scpi(task).await;
+                if ret.is_err() {
+                    inventory.close(&addr).await;
+                }
+                Ok(ret?)
+            }
         }
     }
 

@@ -100,8 +100,7 @@ impl Visa {
 fn describe_status(status: ViStatus) -> String {
     unsafe {
         let mut data: [c_char; 512] = MaybeUninit::uninit().assume_init();
-        let new_status = VISA.api.viStatusDesc(VISA.rm, status, data.as_mut_ptr());
-        println!("{}", new_status);
+        VISA.api.viStatusDesc(VISA.rm, status, data.as_mut_ptr());
         let ret = CStr::from_ptr(data.as_ptr());
         ret.to_str().unwrap().to_string()
     }
@@ -185,7 +184,7 @@ impl Instrument {
             if ret < 0 {
                 return Err(VisaError::new(ret));
             }
-            data.set_len(size);
+            data.set_len(actually_read as usize);
             ret
         };
         Ok((data, code))
@@ -217,7 +216,7 @@ impl Drop for Instrument {
     fn drop(&mut self) {
         let status = VISA.api.viClose(self.instr);
         if status < 0 {
-            panic!(format!("Error dropping instrument: {}", describe_status(status)));
+            log::warn!("Error dropping instrument: {}", describe_status(status));
         }
     }
 }

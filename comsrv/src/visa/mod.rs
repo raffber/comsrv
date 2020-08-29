@@ -13,7 +13,7 @@ mod visa_sys;
 
 const DEFAULT_TIMEOUT: f32 = 3.0;
 const DEFAULT_CHUNK_SIZE: usize = 20 * 1024; // from pyvisa
-const DEFAULT_TERMINATION: &'static str = "\r\n";
+const DEFAULT_TERMINATION: &'static str = "\n";
 
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -92,9 +92,11 @@ impl Instrument {
     }
 
     pub fn query_string<T: AsRef<str>>(&self, msg: T, options: &VisaOptions) -> crate::Result<String> {
+        log::debug!("Query[{}]: `{}`", self.instr.addr(), msg.as_ref());
         self.write(msg, options).map_err(Error::Visa)?;
         let rx = self.read().map_err(Error::Visa)?;
         let ret = String::from_utf8(rx).map_err(Error::DecodeError)?;
+        log::debug!("Reply[{}]: `{}`", self.instr.addr(), ret);
         if !ret.ends_with(DEFAULT_TERMINATION) {
             return Err(Error::NotTerminated);
         }

@@ -4,6 +4,7 @@ use tokio::runtime::Runtime;
 use comsrv::app::App;
 
 fn main() {
+    env_logger::init();
     let matches = ClapApp::new("Async communication server")
         .version("0.1")
         .author("Raphael Bernhard <beraphae@gmail.com>")

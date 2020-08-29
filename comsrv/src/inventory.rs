@@ -96,7 +96,8 @@ impl Inventory {
         }
     }
 
-    pub async fn close<T: AsRef<str>>(&mut self, addr: T) {
+    pub async fn close<T: AsRef<str>>(&self, addr: T) {
+        log::debug!("Dropping instrument: {}", addr.as_ref());
         self.0.lock().await.instruments.remove(addr.as_ref());
     }
 
