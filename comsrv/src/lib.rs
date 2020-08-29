@@ -1,4 +1,3 @@
-
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
@@ -15,6 +14,8 @@ use thiserror::Error;
 use std::sync::Arc;
 use std::string::FromUtf8Error;
 
+mod instrument;
+mod modbus;
 mod inventory;
 pub mod visa;
 pub mod app;
@@ -52,6 +53,12 @@ pub enum Error {
     InvalidBinaryHeader,
     #[error("String message not terminated")]
     NotTerminated,
+}
+
+impl Error {
+    pub fn io(err: io::Error) -> Error {
+        Error::Io(Arc::new(err))
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

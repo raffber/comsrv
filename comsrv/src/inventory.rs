@@ -6,19 +6,13 @@ use tokio::sync::Mutex;
 use tokio::task;
 
 use crate::Result;
-use crate::visa::{asynced as async_visa, VisaOptions};
-use crate::app::InstrumentOptions;
 use futures::future::Shared;
 use futures::FutureExt;
 use futures::channel::oneshot;
+use crate::instrument::{Instrument, InstrumentOptions};
 
 enum InventoryMsg {
     Disconnected(String),
-}
-
-#[derive(Clone)]
-pub enum Instrument {
-    Visa(async_visa::Instrument),
 }
 
 pub enum ConnectingInstrument {
@@ -78,13 +72,7 @@ impl Inventory {
     }
 
     async fn do_connect(&self, tx: oneshot::Sender<Arc<Mutex<Result<Instrument>>>>, addr: String, options: InstrumentOptions) -> Result<Instrument> {
-        // perform the actual connection...
-        let visa_options = match options {
-            InstrumentOptions::Visa(visa) => visa,
-            InstrumentOptions::Default => VisaOptions::default(),
-        };
-        let instr = async_visa::Instrument::connect(addr.clone(), visa_options)
-            .await.map(Instrument::Visa);
+        let instr = Instrument::connect(addr.clone(), options).await;
         let _ = tx.send(Arc::new(Mutex::new(instr.clone())));
 
         let instr = instr?;

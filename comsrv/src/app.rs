@@ -4,20 +4,18 @@ use tokio::task;
 use wsrpc::server::Server;
 
 use crate::{Error, ScpiRequest, ScpiResponse};
-use crate::inventory::{Instrument, Inventory};
-use crate::visa::{VisaError, VisaOptions};
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum InstrumentOptions {
-    Visa(VisaOptions),
-    Default,
-}
+use crate::inventory::Inventory;
+use crate::instrument::Instrument;
+use crate::visa::VisaError;
+use crate::instrument::InstrumentOptions;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
     Scpi {
         addr: String,
         task: ScpiRequest,
+
+        #[serde(skip_serializing_if="InstrumentOptions::is_default")]
         options: InstrumentOptions,
     },
     ListInstruments,
