@@ -9,6 +9,7 @@ use crate::instrument::InstrumentOptions;
 use crate::inventory::Inventory;
 use crate::modbus::{ModBusRequest, ModBusResponse};
 use crate::visa::VisaError;
+use std::net::SocketAddr;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
@@ -81,7 +82,8 @@ impl App {
 
     pub async fn run(&self, port: u16) {
         let url = format!("0.0.0.0:{}", port);
-        let mut stream = self.server.listen(url).await;
+        let http_addr: SocketAddr = format!("0.0.0.0:{}", port+1).parse().unwrap();
+        let mut stream = self.server.listen(url, http_addr).await;
         while let Some(msg) = stream.recv().await {
             let (req, rep) = msg.take();
             let app = self.clone();
