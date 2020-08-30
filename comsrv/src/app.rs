@@ -85,7 +85,7 @@ impl App {
         let http_addr: SocketAddr = format!("0.0.0.0:{}", port+1).parse().unwrap();
         let mut stream = self.server.listen(url, http_addr).await;
         while let Some(msg) = stream.recv().await {
-            let (req, rep) = msg.take();
+            let (req, rep) = msg.split();
             let app = self.clone();
             task::spawn(async move {
                 let response = app.handle_request(req).await;
