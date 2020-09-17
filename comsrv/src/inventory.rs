@@ -16,6 +16,7 @@ enum InventoryMsg {
     Disconnected(String),
 }
 
+#[derive(Clone)]
 pub enum ConnectingInstrument {
     Instrument(Instrument),
     Future(Shared<oneshot::Receiver<Arc<Mutex<Result<Instrument>>>>>),
@@ -65,6 +66,7 @@ impl Inventory {
             }
         };
 
+        // wait for the instrument to be available
         if let Some(rx) = rx {
             return match rx.await {
                 Ok(res) => res.lock().await.clone(),
@@ -85,13 +87,46 @@ impl Inventory {
         }
     }
 
-    pub async fn close<T: AsRef<str>>(&self, addr: T) {
-        log::debug!("Dropping instrument: {}", addr.as_ref());
-        self.0.lock().await.instruments.remove(addr.as_ref());
+    pub async fn disconnect(&self, addr: &str) {
+        log::debug!("Dropping instrument: {}", addr);
+        if let Some(instr) = self.0.lock().await.instruments.remove(addr) {
+            match instr {
+                ConnectingInstrument::Instrument(x) => {
+                    x.disconnect()
+                },
+                ConnectingInstrument::Future(_) => {},
+            }
+        }
     }
 
     pub async fn list(&self) -> Vec<String> {
         self.0.lock().await.instruments.keys().map(|x| x.clone()).collect()
+    }
+
+    /// collect all instruments, waiting until they are connected
+    pub async fn instruments(&self) -> HashMap<String, Instrument> {
+        let mut ret = HashMap::new();
+        let instrs = self.0.lock().await.instruments.clone();
+        for (addr, instr) in instrs {
+            match instr {
+                ConnectingInstrument::Instrument(x) => {
+                    ret.insert(addr.clone(), x);
+                },
+                ConnectingInstrument::Future(fut) => {
+                    match fut.await {
+                        Ok(x) => {
+                            let instr = x.lock().await.clone();
+                            if let Ok(instr) = instr {
+                                ret.insert(addr, instr);
+                            }
+                        },
+                        _ => {},
+                    }
+                },
+            }
+
+        }
+        ret
     }
 }
 

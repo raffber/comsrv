@@ -21,6 +21,7 @@ mod modbus;
 mod inventory;
 pub mod visa;
 pub mod app;
+mod serial;
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

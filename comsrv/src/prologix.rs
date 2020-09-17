@@ -59,7 +59,7 @@ struct Ports {
     ports: HashMap<String, PrologixPort>,
 }
 
-
+// TODO: refactor this into a context passed by the inventory
 lazy_static! {
     static ref PORTS: Mutex<Ports> = Mutex::new(Default::default());
 }
@@ -87,10 +87,8 @@ impl Instrument {
         let ret = rx.await.map_err(|_| Error::Disconnected)?;
         ret
     }
-}
 
-impl Drop for Instrument {
-    fn drop(&mut self) {
+    pub fn disconnect(self) {
         let mut ports: MutexGuard<Ports> = PORTS.lock().unwrap();
         if let Some(port) = ports.ports.get(&self.serial_addr) {
             let _ = port.tx.send(Msg::Drop);

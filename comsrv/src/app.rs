@@ -10,6 +10,7 @@ use crate::inventory::Inventory;
 use crate::modbus::{ModBusRequest, ModBusResponse};
 use crate::visa::VisaError;
 use std::net::SocketAddr;
+use crate::serial::{SerialRequest, SerialResponse, SerialParams};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
@@ -24,6 +25,10 @@ pub enum Request {
         addr: String,
         task: ModBusRequest,
     },
+    Serial {
+        addr: String,
+        task: SerialRequest,
+    },
     ListInstruments,
 }
 
@@ -32,6 +37,7 @@ pub enum Response {
     Error(RpcError),
     Instruments(Vec<String>),
     Scpi(ScpiResponse),
+    Serial(SerialResponse),
     ModBus(ModBusResponse),
 }
 
@@ -100,35 +106,63 @@ impl App {
             Instrument::Visa(instr) => {
                 let ret = instr.handle_scpi(task).await;
                 if ret.is_err() {
-                    self.inventory.close(&addr).await;
+                    self.inventory.disconnect(&addr).await;
                 }
                 Ok(ret?)
-            }
-            Instrument::Modbus(_) => {
-                Err(RpcError::NotSupported)
             }
             Instrument::Prologix(mut instr) => {
                 let ret = instr.handle(task).await;
                 if ret.is_err() {
-                    self.inventory.close(&addr).await;
+                    self.inventory.disconnect(&addr).await;
                 }
                 Ok(ret?)
             }
+            _ => Err(RpcError::NotSupported)
         }
     }
 
     async fn handle_modbus(&self, addr: String, task: ModBusRequest) -> Result<ModBusResponse, RpcError> {
         let instr = self.get_instrument(&addr, &InstrumentOptions::Default).await?;
         match instr {
-            Instrument::Visa(_) => Err(RpcError::NotSupported),
             Instrument::Modbus(mut instr) => {
                 let ret = instr.handle(task).await;
                 if ret.is_err() {
-                    self.inventory.close(&addr).await;
+                    self.inventory.disconnect(&addr).await;
                 }
                 Ok(ret?)
             }
-            Instrument::Prologix(_) => Err(RpcError::NotSupported),
+            _ => Err(RpcError::NotSupported),
+        }
+    }
+
+    async fn handle_serial(&self, addr: &str, task: SerialRequest) -> Result<SerialResponse, RpcError> {
+        // check if we already have the same serial port open with different parameters
+        let params = SerialParams::from_string(addr).ok_or(Error::InvalidAddress)?;
+        let mut to_disconnect = None;
+        for (addr, instr) in &self.inventory.instruments().await {
+            match instr {
+                Instrument::Serial(x) => {
+                    if x.path() == &params.path && *x.params() != params {
+                        to_disconnect = Some(addr.to_string());
+                    }
+                },
+                _ => {}
+            }
+        }
+        if let Some(to_disconnect) = to_disconnect {
+            self.inventory.disconnect(&to_disconnect).await;
+        }
+        // get or connect to the actual instrument
+        let instr = self.get_instrument(&addr, &InstrumentOptions::Default).await?;
+        match instr {
+            Instrument::Serial(instr) => {
+                let ret = instr.handle(task).await;
+                if ret.is_err() {
+                    self.inventory.disconnect(&addr).await;
+                }
+                Ok(ret?)
+            }
+            _ => Err(RpcError::NotSupported),
         }
     }
 
@@ -136,7 +170,7 @@ impl App {
         let inventory = self.inventory.clone();
         let instr = inventory.connect(addr, options).await;
         if instr.is_err() {
-            inventory.close(&addr).await;
+            inventory.disconnect(&addr).await;
         }
         Ok(instr?)
     }
@@ -156,6 +190,12 @@ impl App {
                 match self.handle_modbus(addr, task).await {
                     Ok(result) => Response::ModBus(result),
                     Err(err) => Response::Error(err)
+                }
+            }
+            Request::Serial { addr, task } => {
+                match self.handle_serial(&addr, task).await {
+                    Ok(result) => Response::Serial(result),
+                    Err(err) => Response::Error(err),
                 }
             }
         }
