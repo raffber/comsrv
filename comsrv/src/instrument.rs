@@ -34,6 +34,24 @@ pub enum Instrument {
     Serial(crate::serial::Instrument),
 }
 
+struct HandleId {
+    inner: String,
+}
+
+impl HandleId {
+    fn new(inner: String) -> Self {
+        Self {
+            inner
+        }
+    }
+}
+
+impl Hash for HandleId {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        unimplemented!()
+    }
+}
+
 enum Address {
     Visa {
         splits: Vec<String>
@@ -87,6 +105,15 @@ impl Address {
         } else {
             let splits: Vec<_> = splits.iter().map(|x| x.to_lowercase().to_string()).collect();
             Ok(Address::Visa { splits })
+        }
+    }
+
+    pub fn handle_id(&self) -> HandleId {
+        match self {
+            Address::Visa { splits } => HandleId::new(splits[1].clone()),
+            Address::Serial { params } => HandleId::new(params.path.clone()),
+            Address::Prologix { file, .. } => file.clone(),
+            Address::Modbus { addr } => addr.to_string(),
         }
     }
 }
