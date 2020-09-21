@@ -8,8 +8,8 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::task;
 
-use crate::instrument::{Instrument, InstrumentOptions};
-use crate::Result;
+use crate::instrument::{Instrument, InstrumentOptions, HandleId};
+use crate::{Result, Error};
 use crate::prologix::PrologixPort;
 
 enum InventoryMsg {
@@ -17,15 +17,14 @@ enum InventoryMsg {
 }
 
 #[derive(Clone)]
-pub enum ConnectingInstrument {
-    Instrument(Instrument),
-    Future(Shared<oneshot::Receiver<Arc<Mutex<Result<Instrument>>>>>),
+pub struct Connecting {
+    inner: Shared<oneshot::Receiver<Option<Error>>>,
 }
 
 struct InventoryShared {
-    instruments: HashMap<String, ConnectingInstrument>,
+    connecting: HashMap<HandleId, Connecting>,
+    instruments: HashMap<HandleId, Vec<Instrument>>,
     tx: mpsc::UnboundedSender<InventoryMsg>,
-    prologix: HashMap<String, PrologixPort>,
 }
 
 #[derive(Clone)]
@@ -35,9 +34,9 @@ impl Inventory {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
         let inner = InventoryShared {
+            connecting: Default::default(),
             instruments: Default::default(),
             tx,
-            prologix: Default::default()
         };
         let inner = Arc::new(Mutex::new(inner));
         let ret = Self(inner);

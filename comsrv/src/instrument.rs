@@ -34,7 +34,7 @@ pub enum Instrument {
     Serial(crate::serial::Instrument),
 }
 
-struct HandleId {
+pub struct HandleId {
     inner: String,
 }
 
