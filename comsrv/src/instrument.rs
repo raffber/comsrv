@@ -52,7 +52,7 @@ impl Hash for HandleId {
     }
 }
 
-enum Address {
+pub enum Address {
     Visa {
         splits: Vec<String>
     },
@@ -109,12 +109,13 @@ impl Address {
     }
 
     pub fn handle_id(&self) -> HandleId {
-        match self {
-            Address::Visa { splits } => HandleId::new(splits[1].clone()),
-            Address::Serial { params } => HandleId::new(params.path.clone()),
-            Address::Prologix { file, .. } => file.clone(),
-            Address::Modbus { addr } => addr.to_string(),
-        }
+        // match self {
+        //     Address::Visa { splits } => HandleId::new(splits[1].clone()),
+        //     Address::Serial { params } => HandleId::new(params.path.clone()),
+        //     Address::Prologix { file, .. } => file.clone(),
+        //     Address::Modbus { addr } => addr.to_string(),
+        // }
+        todo!()
     }
 }
 
@@ -133,32 +134,34 @@ impl Hash for Address {
 
 impl Instrument {
     pub async fn connect_with_string(addr: &str, options: &InstrumentOptions) -> crate::Result<Instrument> {
-        let addr = Address::parse(&addr)?;
-        Self::connect(addr, options)
+        // let addr = Address::parse(&addr)?;
+        // Self::connect(addr, options)
+        todo!()
     }
 
     pub async fn connect(addr: Address, options: &InstrumentOptions) -> crate::Result<Instrument> {
-        match addr {
-            Address::Visa { splits } => {
-                let visa_options = match options {
-                    InstrumentOptions::Visa(visa) => visa.clone(),
-                    InstrumentOptions::Default => VisaOptions::default(),
-                };
-                let addr = splits.join("::");
-                crate::visa::asynced::Instrument::connect(addr, visa_options).await
-                    .map(Instrument::Visa)
-            }
-            Address::Serial { params } => {
-                Ok(Instrument::Serial(crate::serial::Instrument::connect(params)))
-            }
-            Address::Prologix { file, gpib } => {
-                Ok(Instrument::Prologix(crate::prologix::Instrument::connect(&file, *gpib)))
-            }
-            Address::Modbus { addr } => {
-                crate::modbus::Instrument::connect(addr).await
-                    .map(Instrument::Modbus)
-            }
-        }
+        // match addr {
+        //     Address::Visa { splits } => {
+        //         let visa_options = match options {
+        //             InstrumentOptions::Visa(visa) => visa.clone(),
+        //             InstrumentOptions::Default => VisaOptions::default(),
+        //         };
+        //         let addr = splits.join("::");
+        //         crate::visa::asynced::Instrument::connect(addr, visa_options).await
+        //             .map(Instrument::Visa)
+        //     }
+        //     Address::Serial { params } => {
+        //         Ok(Instrument::Serial(crate::serial::Instrument::connect(params)))
+        //     }
+        //     Address::Prologix { file, gpib } => {
+        //         Ok(Instrument::Prologix(crate::prologix::Instrument::connect(&file, *gpib)))
+        //     }
+        //     Address::Modbus { addr } => {
+        //         crate::modbus::Instrument::connect(addr).await
+        //             .map(Instrument::Modbus)
+        //     }
+        // }
+        todo!()
     }
 
     pub fn disconnect(self) {
