@@ -29,7 +29,6 @@ impl InstrumentOptions {
 pub enum Instrument {
     Visa(crate::visa::asynced::Instrument),
     Modbus(crate::modbus::Instrument),
-    Prologix(crate::prologix::Instrument),
     Serial(crate::serial::Instrument),
 }
 
@@ -98,8 +97,9 @@ impl Address {
             })
         } else if splits[0].to_lowercase() == "serial" {
             // serial::/dev/ttyUSB0::9600::8N1
-            let params = SerialParams::from_string(&addr).ok_or(Error::InvalidAddress)?;
+            let (path, params) = SerialParams::from_string(&addr).ok_or(Error::InvalidAddress)?;
             Ok(Address::Serial {
+                path,
                 params
             })
         } else {
@@ -114,7 +114,7 @@ impl Address {
                 let id = format!("{}::{}", splits[0], splits[1]);
                 HandleId::new(id)
             },
-            Address::Serial { params } => HandleId::new(params.path.clone()),
+            Address::Serial { path, ..} => HandleId::new(path.clone()),
             Address::Prologix { file, .. } => file.clone(),
             Address::Modbus { addr } => addr.to_string(),
         }

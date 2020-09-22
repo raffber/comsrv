@@ -5,6 +5,7 @@ use tokio::sync::oneshot;
 use tokio::task::spawn_blocking;
 
 use crate::{Error, ScpiRequest, ScpiResponse};
+use crate::iotask::{IoHandler, IoTask};
 use crate::visa::{Instrument as BlockingInstrument, VisaOptions};
 
 pub struct Thread {
@@ -27,22 +28,33 @@ enum Msg {
 }
 
 impl Instrument {
-    pub async fn connect<T: Into<String>>(addr: T, options: VisaOptions) -> crate::Result<Instrument> {
-        let addr = addr.into();
-        let instr = spawn_blocking(move || {
-            BlockingInstrument::open(addr, &options)
-        }).await.unwrap();
-        Ok(Self::spawn(instr?))
-    }
-
-    pub fn spawn(instr: BlockingInstrument) -> Instrument {
+    pub async fn connect<T: Into<String>>(addr: T, options: VisaOptions) -> Self {
         let (tx, rx) = mpsc::channel();
-
-        let mut thread = Thread { instr, rx };
+        let addr = addr.into();
         thread::spawn(move || {
-            while let Ok(msg) = thread.rx.recv() {
-                if !thread.handle(msg) {
-                    return;
+            let mut oinstr = None;
+            while let Ok(msg) = rx.recv() {
+                if matches!(msg, Msg::Drop) {
+                    break;
+                }
+                let instr = if let Some(instr) = oinstr.take() {
+                    Ok(instr)
+                } else {
+                    BlockingInstrument::open(&addr, &options).map_err(Error::Visa)
+                };
+                match instr {
+                    Ok(instr) => {
+                        match msg {
+                            Msg::Scpi { request, options, reply } => {
+                                let _ = reply.send(instr.handle_scpi(request, &options));
+                            }
+                            _ => {}
+                        }
+                        oinstr.replace(instr);
+                    }
+                    Err(err) => {
+                        let _ = msg.reply.send(Err(err));
+                    }
                 }
             }
         });
@@ -50,7 +62,7 @@ impl Instrument {
         Instrument { tx }
     }
 
-    pub async fn handle_scpi(self, req: ScpiRequest) -> crate::Result<ScpiResponse> {
+    pub async fn request(self, req: ScpiRequest) -> crate::Result<ScpiResponse> {
         let (tx, rx) = oneshot::channel();
         let thmsg = Msg::Scpi {
             request: req,
@@ -61,19 +73,11 @@ impl Instrument {
         rx.await.map_err(|_| Error::Disconnected)?
     }
 
-    fn disconnect(self) {
+    pub fn disconnect(self) {
         let _ = self.tx.send(Msg::Drop);
     }
 }
 
 impl Thread {
-    fn handle(&mut self, msg: Msg) -> bool {
-        match msg {
-            Msg::Scpi { request, options, reply } => {
-                let _ = reply.send(self.instr.handle_scpi(request, &options));
-                true
-            }
-            Msg::Drop => false,
-        }
-    }
+    fn handle(&mut self, msg: Msg) -> bool {}
 }

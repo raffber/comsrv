@@ -170,7 +170,7 @@ impl IoHandler for Handler {
     }
 }
 
-struct Instrument {
+pub struct Instrument {
     inner: IoTask<Handler>,
 }
 

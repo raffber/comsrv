@@ -104,7 +104,7 @@ impl App {
         let instr = self.get_instrument(&addr, options).await?;
         match instr {
             Instrument::Visa(instr) => {
-                let ret = instr.handle_scpi(task).await;
+                let ret = instr.request(task).await;
                 if ret.is_err() {
                     self.inventory.disconnect(&addr).await;
                 }
