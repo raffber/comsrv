@@ -56,6 +56,7 @@ pub enum Address {
         splits: Vec<String>
     },
     Serial {
+        path: String,
         params: SerialParams,
     },
     Prologix {
@@ -172,9 +173,6 @@ impl Instrument {
             }
             Instrument::Modbus(_) => {
                 todo!()
-            }
-            Instrument::Prologix(x) => {
-                x.disconnect();
             }
             Instrument::Serial(x) => {
                 x.disconnect()

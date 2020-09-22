@@ -1,10 +1,14 @@
-use tokio_serial::{SerialPortSettings, FlowControl, Serial};
-use tokio::io::{AsyncWriteExt, AsyncReadExt};
-use serde::{Serialize, Deserialize};
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{mpsc, oneshot};
 use tokio::task;
-use crate::Error;
 use tokio::time::{Duration, timeout};
+use tokio_serial::{FlowControl, Serial, SerialPortSettings};
+
+use crate::{Error, ScpiRequest, ScpiResponse};
+use crate::iotask::{IoHandler, IoTask};
+use crate::instrument::Address;
 
 const DEFAULT_TIMEOUT_MS: u64 = 500;
 
@@ -58,7 +62,6 @@ pub fn parse_serial_settings(settings: &str) -> Option<(DataBits, Parity, StopBi
 
 #[derive(PartialEq, Clone, Serialize, Deserialize)]
 pub struct SerialParams {
-    pub path: String,
     pub baud: u32,
     pub data_bits: DataBits,
     pub stop_bits: StopBits,
@@ -66,7 +69,7 @@ pub struct SerialParams {
 }
 
 impl SerialParams {
-    pub fn from_string(addr: &str) -> Option<SerialParams> {
+    pub fn from_string(addr: &str) -> Option<(String, SerialParams)> {
         let splits: Vec<_> = addr.split("::")
             .map(|x| x.to_string())
             .collect();
@@ -76,106 +79,127 @@ impl SerialParams {
         let path = splits[1].clone();
         let baud_rate: u32 = splits[2].parse().ok()?;
         let (bits, parity, stop) = parse_serial_settings(&splits[3])?;
-        Some(SerialParams {
-            path,
+        Some((path, SerialParams {
             baud: baud_rate,
             data_bits: bits,
             stop_bits: stop,
             parity,
-        })
+        }))
     }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum SerialRequest {
-    Write(Vec<u8>),
+    Prologix {
+        gpib_addr: u8,
+        req: ScpiRequest,
+    },
+    Write {
+        params: SerialParams,
+        data: Vec<u8>,
+    },
     ReadExact {
+        params: SerialParams,
         count: u32,
         timeout_ms: u32,
     },
-    ReadUpTo(u32),
-    ReadAll,
+    ReadUpTo {
+        params: SerialParams,
+        count: u32,
+    },
+    ReadAll {
+        params: SerialParams,
+    },
+}
+
+impl SerialRequest {
+    pub fn params(&self) -> SerialParams {
+        match self {
+            SerialRequest::Prologix { .. } => {
+                SerialParams {
+                    baud: 9600,
+                    data_bits: DataBits::Eight,
+                    stop_bits: StopBits::One,
+                    parity: Parity::None
+                }
+            },
+            SerialRequest::Write { params, data: _ } => params.clone(),
+            SerialRequest::ReadExact { params, count: _, timeout_ms: _ } => params.clone(),
+            SerialRequest::ReadUpTo { params, count: _ } => params.clone(),
+            SerialRequest::ReadAll { params } => params.clone(),
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum SerialResponse {
     Done,
     Data(Vec<u8>),
+    Scpi(ScpiResponse),
 }
 
-enum Msg {
-    Request {
-        request: SerialRequest,
-        reply: oneshot::Sender<crate::Result<SerialResponse>>,
-    },
-    Drop,
+pub struct Handler {
+    serial: Option<(Serial, SerialParams)>,
+    path: String,
 }
 
-#[derive(Clone)]
-pub struct Instrument {
-    params: SerialParams,
-    tx: mpsc::UnboundedSender<Msg>,
+#[async_trait]
+impl IoHandler for Handler {
+    type Request = SerialRequest;
+    type Response = SerialResponse;
+
+    async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
+        let new_params = req.params();
+        let mut serial = match self.serial.take() {
+            None => {
+                let settings = new_params.into();
+                Serial::from_path(&self.path, &settings).map_err(Error::io)?
+            },
+            Some((serial, old_params)) => {
+                if old_params == new_params {
+                    serial
+                } else {
+                    drop(serial);
+                    let settings = new_params.into();
+                    Serial::from_path(&self.path, &settings).map_err(Error::io)?
+                }
+            },
+        };
+        handle_request(&mut serial, req)
+    }
+}
+
+struct Instrument {
+    inner: IoTask<Handler>,
 }
 
 impl Instrument {
-    pub fn connect(params: SerialParams) -> Self {
-        let path = params.path.clone();
-        let params2 = params.clone();
-        let settings: SerialPortSettings = params.into();
-        let (tx, rx) = mpsc::unbounded_channel();
-        task::spawn(run_serial(path, settings, rx));
-        Self {
-            params: params2,
-            tx,
-        }
-    }
-
-    pub fn path(&self) -> &str {
-        &self.params.path
-    }
-
-    pub fn params(&self) -> &SerialParams {
-        &self.params
-    }
-
-    pub async fn handle(&self, req: SerialRequest) -> crate::Result<SerialResponse> {
-        let (tx, rx) = oneshot::channel();
-        let msg = Msg::Request {
-            request: req,
-            reply: tx,
+    fn new(path: String) -> Self {
+        let handler = Handler {
+            serial: None,
+            path
         };
-        self.tx.send(msg).map_err(|_| Error::Disconnected)?;
-        rx.await.map_err(|_| Error::Disconnected)?
-    }
-
-    pub fn disconnect(self) {
-        let _ = self.tx.send(Msg::Drop);
-    }
-}
-
-async fn run_serial(path: String, settings: SerialPortSettings, mut rx: mpsc::UnboundedReceiver<Msg>) -> crate::Result<()> {
-    log::debug!("Connecting to serial port: {}", path);
-    let mut serial = Serial::from_path(&path, &settings).map_err(Error::io)?;
-    log::debug!("Successfully opened: {}", path);
-    while let Some(msg) = rx.recv().await {
-        match msg {
-            Msg::Request { request, reply } => {
-                let result = handle_request(&mut serial, request).await;
-                let _ = reply.send(result);
-            }
-            Msg::Drop => break,
+        Self {
+            inner: IoTask::new(handler)
         }
     }
-    Ok(())
+
+    async fn request(&mut self, req: SerialRequest) -> crate::Result<SerialResponse> {
+        self.inner.request(req).await
+    }
+
+    pub fn disconnect(mut self) {
+        self.inner.disconnect()
+    }
 }
 
 async fn handle_request(serial: &mut Serial, req: SerialRequest) -> crate::Result<SerialResponse> {
     match req {
-        SerialRequest::Write(data) => {
+        SerialRequest::Write { params: _, data } => {
             AsyncWriteExt::write_all(serial, &data).await.map_err(Error::io)?;
             Ok(SerialResponse::Done)
         }
-        SerialRequest::ReadExact { count, timeout_ms } => {
+        SerialRequest::ReadExact { params: _, count, timeout_ms } => {
             let mut data = vec![0; count as usize];
             let fut = AsyncReadExt::read_exact(serial, data.as_mut_slice());
             let _ = match timeout(Duration::from_millis(timeout_ms as u64), fut).await {
@@ -184,7 +208,7 @@ async fn handle_request(serial: &mut Serial, req: SerialRequest) -> crate::Resul
             }?;
             Ok(SerialResponse::Data(data))
         }
-        SerialRequest::ReadUpTo(count) => {
+        SerialRequest::ReadUpTo { params: _, count }  => {
             let mut data = vec![0; count as usize];
             let fut = AsyncReadExt::read(serial, &mut data);
             let num_read = match timeout(Duration::from_micros(100), fut).await {
@@ -194,7 +218,7 @@ async fn handle_request(serial: &mut Serial, req: SerialRequest) -> crate::Resul
             let data = data[..num_read].to_vec();
             Ok(SerialResponse::Data(data))
         }
-        SerialRequest::ReadAll => {
+        SerialRequest::ReadAll { params: _ } => {
             let mut ret = Vec::new();
             loop {
                 let mut data = [0u8; 128];
@@ -209,6 +233,9 @@ async fn handle_request(serial: &mut Serial, req: SerialRequest) -> crate::Resul
                 ret.extend(&data[..num_read]);
             }
             Ok(SerialResponse::Data(ret))
+        }
+        SerialRequest::Prologix { gpib_addr: _, req: _ } => {
+            todo!()
         }
     }
 }

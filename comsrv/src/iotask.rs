@@ -56,7 +56,7 @@ impl<T: 'static + IoHandler> IoTask<T> {
         let _ = self.tx.send(RequestMsg::Drop);
     }
 
-    async fn request(&mut self, req: T::Request) -> crate::Result<T::Response> {
+    pub async fn request(&mut self, req: T::Request) -> crate::Result<T::Response> {
         let (tx, rx) = oneshot::channel();
         let msg = RequestMsg::Task { req, answer: tx };
         self.tx.send(msg).map_err(|_| Error::Disconnected)?;
