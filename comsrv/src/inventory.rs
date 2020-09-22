@@ -8,13 +8,10 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tokio::task;
 
-use crate::instrument::{Instrument, InstrumentOptions, HandleId};
+use crate::instrument::{Instrument, InstrumentOptions, HandleId, Address};
 use crate::{Result, Error};
 use crate::prologix::PrologixPort;
-
-enum InventoryMsg {
-    Disconnected(String),
-}
+use crate::iotask::IoTask;
 
 #[derive(Clone)]
 pub struct Connecting {
@@ -22,9 +19,7 @@ pub struct Connecting {
 }
 
 struct InventoryShared {
-    connecting: HashMap<HandleId, Connecting>,
-    instruments: HashMap<HandleId, Vec<Instrument>>,
-    tx: mpsc::UnboundedSender<InventoryMsg>,
+    instruments: HashMap<HandleId, Instrument>,
 }
 
 #[derive(Clone)]
@@ -34,132 +29,28 @@ impl Inventory {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
         let inner = InventoryShared {
-            connecting: Default::default(),
             instruments: Default::default(),
-            tx,
         };
         let inner = Arc::new(Mutex::new(inner));
         let ret = Self(inner);
-        InventoryMonitor::start(ret.clone(), rx);
         ret
     }
 
-    pub async fn connect(&self, addr: &str, options: &InstrumentOptions) -> Result<Instrument> {
-        // let (tx, rx) = oneshot::channel();
-        // let rx = rx.shared();
-        // let rx = {
-        //     let mut inner = self.0.lock().await;
-        //     if let Some(ret) = inner.instruments.get(addr) {
-        //         match ret {
-        //             ConnectingInstrument::Instrument(instr) => {
-        //                 return Ok(instr.clone());
-        //             }
-        //             ConnectingInstrument::Future(fut) => {
-        //                 Some(fut.clone())
-        //             }
-        //         }
-        //     } else {
-        //         // place a lock into the hashmap for other threads to wait for
-        //         inner.instruments.insert(addr.to_string(), ConnectingInstrument::Future(rx));
-        //         None
-        //     }
-        // };
-        //
-        // // wait for the instrument to be available
-        // if let Some(rx) = rx {
-        //     return match rx.await {
-        //         Ok(res) => res.lock().await.clone(),
-        //         Err(_) => Err(crate::Error::CannotConnect),
-        //     };
-        // }
-        // self.do_connect(tx, addr, options).await
-        todo!()
+    pub fn connect(&self, addr: &Address) -> Instrument {
+        let mut inner = self.0.lock().await;
+        if let Some(ret) = inner.instruments.get(&addr.handle_id()) {
+            return ret.clone();
+        }
+        let new_instr = Instrument::connect(addr);
+        inner.instruments.insert(addr.handle_id(), new_instr.clone());
+        new_instr
     }
 
-    async fn do_connect(&self, tx: oneshot::Sender<Arc<Mutex<Result<Instrument>>>>, addr: &str, options: &InstrumentOptions) -> Result<Instrument> {
-        // let instr = Instrument::connect(addr.to_string(), options).await;
-        // let _ = tx.send(Arc::new(Mutex::new(instr.clone())));
-        // let instr = instr?;
-        // {
-        //     let mut inner = self.0.lock().await;
-        //     inner.instruments.insert(addr.to_string(), ConnectingInstrument::Instrument(instr.clone()));
-        //     Ok(instr)
-        // }
-        todo!()
-    }
-
-    pub async fn disconnect(&self, addr: &str) {
+    pub fn disconnect(&self, addr: &Address) {
         log::debug!("Dropping instrument: {}", addr);
-        // if let Some(instr) = self.0.lock().await.instruments.remove(addr) {
-        //     match instr {
-        //         ConnectingInstrument::Instrument(x) => {
-        //             x.disconnect()
-        //         },
-        //         ConnectingInstrument::Future(_) => {},
-        //     }
-        // }
-        todo!()
-    }
-
-    pub async fn list(&self) -> Vec<String> {
-        // self.0.lock().await.instruments.keys().map(|x| x.clone()).collect()
-        todo!()
-    }
-
-    /// collect all instruments, waiting until they are connected
-    pub async fn instruments(&self) -> HashMap<String, Instrument> {
-        // let mut ret = HashMap::new();
-        // let instrs = self.0.lock().await.instruments.clone();
-        // for (addr, instr) in instrs {
-        //     match instr {
-        //         ConnectingInstrument::Instrument(x) => {
-        //             ret.insert(addr.clone(), x);
-        //         },
-        //         ConnectingInstrument::Future(fut) => {
-        //             match fut.await {
-        //                 Ok(x) => {
-        //                     let instr = x.lock().await.clone();
-        //                     if let Ok(instr) = instr {
-        //                         ret.insert(addr, instr);
-        //                     }
-        //                 },
-        //                 _ => {},
-        //             }
-        //         },
-        //     }
-        //
-        // }
-        // ret
-        todo!()
+        let mut inner = self.0.lock().await;
+        if let Some(x) = inner.instruments.remove(&addr.handle_id()) {
+            x.disconnect();
+        }
     }
 }
-
-struct InventoryMonitor {
-    inventory: Inventory,
-    rx: mpsc::UnboundedReceiver<InventoryMsg>,
-}
-
-impl InventoryMonitor {
-    fn start(inventory: Inventory, rx: mpsc::UnboundedReceiver<InventoryMsg>) {
-        let mut monitor = InventoryMonitor {
-            inventory,
-            rx,
-        };
-        task::spawn(async move {
-            while let Some(msg) = monitor.rx.recv().await {
-                monitor.handle_msg(msg).await;
-            }
-        });
-    }
-
-    async fn handle_msg(&mut self, msg: InventoryMsg) {
-        // match msg {
-        //     InventoryMsg::Disconnected(x) => {
-        //         let mut write = self.inventory.0.lock().await;
-        //         write.instruments.remove(&x);
-        //     }
-        // }
-        todo!()
-    }
-}
-

@@ -25,7 +25,6 @@ impl InstrumentOptions {
     }
 }
 
-
 #[derive(Clone)]
 pub enum Instrument {
     Visa(crate::visa::asynced::Instrument),
@@ -109,13 +108,15 @@ impl Address {
     }
 
     pub fn handle_id(&self) -> HandleId {
-        // match self {
-        //     Address::Visa { splits } => HandleId::new(splits[1].clone()),
-        //     Address::Serial { params } => HandleId::new(params.path.clone()),
-        //     Address::Prologix { file, .. } => file.clone(),
-        //     Address::Modbus { addr } => addr.to_string(),
-        // }
-        todo!()
+        match self {
+            Address::Visa { splits } => {
+                let id = format!("{}::{}", splits[0], splits[1]);
+                HandleId::new(id)
+            },
+            Address::Serial { params } => HandleId::new(params.path.clone()),
+            Address::Prologix { file, .. } => file.clone(),
+            Address::Modbus { addr } => addr.to_string(),
+        }
     }
 }
 
@@ -139,7 +140,7 @@ impl Instrument {
         todo!()
     }
 
-    pub async fn connect(addr: Address, options: &InstrumentOptions) -> crate::Result<Instrument> {
+    pub fn connect(addr: &Address) -> Instrument {
         // match addr {
         //     Address::Visa { splits } => {
         //         let visa_options = match options {
