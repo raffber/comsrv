@@ -9,6 +9,7 @@ use tokio_serial::{FlowControl, Serial, SerialPortSettings};
 use crate::{Error, ScpiRequest, ScpiResponse};
 use crate::iotask::{IoHandler, IoTask};
 use crate::instrument::Address;
+use std::time::Instant;
 
 const DEFAULT_TIMEOUT_MS: u64 = 500;
 
@@ -234,12 +235,71 @@ async fn handle_request(serial: &mut Serial, req: SerialRequest) -> crate::Resul
             }
             Ok(SerialResponse::Data(ret))
         }
-        SerialRequest::Prologix { gpib_addr: _, req: _ } => {
-            todo!()
+        SerialRequest::Prologix { gpib_addr: addr, req} => {
+            handle_prologix_request(serial, addr, req)
         }
     }
 }
 
+async fn write_prologix(serial: &mut Serial, mut msg: String) -> crate::Result<()> {
+    if !msg.ends_with("\n") {
+        msg.push_str("\n");
+    }
+    serial.write(msg.as_bytes()).await.map(|_| ()).map_err(Error::io)
+}
+
+async fn read_prologix(serial: &mut Serial) -> crate::Result<String> {
+    let start = Instant::now();
+    let mut ret = Vec::new();
+    loop {
+        let mut x = [0; 1];
+        match timeout(Duration::from_secs_f32(TIMEOUT), serial.read_exact(&mut x)).await {
+            Ok(Ok(_)) => {
+                let x = x[0];
+                if x == b'\n' {
+                    break;
+                }
+                ret.push(x);
+            }
+            Ok(Err(x)) => {
+                return Err(Error::io(x));
+            }
+            Err(_) => {
+                return Err(Error::Timeout);
+            }
+        };
+        let delta = start.elapsed().as_secs_f32();
+        if delta > TIMEOUT {
+            return Err(Error::Timeout);
+        }
+    }
+    String::from_utf8(ret).map_err(Error::DecodeError)
+}
+
+async fn handle_prologix_request(serial: &mut Serial, addr: u8, req: ScpiRequest) -> crate::Result<ScpiResponse> {
+    let mut ret = Vec::with_capacity(128);
+    serial.read_to_end(&mut ret).await.map_err(Error::io)?;
+    ret.clear();
+    let addr_set = format!("++addr {}", addr);
+    let addr_set = addr_set.as_bytes();
+    serial.write(addr_set).await.map_err(Error::io)?;
+    match req {
+        ScpiRequest::Write(x) => {
+            write_prologix(serial, x).await?;
+            Ok(ScpiResponse::Done)
+        }
+        ScpiRequest::QueryString(x) => {
+            write_prologix(serial, x).await?;
+            serial.write("++read eoi".as_bytes()).await.map_err(Error::io)?;
+            let reply = read_prologix(serial).await?;
+            Ok(ScpiResponse::String(reply))
+        }
+        ScpiRequest::QueryBinary(_) => {
+            log::error!("ScpiRequest::QueryBinary not implemented for Prologix!!");
+            Err(Error::NotSupported)
+        }
+    }
+}
 
 impl Into<SerialPortSettings> for SerialParams {
     fn into(self) -> SerialPortSettings {
