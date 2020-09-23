@@ -119,7 +119,13 @@ impl App {
                     InstrumentOptions::Visa(x) => x.clone(),
                     InstrumentOptions::Default => VisaOptions::default(),
                 };
-                Ok(instr.request(task, opt).await?)
+                match instr.request(task, opt).await {
+                    Ok(x) => Ok(x),
+                    Err(x) => {
+                        self.inventory.disconnect(&addr);
+                        Err(x.into())
+                    },
+                }
             },
             Instrument::Modbus(_) => {
                 Err(RpcError::NotSupported)
@@ -136,9 +142,11 @@ impl App {
                                 Ok(resp)
                             },
                             Ok(_) => {
+                                self.inventory.disconnect(&addr);
                                 Err(RpcError::NotSupported)
                             }
                             Err(x) => {
+                                self.inventory.disconnect(&addr);
                                 Err(x.into())
                             },
                         }
@@ -153,7 +161,13 @@ impl App {
         let addr = Address::parse(&addr)?;
         match self.inventory.connect(&addr) {
             Instrument::Modbus(mut instr) => {
-                Ok(instr.request(task).await?)
+                match instr.request(task).await {
+                    Ok(x) => Ok(x),
+                    Err(x) => {
+                        self.inventory.disconnect(&addr);
+                        Err(x.into())
+                    },
+                }
             },
             _ => {
                 Err(RpcError::NotSupported)
@@ -195,7 +209,13 @@ impl App {
         };
         match self.inventory.connect(&addr) {
             Instrument::Serial(mut instr) => {
-                Ok(instr.request(req).await?)
+                match instr.request(req).await {
+                    Ok(x) => Ok(x),
+                    Err(x) => {
+                        self.inventory.disconnect(&addr);
+                        Err(x.into())
+                    },
+                }
             },
             _ => {
                 Err(RpcError::NotSupported)
