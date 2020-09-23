@@ -232,18 +232,13 @@ async fn handle_request(serial: &mut Serial, req: SerialRequest) -> crate::Resul
         SerialRequest::ReadAll { params: _ } => {
             log::debug!("read all bytes");
             let mut ret = Vec::new();
-            loop {
-                let mut data = [0u8; 128];
-                let fut = AsyncReadExt::read(serial, &mut data);
-                let num_read = match timeout(Duration::from_micros(100), fut).await {
-                    Ok(x) => x.map_err(Error::io)?,
-                    Err(_) => break,
-                };
-                if num_read == 0 {
-                    break;
-                }
-                ret.extend(&data[..num_read]);
-            }
+            let fut = AsyncReadExt::read_buf(serial, &mut ret);
+            match timeout(Duration::from_micros(100), fut).await {
+                Ok(x) => {
+                    x.map_err(Error::io)?;
+                },
+                Err(_) => {},
+            };
             Ok(SerialResponse::Data(ret))
         }
         SerialRequest::Prologix { gpib_addr: addr, req } => {
@@ -274,9 +269,11 @@ async fn read_prologix(serial: &mut Serial) -> crate::Result<String> {
                 ret.push(x);
             }
             Ok(Err(x)) => {
+                log::debug!("read error");
                 return Err(Error::io(x));
             }
             Err(_) => {
+                log::debug!("instrument read timeout");
                 return Err(Error::Timeout);
             }
         };
@@ -289,12 +286,19 @@ async fn read_prologix(serial: &mut Serial) -> crate::Result<String> {
 }
 
 async fn handle_prologix_request(serial: &mut Serial, addr: u8, req: ScpiRequest) -> crate::Result<ScpiResponse> {
+    log::debug!("handling prologix request for address {}", addr);
     let mut ret = Vec::with_capacity(128);
-    serial.read_to_end(&mut ret).await.map_err(Error::io)?;
+    let fut = AsyncReadExt::read(serial, &mut ret);
+    match timeout(Duration::from_micros(100), fut).await {
+        Ok(x) => {
+            x.map_err(Error::io)?;
+        }
+        Err(_) => {},
+    };
+    log::debug!("Read: {:?}", ret);
     ret.clear();
-    let addr_set = format!("++addr {}", addr);
-    let addr_set = addr_set.as_bytes();
-    serial.write(addr_set).await.map_err(Error::io)?;
+    let addr_set = format!("++addr {}\n", addr);
+    serial.write(addr_set.as_bytes()).await.map_err(Error::io)?;
     match req {
         ScpiRequest::Write(x) => {
             write_prologix(serial, x).await?;
@@ -302,7 +306,7 @@ async fn handle_prologix_request(serial: &mut Serial, addr: u8, req: ScpiRequest
         }
         ScpiRequest::QueryString(x) => {
             write_prologix(serial, x).await?;
-            serial.write("++read eoi".as_bytes()).await.map_err(Error::io)?;
+            serial.write("++read eoi\n".as_bytes()).await.map_err(Error::io)?;
             let reply = read_prologix(serial).await?;
             Ok(ScpiResponse::String(reply))
         }
