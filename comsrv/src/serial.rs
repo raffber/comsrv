@@ -176,7 +176,7 @@ pub struct Instrument {
 }
 
 impl Instrument {
-    fn new(path: String) -> Self {
+    pub fn new(path: String) -> Self {
         let handler = Handler {
             serial: None,
             path,
@@ -186,7 +186,7 @@ impl Instrument {
         }
     }
 
-    async fn request(&mut self, req: SerialRequest) -> crate::Result<SerialResponse> {
+    pub async fn request(&mut self, req: SerialRequest) -> crate::Result<SerialResponse> {
         self.inner.request(req).await
     }
 

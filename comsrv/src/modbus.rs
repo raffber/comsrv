@@ -57,6 +57,14 @@ pub struct Instrument {
 }
 
 impl Instrument {
+    pub fn new(addr: SocketAddr) -> Self {
+        Self {
+            inner: IoTask::new(Handler {
+                addr,
+                ctx: None
+            })
+        }
+    }
     pub async fn request(&mut self, req: ModBusRequest) -> crate::Result<ModBusResponse> {
         self.inner.request(req).await
     }

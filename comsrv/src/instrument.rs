@@ -2,6 +2,9 @@ use std::hash::Hash;
 use std::net::SocketAddr;
 
 use serde::{Deserialize, Serialize};
+use crate::visa::asynced::Instrument as VisaInstrument;
+use crate::modbus::Instrument as ModBusInstrument;
+use crate::serial::Instrument as SerialInstrument;
 
 use crate::Error;
 use crate::serial::SerialParams;
@@ -27,9 +30,9 @@ impl InstrumentOptions {
 
 #[derive(Clone)]
 pub enum Instrument {
-    Visa(crate::visa::asynced::Instrument),
-    Modbus(crate::modbus::Instrument),
-    Serial(crate::serial::Instrument),
+    Visa(VisaInstrument),
+    Modbus(ModBusInstrument),
+    Serial(SerialInstrument),
 }
 
 #[derive(Hash)]
@@ -102,7 +105,7 @@ impl Address {
             let (path, params) = SerialParams::from_string(&addr).ok_or(Error::InvalidAddress)?;
             Ok(Address::Serial {
                 path,
-                params
+                params,
             })
         } else {
             let splits: Vec<_> = splits.iter().map(|x| x.to_lowercase().to_string()).collect();
@@ -115,8 +118,8 @@ impl Address {
             Address::Visa { splits } => {
                 let id = format!("{}::{}", splits[0], splits[1]);
                 HandleId::new(id)
-            },
-            Address::Serial { path, ..} => HandleId::new(path.clone()),
+            }
+            Address::Serial { path, .. } => HandleId::new(path.clone()),
             Address::Prologix { file, .. } => file.clone(),
             Address::Modbus { addr } => addr.to_string(),
         }
@@ -128,12 +131,12 @@ impl Into<String> for Address {
         match self {
             Address::Visa { splits } => {
                 splits.join("::")
-            },
+            }
             Address::Serial { path, params } => {
                 format!("serial::{}::{}::{}{}{}", path, params.baud, params.data_bits, params.parity, params.stop_bits)
-            },
-            Address::Prologix { file, gpib } => {},
-            Address::Modbus { addr } => {},
+            }
+            Address::Prologix { file, gpib } => {}
+            Address::Modbus { addr } => {}
         }
         unimplemented!()
     }
@@ -147,37 +150,33 @@ impl Instrument {
     }
 
     pub fn connect(addr: &Address) -> Instrument {
-        // match addr {
-        //     Address::Visa { splits } => {
-        //         let visa_options = match options {
-        //             InstrumentOptions::Visa(visa) => visa.clone(),
-        //             InstrumentOptions::Default => VisaOptions::default(),
-        //         };
-        //         let addr = splits.join("::");
-        //         crate::visa::asynced::Instrument::connect(addr, visa_options).await
-        //             .map(Instrument::Visa)
-        //     }
-        //     Address::Serial { params } => {
-        //         Ok(Instrument::Serial(crate::serial::Instrument::connect(params)))
-        //     }
-        //     Address::Prologix { file, gpib } => {
-        //         Ok(Instrument::Prologix(crate::prologix::Instrument::connect(&file, *gpib)))
-        //     }
-        //     Address::Modbus { addr } => {
-        //         crate::modbus::Instrument::connect(addr).await
-        //             .map(Instrument::Modbus)
-        //     }
-        // }
-        todo!()
+        match addr {
+            Address::Visa { splits } => {
+                let addr = splits.join("::");
+                let instr = VisaInstrument::connect(addr);
+                Instrument::Visa(instr)
+            }
+            Address::Serial { path, .. } => {
+                let instr = SerialInstrument::new(path.clone());
+                Instrument::Serial(instr)
+            }
+            Address::Prologix { file, .. } => {
+                let instr = SerialInstrument::new(file.clone());
+                Instrument::Serial(instr)
+            }
+            Address::Modbus { addr } => {
+                Instrument::Modbus(ModBusInstrument::new(addr.clone()))
+            }
+        }
     }
 
     pub fn disconnect(self) {
         match self {
-            Instrument::Visa(_) => {
-                todo!()
+            Instrument::Visa(x) => {
+                x.disconnect()
             }
-            Instrument::Modbus(_) => {
-                todo!()
+            Instrument::Modbus(x) => {
+                x.disconnect()
             }
             Instrument::Serial(x) => {
                 x.disconnect()

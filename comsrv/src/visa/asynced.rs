@@ -26,15 +26,20 @@ enum Msg {
 }
 
 impl Instrument {
-    pub async fn connect<T: Into<String>>(addr: T, options: VisaOptions) -> Self {
+    pub fn connect<T: Into<String>>(addr: T) -> Self {
         let (tx, rx) = mpsc::channel();
         let addr = addr.into();
         thread::spawn(move || {
             let mut oinstr = None;
             while let Ok(msg) = rx.recv() {
-                if matches!(msg, Msg::Drop) {
-                    break;
-                }
+                let (request, options, reply) = match msg {
+                    Msg::Scpi { request, options, reply } => {
+                        (request, options, reply)
+                    }
+                    Msg::Drop => {
+                        break;
+                    }
+                };
                 let instr = if let Some(instr) = oinstr.take() {
                     Ok(instr)
                 } else {
@@ -42,21 +47,11 @@ impl Instrument {
                 };
                 match instr {
                     Ok(instr) => {
-                        match msg {
-                            Msg::Scpi { request, options, reply } => {
-                                let _ = reply.send(instr.handle_scpi(request, &options));
-                            }
-                            _ => {}
-                        }
+                        let _ = reply.send(instr.handle_scpi(request, &options));
                         oinstr.replace(instr);
                     }
                     Err(err) => {
-                        match msg {
-                            Msg::Scpi { request: _, options: _, reply } => {
-                                let _ = reply.send(Err(err));
-                            }
-                            _ => {}
-                        }
+                        let _ = reply.send(Err(err));
                     }
                 }
             }
