@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task;
-use futures::TryFutureExt;
 use crate::Error;
 
 pub trait Message: 'static + Send {}
@@ -25,9 +24,16 @@ enum RequestMsg<T: IoHandler> {
 }
 
 
-#[derive(Clone)]
 pub struct IoTask<T: IoHandler> {
     tx: mpsc::UnboundedSender<RequestMsg<T>>,
+}
+
+impl<T: IoHandler> Clone for IoTask<T> {
+    fn clone(&self) -> Self {
+        Self {
+            tx: self.tx.clone()
+        }
+    }
 }
 
 impl<T: 'static + IoHandler> IoTask<T> {

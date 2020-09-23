@@ -6,11 +6,6 @@ use tokio::sync::oneshot;
 use crate::{Error, ScpiRequest, ScpiResponse};
 use crate::visa::{Instrument as BlockingInstrument, VisaOptions};
 
-pub struct Thread {
-    instr: BlockingInstrument,
-    rx: mpsc::Receiver<Msg>,
-}
-
 #[derive(Clone)]
 pub struct Instrument {
     tx: mpsc::Sender<Msg>,
@@ -60,11 +55,11 @@ impl Instrument {
         Instrument { tx }
     }
 
-    pub async fn request(self, req: ScpiRequest) -> crate::Result<ScpiResponse> {
+    pub async fn request(self, req: ScpiRequest, options: VisaOptions) -> crate::Result<ScpiResponse> {
         let (tx, rx) = oneshot::channel();
         let thmsg = Msg::Scpi {
             request: req,
-            options: VisaOptions::default(),
+            options,
             reply: tx,
         };
         self.tx.send(thmsg).map_err(|_| Error::Disconnected)?;
@@ -74,8 +69,4 @@ impl Instrument {
     pub fn disconnect(self) {
         let _ = self.tx.send(Msg::Drop);
     }
-}
-
-impl Thread {
-    fn handle(&mut self, msg: Msg) -> bool {}
 }

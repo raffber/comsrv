@@ -9,6 +9,8 @@ use crate::serial::Instrument as SerialInstrument;
 use crate::Error;
 use crate::serial::SerialParams;
 use crate::visa::VisaOptions;
+use std::fmt::{Display, Formatter};
+use std::fmt;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum InstrumentOptions {
@@ -35,7 +37,7 @@ pub enum Instrument {
     Serial(SerialInstrument),
 }
 
-#[derive(Hash)]
+#[derive(Hash, PartialEq, Eq)]
 pub struct HandleId {
     inner: String,
 }
@@ -120,8 +122,8 @@ impl Address {
                 HandleId::new(id)
             }
             Address::Serial { path, .. } => HandleId::new(path.clone()),
-            Address::Prologix { file, .. } => file.clone(),
-            Address::Modbus { addr } => addr.to_string(),
+            Address::Prologix { file, .. } => HandleId::new(file.clone()),
+            Address::Modbus { addr } => HandleId::new(addr.to_string()),
         }
     }
 }
@@ -135,20 +137,24 @@ impl Into<String> for Address {
             Address::Serial { path, params } => {
                 format!("serial::{}::{}::{}{}{}", path, params.baud, params.data_bits, params.parity, params.stop_bits)
             }
-            Address::Prologix { file, gpib } => {}
-            Address::Modbus { addr } => {}
+            Address::Prologix { file, gpib } => {
+                format!("prologix::{}::{}", file, gpib)
+            }
+            Address::Modbus { addr } => {
+                format!("modbus::{}", addr)
+            }
         }
-        unimplemented!()
+    }
+}
+
+impl Display for Address {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let x: String = self.clone().into();
+        f.write_str(&x)
     }
 }
 
 impl Instrument {
-    pub async fn connect_with_string(addr: &str, options: &InstrumentOptions) -> crate::Result<Instrument> {
-        // let addr = Address::parse(&addr)?;
-        // Self::connect(addr, options)
-        todo!()
-    }
-
     pub fn connect(addr: &Address) -> Instrument {
         match addr {
             Address::Visa { splits } => {

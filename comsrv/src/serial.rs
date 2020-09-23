@@ -167,10 +167,11 @@ impl IoHandler for Handler {
                 }
             }
         };
-        handle_request(&mut serial, req)
+        handle_request(&mut serial, req).await
     }
 }
 
+#[derive(Clone)]
 pub struct Instrument {
     inner: IoTask<Handler>,
 }
@@ -237,7 +238,8 @@ async fn handle_request(serial: &mut Serial, req: SerialRequest) -> crate::Resul
             Ok(SerialResponse::Data(ret))
         }
         SerialRequest::Prologix { gpib_addr: addr, req } => {
-            handle_prologix_request(serial, addr, req)
+            let answer = handle_prologix_request(serial, addr, req).await?;
+            Ok(SerialResponse::Scpi(answer))
         }
     }
 }

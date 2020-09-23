@@ -3,8 +3,6 @@ use std::sync::Arc;
 
 use futures::channel::oneshot;
 use futures::future::Shared;
-use futures::FutureExt;
-use tokio::sync::mpsc;
 use std::sync::Mutex;
 
 use crate::instrument::{Instrument, HandleId, Address};
@@ -24,7 +22,6 @@ pub struct Inventory(Arc<Mutex<InventoryShared>>);
 
 impl Inventory {
     pub fn new() -> Self {
-        let (tx, rx) = mpsc::unbounded_channel();
         let inner = InventoryShared {
             instruments: Default::default(),
         };
@@ -52,7 +49,7 @@ impl Inventory {
     }
 
     pub fn list(&self) -> Vec<String> {
-        let mut inner = self.0.lock().unwrap();
+        let inner = self.0.lock().unwrap();
         inner.instruments.keys().map(|x| x.to_string()).collect()
     }
 }

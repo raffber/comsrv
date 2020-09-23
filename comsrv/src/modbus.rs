@@ -1,7 +1,6 @@
 use std::net::SocketAddr;
 
 use serde::{Deserialize, Serialize};
-use tokio::stream::StreamExt;
 use tokio_modbus::client::{Context, Reader, tcp, Writer};
 use async_trait::async_trait;
 
@@ -73,7 +72,6 @@ impl Instrument {
         self.inner.disconnect()
     }
 }
-
 
 struct Handler {
     addr: SocketAddr,

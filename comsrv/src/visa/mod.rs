@@ -68,7 +68,7 @@ fn parse_binary_header(rx: &[u8]) -> crate::Result<(usize, usize)> {
 impl Instrument {
     pub fn open(addr: &str, _options: &VisaOptions) -> VisaResult<Self> {
         Ok(Self {
-            instr: VisaInstrument::open(addr.clone(), Some(DEFAULT_TIMEOUT))?
+            instr: VisaInstrument::open(addr.to_string().clone(), Some(DEFAULT_TIMEOUT))?
         })
     }
 
