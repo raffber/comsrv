@@ -5,13 +5,10 @@ use futures::channel::oneshot;
 use futures::future::Shared;
 use futures::FutureExt;
 use tokio::sync::mpsc;
-use tokio::sync::Mutex;
-use tokio::task;
+use std::sync::Mutex;
 
-use crate::instrument::{Instrument, InstrumentOptions, HandleId, Address};
-use crate::{Result, Error};
-use crate::prologix::PrologixPort;
-use crate::iotask::IoTask;
+use crate::instrument::{Instrument, HandleId, Address};
+use crate::Error;
 
 #[derive(Clone)]
 pub struct Connecting {
@@ -37,7 +34,7 @@ impl Inventory {
     }
 
     pub fn connect(&self, addr: &Address) -> Instrument {
-        let mut inner = self.0.lock().await;
+        let mut inner = self.0.lock().unwrap();
         if let Some(ret) = inner.instruments.get(&addr.handle_id()) {
             return ret.clone();
         }
@@ -48,9 +45,14 @@ impl Inventory {
 
     pub fn disconnect(&self, addr: &Address) {
         log::debug!("Dropping instrument: {}", addr);
-        let mut inner = self.0.lock().await;
+        let mut inner = self.0.lock().unwrap();
         if let Some(x) = inner.instruments.remove(&addr.handle_id()) {
             x.disconnect();
         }
+    }
+
+    pub fn list(&self) -> Vec<String> {
+        let mut inner = self.0.lock().unwrap();
+        inner.instruments.keys().map(|x| x.to_string()).collect()
     }
 }

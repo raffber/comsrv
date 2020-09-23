@@ -16,7 +16,6 @@ use thiserror::Error;
 use visa::VisaError;
 
 mod instrument;
-mod prologix;
 mod modbus;
 mod inventory;
 pub mod visa;

@@ -1,32 +1,33 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::sync::{mpsc, oneshot};
-use tokio::task;
 use tokio::time::{Duration, timeout};
 use tokio_serial::{FlowControl, Serial, SerialPortSettings};
 
 use crate::{Error, ScpiRequest, ScpiResponse};
 use crate::iotask::{IoHandler, IoTask};
-use crate::instrument::Address;
 use std::time::Instant;
+use std::fmt::Display;
+use serde::export::Formatter;
+use std::fmt;
 
 const DEFAULT_TIMEOUT_MS: u64 = 500;
+const PROLOGIX_TIMEOUT: f32 = 1.0;
 
-#[derive(PartialEq, Clone, Copy, Serialize, Deserialize)]
+#[derive(PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum StopBits {
     One,
     Two,
 }
 
-#[derive(PartialEq, Clone, Copy, Serialize, Deserialize)]
+#[derive(PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum Parity {
     None,
     Odd,
     Even,
 }
 
-#[derive(PartialEq, Clone, Copy, Serialize, Deserialize)]
+#[derive(PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum DataBits {
     Five,
     Six,
@@ -61,7 +62,7 @@ pub fn parse_serial_settings(settings: &str) -> Option<(DataBits, Parity, StopBi
     Some((data_bits, parity, stop_bits))
 }
 
-#[derive(PartialEq, Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Clone, Serialize, Deserialize, Hash)]
 pub struct SerialParams {
     pub baud: u32,
     pub data_bits: DataBits,
@@ -121,9 +122,9 @@ impl SerialRequest {
                     baud: 9600,
                     data_bits: DataBits::Eight,
                     stop_bits: StopBits::One,
-                    parity: Parity::None
+                    parity: Parity::None,
                 }
-            },
+            }
             SerialRequest::Write { params, data: _ } => params.clone(),
             SerialRequest::ReadExact { params, count: _, timeout_ms: _ } => params.clone(),
             SerialRequest::ReadUpTo { params, count: _ } => params.clone(),
@@ -155,7 +156,7 @@ impl IoHandler for Handler {
             None => {
                 let settings = new_params.into();
                 Serial::from_path(&self.path, &settings).map_err(Error::io)?
-            },
+            }
             Some((serial, old_params)) => {
                 if old_params == new_params {
                     serial
@@ -164,7 +165,7 @@ impl IoHandler for Handler {
                     let settings = new_params.into();
                     Serial::from_path(&self.path, &settings).map_err(Error::io)?
                 }
-            },
+            }
         };
         handle_request(&mut serial, req)
     }
@@ -178,7 +179,7 @@ impl Instrument {
     fn new(path: String) -> Self {
         let handler = Handler {
             serial: None,
-            path
+            path,
         };
         Self {
             inner: IoTask::new(handler)
@@ -209,7 +210,7 @@ async fn handle_request(serial: &mut Serial, req: SerialRequest) -> crate::Resul
             }?;
             Ok(SerialResponse::Data(data))
         }
-        SerialRequest::ReadUpTo { params: _, count }  => {
+        SerialRequest::ReadUpTo { params: _, count } => {
             let mut data = vec![0; count as usize];
             let fut = AsyncReadExt::read(serial, &mut data);
             let num_read = match timeout(Duration::from_micros(100), fut).await {
@@ -235,7 +236,7 @@ async fn handle_request(serial: &mut Serial, req: SerialRequest) -> crate::Resul
             }
             Ok(SerialResponse::Data(ret))
         }
-        SerialRequest::Prologix { gpib_addr: addr, req} => {
+        SerialRequest::Prologix { gpib_addr: addr, req } => {
             handle_prologix_request(serial, addr, req)
         }
     }
@@ -253,7 +254,7 @@ async fn read_prologix(serial: &mut Serial) -> crate::Result<String> {
     let mut ret = Vec::new();
     loop {
         let mut x = [0; 1];
-        match timeout(Duration::from_secs_f32(TIMEOUT), serial.read_exact(&mut x)).await {
+        match timeout(Duration::from_secs_f32(PROLOGIX_TIMEOUT), serial.read_exact(&mut x)).await {
             Ok(Ok(_)) => {
                 let x = x[0];
                 if x == b'\n' {
@@ -269,7 +270,7 @@ async fn read_prologix(serial: &mut Serial) -> crate::Result<String> {
             }
         };
         let delta = start.elapsed().as_secs_f32();
-        if delta > TIMEOUT {
+        if delta > PROLOGIX_TIMEOUT {
             return Err(Error::Timeout);
         }
     }
@@ -372,5 +373,38 @@ impl Into<tokio_serial::DataBits> for DataBits {
             DataBits::Seven => tokio_serial::DataBits::Seven,
             DataBits::Eight => tokio_serial::DataBits::Eight,
         }
+    }
+}
+
+impl Display for DataBits {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let x = match self {
+            DataBits::Five => "5",
+            DataBits::Six => "6",
+            DataBits::Seven => "7",
+            DataBits::Eight => "8",
+        };
+        f.write_str(x)
+    }
+}
+
+impl Display for Parity {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let x = match self {
+            Parity::None => "N",
+            Parity::Odd => "O",
+            Parity::Even => "E",
+        };
+        f.write_str(x)
+    }
+}
+
+impl Display for StopBits {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let x = match self {
+            StopBits::One => "1",
+            StopBits::Two => "2",
+        };
+        f.write_str(x)
     }
 }

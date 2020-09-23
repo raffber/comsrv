@@ -2,9 +2,6 @@ use std::net::SocketAddr;
 
 use serde::{Deserialize, Serialize};
 use tokio::stream::StreamExt;
-use tokio::sync::{mpsc, oneshot};
-use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::task;
 use tokio_modbus::client::{Context, Reader, tcp, Writer};
 use async_trait::async_trait;
 

@@ -2,10 +2,8 @@ use std::sync::mpsc;
 use std::thread;
 
 use tokio::sync::oneshot;
-use tokio::task::spawn_blocking;
 
 use crate::{Error, ScpiRequest, ScpiResponse};
-use crate::iotask::{IoHandler, IoTask};
 use crate::visa::{Instrument as BlockingInstrument, VisaOptions};
 
 pub struct Thread {
@@ -53,7 +51,12 @@ impl Instrument {
                         oinstr.replace(instr);
                     }
                     Err(err) => {
-                        let _ = msg.reply.send(Err(err));
+                        match msg {
+                            Msg::Scpi { request: _, options: _, reply } => {
+                                let _ = reply.send(Err(err));
+                            }
+                            _ => {}
+                        }
                     }
                 }
             }

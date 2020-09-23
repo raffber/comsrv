@@ -184,7 +184,7 @@ impl App {
                 }
             }
             Request::ListInstruments => {
-                Response::Instruments(self.inventory.list().await)
+                Response::Instruments(self.inventory.list())
             }
             Request::ModBus { addr, task } => {
                 match self.handle_modbus(addr, task).await {

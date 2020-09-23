@@ -1,10 +1,10 @@
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::net::SocketAddr;
 
 use serde::{Deserialize, Serialize};
 
 use crate::Error;
-use crate::serial::{DataBits, Parity, SerialParams, StopBits};
+use crate::serial::SerialParams;
 use crate::visa::VisaOptions;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -32,6 +32,7 @@ pub enum Instrument {
     Serial(crate::serial::Instrument),
 }
 
+#[derive(Hash)]
 pub struct HandleId {
     inner: String,
 }
@@ -44,12 +45,13 @@ impl HandleId {
     }
 }
 
-impl Hash for HandleId {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        unimplemented!()
+impl ToString for HandleId {
+    fn to_string(&self) -> String {
+        self.inner.clone()
     }
 }
 
+#[derive(Clone, Hash)]
 pub enum Address {
     Visa {
         splits: Vec<String>
@@ -123,16 +125,19 @@ impl Address {
 
 impl Into<String> for Address {
     fn into(self) -> String {
+        match self {
+            Address::Visa { splits } => {
+                splits.join("::")
+            },
+            Address::Serial { path, params } => {
+                format!("serial::{}::{}::{}{}{}", path, params.baud, params.data_bits, params.parity, params.stop_bits)
+            },
+            Address::Prologix { file, gpib } => {},
+            Address::Modbus { addr } => {},
+        }
         unimplemented!()
     }
 }
-
-impl Hash for Address {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        todo!()
-    }
-}
-
 
 impl Instrument {
     pub async fn connect_with_string(addr: &str, options: &InstrumentOptions) -> crate::Result<Instrument> {
