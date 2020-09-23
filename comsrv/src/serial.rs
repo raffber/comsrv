@@ -154,20 +154,25 @@ impl IoHandler for Handler {
         let new_params = req.params();
         let mut serial = match self.serial.take() {
             None => {
-                let settings = new_params.into();
+                log::debug!("Opening {}", self.path);
+                let settings = new_params.clone().into();
                 Serial::from_path(&self.path, &settings).map_err(Error::io)?
             }
             Some((serial, old_params)) => {
                 if old_params == new_params {
+                    log::debug!("reusing already open handle to {}", self.path);
                     serial
                 } else {
                     drop(serial);
-                    let settings = new_params.into();
+                    log::debug!("Reopening {}", self.path);
+                    let settings = new_params.clone().into();
                     Serial::from_path(&self.path, &settings).map_err(Error::io)?
                 }
             }
         };
-        handle_request(&mut serial, req).await
+        let ret = handle_request(&mut serial, req).await;
+        self.serial.replace((serial, new_params) );
+        ret
     }
 }
 
@@ -199,10 +204,12 @@ impl Instrument {
 async fn handle_request(serial: &mut Serial, req: SerialRequest) -> crate::Result<SerialResponse> {
     match req {
         SerialRequest::Write { params: _, data } => {
+            log::debug!("write: {:?}", data);
             AsyncWriteExt::write_all(serial, &data).await.map_err(Error::io)?;
             Ok(SerialResponse::Done)
         }
         SerialRequest::ReadExact { params: _, count, timeout_ms } => {
+            log::debug!("read exactly {} bytes", count);
             let mut data = vec![0; count as usize];
             let fut = AsyncReadExt::read_exact(serial, data.as_mut_slice());
             let _ = match timeout(Duration::from_millis(timeout_ms as u64), fut).await {
@@ -212,6 +219,7 @@ async fn handle_request(serial: &mut Serial, req: SerialRequest) -> crate::Resul
             Ok(SerialResponse::Data(data))
         }
         SerialRequest::ReadUpTo { params: _, count } => {
+            log::debug!("read up to {} bytes", count);
             let mut data = vec![0; count as usize];
             let fut = AsyncReadExt::read(serial, &mut data);
             let num_read = match timeout(Duration::from_micros(100), fut).await {
@@ -222,6 +230,7 @@ async fn handle_request(serial: &mut Serial, req: SerialRequest) -> crate::Resul
             Ok(SerialResponse::Data(data))
         }
         SerialRequest::ReadAll { params: _ } => {
+            log::debug!("read all bytes");
             let mut ret = Vec::new();
             loop {
                 let mut data = [0u8; 128];

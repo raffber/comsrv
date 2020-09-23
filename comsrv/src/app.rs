@@ -13,6 +13,17 @@ use std::net::SocketAddr;
 use crate::serial::{SerialRequest, SerialResponse};
 
 #[derive(Clone, Serialize, Deserialize)]
+pub enum WireSerialRequest {
+    Write(Vec<u8>),
+    ReadExact {
+        count: u32,
+        timeout_ms: u32,
+    },
+    ReadUpTo(u32),
+    ReadAll,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
     Scpi {
         addr: String,
@@ -27,7 +38,7 @@ pub enum Request {
     },
     Serial {
         addr: String,
-        task: SerialRequest,
+        task: WireSerialRequest,
     },
     ListInstruments,
 }
@@ -150,11 +161,41 @@ impl App {
         }
     }
 
-    async fn handle_serial(&self, addr: &str, task: SerialRequest) -> Result<SerialResponse, RpcError> {
+    async fn handle_serial(&self, addr: &str, task: WireSerialRequest) -> Result<SerialResponse, RpcError> {
         let addr = Address::parse(&addr)?;
+        let (_, params) = match &addr {
+            Address::Serial { path, params } => (path, params),
+            _ => {
+                return Err(RpcError::NotSupported);
+            }
+        };
+        let params = params.clone();
+        let req = match task {
+            WireSerialRequest::Write(data) => {
+                SerialRequest::Write {
+                    params,
+                    data
+                }
+            },
+            WireSerialRequest::ReadExact { count, timeout_ms } => {
+                SerialRequest::ReadExact {
+                    params,
+                    count,
+                    timeout_ms
+                }
+            },
+            WireSerialRequest::ReadUpTo(count) => {
+                SerialRequest::ReadUpTo { params, count }
+            },
+            WireSerialRequest::ReadAll => {
+                SerialRequest::ReadAll {
+                    params
+                }
+            },
+        };
         match self.inventory.connect(&addr) {
             Instrument::Serial(mut instr) => {
-                Ok(instr.request(task).await?)
+                Ok(instr.request(req).await?)
             },
             _ => {
                 Err(RpcError::NotSupported)
