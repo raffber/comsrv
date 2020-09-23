@@ -1,13 +1,11 @@
 use std::net::SocketAddr;
 
 use serde::{Deserialize, Serialize};
-use tokio::stream::StreamExt;
-use tokio::sync::{mpsc, oneshot};
-use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::task;
 use tokio_modbus::client::{Context, Reader, tcp, Writer};
+use async_trait::async_trait;
 
 use crate::Error;
+use crate::iotask::{IoHandler, IoTask};
 
 fn is_one(x: &u16) -> bool {
     *x == 1
@@ -52,88 +50,82 @@ pub enum ModBusResponse {
     Bool(Vec<bool>),
 }
 
-struct Msg {
-    req: ModBusRequest,
-    tx: oneshot::Sender<crate::Result<ModBusResponse>>,
-}
-
 #[derive(Clone)]
 pub struct Instrument {
-    tx: mpsc::UnboundedSender<Msg>,
+    inner: IoTask<Handler>
 }
 
 impl Instrument {
-    pub async fn connect(addr: SocketAddr) -> crate::Result<Self> {
-        let (tx, rx) = mpsc::unbounded_channel();
-        let ctx = tcp::connect(addr).await.map_err(Error::io)?;
-        task::spawn(thread(ctx, rx));
-        Ok(Instrument {
-            tx
-        })
+    pub fn new(addr: SocketAddr) -> Self {
+        Self {
+            inner: IoTask::new(Handler {
+                addr,
+                ctx: None
+            })
+        }
+    }
+    pub async fn request(&mut self, req: ModBusRequest) -> crate::Result<ModBusResponse> {
+        self.inner.request(req).await
     }
 
-    pub async fn handle(&mut self, req: ModBusRequest) -> crate::Result<ModBusResponse> {
-        let (tx, rx) = oneshot::channel();
-        let req = Msg {
-            req,
-            tx,
-        };
-        self.tx.send(req).map_err(|_| Error::Disconnected)?;
-        rx.await.map_err(|_| Error::Disconnected)?
+    pub fn disconnect(mut self) {
+        self.inner.disconnect()
     }
 }
 
-async fn thread(mut ctx: Context, mut rx: UnboundedReceiver<Msg>) {
-    while let Some(msg) = rx.next().await {
-        match msg.req {
-            ModBusRequest::ReadCoil { addr, cnt } => {
-                let ret = ctx.read_coils(addr, cnt).await
-                    .map_err(Error::io)
-                    .map(ModBusResponse::Bool);
-                if msg.tx.send(ret).is_err() {
-                    break;
-                }
-            }
-            ModBusRequest::ReadDiscrete { addr, cnt } => {
-                let ret = ctx.read_discrete_inputs(addr, cnt).await
-                    .map_err(Error::io)
-                    .map(ModBusResponse::Bool);
-                if msg.tx.send(ret).is_err() {
-                    break;
-                }
-            }
-            ModBusRequest::ReadInput { addr, cnt } => {
-                let ret = ctx.read_input_registers(addr, cnt).await
-                    .map_err(Error::io)
-                    .map(ModBusResponse::Number);
-                if msg.tx.send(ret).is_err() {
-                    break;
-                }
-            }
-            ModBusRequest::ReadHolding { addr, cnt } => {
-                let ret = ctx.read_holding_registers(addr, cnt).await
-                    .map_err(Error::io)
-                    .map(ModBusResponse::Number);
-                if msg.tx.send(ret).is_err() {
-                    break;
-                }
-            }
-            ModBusRequest::WriteCoil { addr, values } => {
-                let ret = ctx.write_multiple_coils(addr, &values).await
-                    .map_err(Error::io)
-                    .map(|_| ModBusResponse::Done);
-                if msg.tx.send(ret).is_err() {
-                    break;
-                }
-            }
-            ModBusRequest::WriteRegister { addr, data } => {
-                let ret = ctx.write_multiple_registers(addr, &data).await
-                    .map_err(Error::io)
-                    .map(|_| ModBusResponse::Done);
-                if msg.tx.send(ret).is_err() {
-                    break;
-                }
-            }
+struct Handler {
+    addr: SocketAddr,
+    ctx: Option<Context>,
+}
+
+#[async_trait]
+impl IoHandler for Handler {
+    type Request = ModBusRequest;
+    type Response = ModBusResponse;
+
+    async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
+        let mut ctx = if let Some(ctx) = self.ctx.take() {
+            ctx
+        } else {
+            tcp::connect(self.addr.clone()).await.map_err(Error::io)?
+        };
+        let ret = handle_request(&mut ctx, req).await;
+        self.ctx.replace(ctx);
+        ret
+    }
+}
+
+async fn handle_request(ctx: &mut Context, req: ModBusRequest) -> crate::Result<ModBusResponse> {
+    match req {
+        ModBusRequest::ReadCoil { addr, cnt } => {
+            ctx.read_coils(addr, cnt).await
+                .map_err(Error::io)
+                .map(ModBusResponse::Bool)
+        }
+        ModBusRequest::ReadDiscrete { addr, cnt } => {
+            ctx.read_discrete_inputs(addr, cnt).await
+                .map_err(Error::io)
+                .map(ModBusResponse::Bool)
+        }
+        ModBusRequest::ReadInput { addr, cnt } => {
+            ctx.read_input_registers(addr, cnt).await
+                .map_err(Error::io)
+                .map(ModBusResponse::Number)
+        }
+        ModBusRequest::ReadHolding { addr, cnt } => {
+            ctx.read_holding_registers(addr, cnt).await
+                .map_err(Error::io)
+                .map(ModBusResponse::Number)
+        }
+        ModBusRequest::WriteCoil { addr, values } => {
+            ctx.write_multiple_coils(addr, &values).await
+                .map_err(Error::io)
+                .map(|_| ModBusResponse::Done)
+        }
+        ModBusRequest::WriteRegister { addr, data } => {
+            ctx.write_multiple_registers(addr, &data).await
+                .map_err(Error::io)
+                .map(|_| ModBusResponse::Done)
         }
     }
 }
