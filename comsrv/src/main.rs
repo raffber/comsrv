@@ -14,7 +14,7 @@ fn main() {
         .arg(Arg::with_name("port")
             .long("port")
             .short("p")
-            .default_value("6428")
+            .default_value("5902")
             .help("Define the port to listen on."))
         .get_matches();
 
