@@ -10,7 +10,7 @@ use crate::inventory::Inventory;
 use crate::modbus::{ModBusRequest, ModBusResponse};
 use crate::visa::{VisaError, VisaOptions};
 use std::net::SocketAddr;
-use crate::serial::{SerialRequest, SerialResponse};
+use crate::serial::{Request as SerialRequest, Response as SerialResponse};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum WireSerialRequest {
@@ -189,41 +189,9 @@ impl App {
             }
         };
         let params = params.clone();
-        let req = match task {
-            WireSerialRequest::Write(data) => {
-                SerialRequest::Write {
-                    params,
-                    data
-                }
-            },
-            WireSerialRequest::ReadExact { count, timeout_ms } => {
-                SerialRequest::ReadExact {
-                    params,
-                    count,
-                    timeout_ms
-                }
-            },
-            WireSerialRequest::ReadUpTo(count) => {
-                SerialRequest::ReadUpTo { params, count }
-            },
-            WireSerialRequest::ReadAll => {
-                SerialRequest::ReadAll {
-                    params
-                }
-            },
-            WireSerialRequest::CobsWrite(data) => {
-                SerialRequest::CobsWrite {
-                    params,
-                    data
-                }
-            }
-            WireSerialRequest::CobsQuery { data, timeout_ms } => {
-                SerialRequest::CobsQuery {
-                    params,
-                    data,
-                    timeout_ms
-                }
-            }
+        let req = SerialRequest::Serial {
+            params,
+            req: task
         };
         match self.inventory.connect(&addr) {
             Instrument::Serial(mut instr) => {
