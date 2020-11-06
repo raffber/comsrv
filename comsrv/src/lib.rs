@@ -22,6 +22,7 @@ pub mod visa;
 pub mod app;
 mod serial;
 mod iotask;
+mod cobs;
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

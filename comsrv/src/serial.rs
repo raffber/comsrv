@@ -10,6 +10,7 @@ use std::time::Instant;
 use std::fmt::Display;
 use serde::export::Formatter;
 use std::fmt;
+use crate::cobs::{cobs_pack, cobs_unpack};
 
 const DEFAULT_TIMEOUT_MS: u64 = 500;
 const PROLOGIX_TIMEOUT: f32 = 1.0;
@@ -112,6 +113,15 @@ pub enum SerialRequest {
     ReadAll {
         params: SerialParams,
     },
+    CobsWrite {
+        params: SerialParams,
+        data: Vec<u8>,
+    },
+    CobsQuery {
+        params: SerialParams,
+        data: Vec<u8>,
+        timeout_ms: u32,
+    }
 }
 
 impl SerialRequest {
@@ -129,6 +139,8 @@ impl SerialRequest {
             SerialRequest::ReadExact { params, count: _, timeout_ms: _ } => params.clone(),
             SerialRequest::ReadUpTo { params, count: _ } => params.clone(),
             SerialRequest::ReadAll { params } => params.clone(),
+            SerialRequest::CobsWrite { params, data: _ } => params.clone(),
+            SerialRequest::CobsQuery { params, data: _, timeout_ms: _ } => params.clone(),
         }
     }
 }
@@ -245,7 +257,53 @@ async fn handle_request(serial: &mut Serial, req: SerialRequest) -> crate::Resul
             let answer = handle_prologix_request(serial, addr, req).await?;
             Ok(SerialResponse::Scpi(answer))
         }
+        SerialRequest::CobsWrite { params: _, data } => {
+            let data = cobs_pack(&data);
+            AsyncWriteExt::write_all(serial, &data).await.map_err(Error::io)?;
+            Ok(SerialResponse::Done)
+        }
+        SerialRequest::CobsQuery { params: _, data, timeout_ms } => {
+            cobs_query(serial, data, timeout_ms).await
+        }
     }
+}
+
+async fn pop(serial: &mut Serial, timeout_ms: u32) -> crate::Result<u8> {
+    let fut = AsyncReadExt::read_u8(serial);
+    match timeout(Duration::from_millis(timeout_ms as u64), fut).await {
+        Ok(x) => x.map_err(Error::io),
+        Err(_) => Err(Error::Timeout),
+    }
+}
+
+async fn cobs_query(serial: &mut Serial, data: Vec<u8>, timeout_ms: u32) -> crate::Result<SerialResponse> {
+    let data = cobs_pack(&data);
+    AsyncWriteExt::write_all(serial, &data).await.map_err(Error::io)?;
+    let mut ret = Vec::new();
+    let start = Instant::now();
+    while ret.len() == 0 {
+        let x = pop(serial, timeout_ms).await?;
+        if (Instant::now() - start).as_millis() > timeout_ms as u128 {
+            return Err(Error::Timeout);
+        }
+        if x == 0 {
+            continue;
+        }
+        ret.push(x);
+    }
+    loop {
+        let x = pop(serial, timeout_ms).await?;
+        if (Instant::now() - start).as_millis() > timeout_ms as u128 {
+            return Err(Error::Timeout);
+        }
+        ret.push(x);
+        if x == 0 {
+            break;
+        }
+    }
+    // unwrap is save because we cancel above loop only in case we pushed x == 0
+    let ret = cobs_unpack(&ret).unwrap();
+    Ok(SerialResponse::Data(ret))
 }
 
 async fn write_prologix(serial: &mut Serial, mut msg: String) -> crate::Result<()> {

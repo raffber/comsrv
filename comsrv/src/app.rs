@@ -21,6 +21,11 @@ pub enum WireSerialRequest {
     },
     ReadUpTo(u32),
     ReadAll,
+    CobsWrite(Vec<u8>),
+    CobsQuery {
+        data: Vec<u8>,
+        timeout_ms: u32,
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -206,6 +211,19 @@ impl App {
                     params
                 }
             },
+            WireSerialRequest::CobsWrite(data) => {
+                SerialRequest::CobsWrite {
+                    params,
+                    data
+                }
+            }
+            WireSerialRequest::CobsQuery { data, timeout_ms } => {
+                SerialRequest::CobsQuery {
+                    params,
+                    data,
+                    timeout_ms
+                }
+            }
         };
         match self.inventory.connect(&addr) {
             Instrument::Serial(mut instr) => {
