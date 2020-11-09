@@ -185,6 +185,14 @@ async fn pop(serial: &mut Serial, timeout_ms: u32) -> crate::Result<u8> {
 }
 
 async fn cobs_query(serial: &mut Serial, data: Vec<u8>, timeout_ms: u32) -> crate::Result<Response> {
+    let mut garbage = Vec::new();
+    let fut = serial.read_buf(&mut garbage);
+    match timeout(Duration::from_micros(100), fut).await {
+        Ok(x) => {
+            x.map_err(Error::io)?;
+        }
+        Err(_) => {}
+    };
     let data = cobs_pack(&data);
     AsyncWriteExt::write_all(serial, &data).await.map_err(Error::io)?;
     let mut ret = Vec::new();
