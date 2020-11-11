@@ -26,6 +26,7 @@ mod cobs;
 mod util;
 mod sockets;
 mod bytestream;
+mod vxi;
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -143,6 +143,20 @@ impl App {
                     _ => Err(RpcError::NotSupported)
                 }
             },
+            Instrument::Vxi(instr) => {
+                let opt = match options {
+                    InstrumentOptions::Visa(x) => x.clone(),
+                    InstrumentOptions::Default => VisaOptions::default(),
+                };
+                match instr.request(task, opt).await {
+                    Ok(x) => Ok(x),
+                    Err(x) => {
+                        self.inventory.disconnect(&addr);
+                        Err(x.into())
+                    },
+                }
+
+            }
             _ => Err(RpcError::NotSupported)
         }
     }
