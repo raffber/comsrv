@@ -70,7 +70,7 @@ pub enum Error {
     #[error("Timeout Occured")]
     Timeout,
     #[error("Vxi11 Error")]
-    Vxi(async_vxi11::Error),
+    Vxi(Arc<async_vxi11::Error>),
 }
 
 impl Error {
@@ -81,7 +81,7 @@ impl Error {
     pub fn vxi(err: async_vxi11::Error) -> Error {
         match err {
             async_vxi11::Error::Io(x) => Error::io(x),
-            x => Error::Vxi(x)
+            x => Error::Vxi(Arc::new(x))
         }
     }
 }

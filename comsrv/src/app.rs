@@ -56,6 +56,7 @@ pub enum RpcError {
     NotTerminated,
     InvalidAddress,
     Timeout,
+    Vxi(String)
 }
 
 impl From<Error> for RpcError {
@@ -71,6 +72,7 @@ impl From<Error> for RpcError {
             Error::NotTerminated => RpcError::NotTerminated,
             Error::InvalidAddress => RpcError::InvalidAddress,
             Error::Timeout => RpcError::Timeout,
+            Error::Vxi(x) => RpcError::Vxi(format!("{}", x)),
         }
     }
 }
@@ -143,7 +145,7 @@ impl App {
                     _ => Err(RpcError::NotSupported)
                 }
             },
-            Instrument::Vxi(instr) => {
+            Instrument::Vxi(mut instr) => {
                 let opt = match options {
                     InstrumentOptions::Visa(x) => x.clone(),
                     InstrumentOptions::Default => VisaOptions::default(),
