@@ -288,5 +288,9 @@ async fn handle_prologix_request(serial: &mut Serial, addr: u8, req: ScpiRequest
             log::error!("ScpiRequest::QueryBinary not implemented for Prologix!!");
             Err(Error::NotSupported)
         }
+        ScpiRequest::ReadRaw => {
+            log::error!("ScpiRequest::ReadRaw not implemented for Prologix!!");
+            Err(Error::NotSupported)
+        }
     }
 }

@@ -23,6 +23,8 @@ pub mod app;
 mod serial;
 mod iotask;
 mod cobs;
+mod util;
+
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -30,13 +32,17 @@ pub enum ScpiRequest {
     Write(String),
     QueryString(String),
     QueryBinary(String),
+    ReadRaw,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ScpiResponse {
     Done,
     String(String),
-    Binary(Vec<u8>),
+    Binary{
+        #[serde(serialize_with = "util::to_base64", deserialize_with = "util::from_base64")]
+        data: Vec<u8>
+    },
 }
 
 #[derive(Error, Debug, Clone)]

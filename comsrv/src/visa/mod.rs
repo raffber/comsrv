@@ -113,6 +113,7 @@ impl Instrument {
     }
 
     pub fn query_binary<T: AsRef<str>>(&self, msg: T, option: &VisaOptions) -> crate::Result<Vec<u8>> {
+        log::debug!("QueryBinary[{}]: `{}`", self.instr.addr(), msg.as_ref());
         self.write(msg, option).map_err(Error::Visa)?;
         let rx = self.read().map_err(Error::Visa)?;
         let (offset, length) = parse_binary_header(&rx)?;
@@ -127,7 +128,8 @@ impl Instrument {
         match req {
             ScpiRequest::Write(x) => self.write(x, options).map_err(Error::Visa).map(|_| ScpiResponse::Done),
             ScpiRequest::QueryString(x) => self.query_string(x, options).map(ScpiResponse::String),
-            ScpiRequest::QueryBinary(x) => self.query_binary(x, options).map(ScpiResponse::Binary),
+            ScpiRequest::QueryBinary(x) => self.query_binary(x, options).map(|data| ScpiResponse::Binary { data }),
+            ScpiRequest::ReadRaw => self.read().map_err(Error::Visa).map(|data| ScpiResponse::Binary { data })
         }
     }
 }
