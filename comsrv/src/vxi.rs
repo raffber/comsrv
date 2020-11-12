@@ -1,4 +1,4 @@
-use async_std::net::SocketAddr;
+use async_std::net::IpAddr;
 use async_trait::async_trait;
 use async_vxi11::CoreClient;
 
@@ -17,7 +17,7 @@ struct Request {
 }
 
 impl Instrument {
-    pub fn new(addr: SocketAddr) -> Self {
+    pub fn new(addr: IpAddr) -> Self {
         Self {
             inner: IoTask::new(Handler {
                 addr,
@@ -40,7 +40,7 @@ impl Instrument {
 }
 
 struct Handler {
-    addr: SocketAddr,
+    addr: IpAddr,
     client: Option<CoreClient>,
 
 }
@@ -54,7 +54,7 @@ impl IoHandler for Handler {
         let mut client = if let Some(client) = self.client.take() {
             client
         } else {
-            CoreClient::connect(self.addr.ip()).await.map_err(Error::vxi)?
+            CoreClient::connect(self.addr.clone()).await.map_err(Error::vxi)?
         };
         let ret = handle_request(&mut client, req.req, req.options).await;
         self.client.replace(client);
@@ -62,7 +62,7 @@ impl IoHandler for Handler {
     }
 }
 
-async fn handle_request(client: &mut CoreClient, req: ScpiRequest, options: VisaOptions) -> crate::Result<ScpiResponse> {
+async fn handle_request(client: &mut CoreClient, req: ScpiRequest, _options: VisaOptions) -> crate::Result<ScpiResponse> {
     match req {
         ScpiRequest::Write(data) => {
             client.device_write(data.as_bytes().to_vec()).await

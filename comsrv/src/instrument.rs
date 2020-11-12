@@ -13,6 +13,7 @@ use crate::visa::VisaOptions;
 use std::fmt::{Display, Formatter};
 use std::fmt;
 use crate::sockets::Instrument as SocketInstrument;
+use async_std::net::IpAddr;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum InstrumentOptions {
@@ -77,7 +78,7 @@ pub enum Address {
         addr: SocketAddr,
     },
     Vxi {
-        addr: SocketAddr,
+        addr: IpAddr,
     }
     Socket {
         addr: SocketAddr,
@@ -128,7 +129,7 @@ impl Address {
             })
         } else if splits[0].to_lowercase().starts_with("tcpip") {
             let addr = &splits[1].to_lowercase();
-            let addr: SocketAddr = addr.parse().map_err(|_| Error::InvalidAddress)?;
+            let addr: IpAddr = addr.parse().map_err(|_| Error::InvalidAddress)?;
             Ok(Address::Vxi {
                 addr
             })
