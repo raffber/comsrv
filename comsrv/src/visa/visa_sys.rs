@@ -85,7 +85,7 @@ impl Visa {
         tmpfile.write_all(VISA_LIB).unwrap();
         let (_, path) = tmpfile.keep().unwrap();
         let name = path.to_str().unwrap();
-        let cont: Container<Api> = unsafe { Container::load(name) }.unwrap();
+        let cont: Container<Api> = unsafe { Container::load(name) }.expect("Could not load VISA: Is it installed?");
         let mut rm: ViSession = 0;
         let ret = cont.viOpenDefaultRM(&mut rm as *mut ViSession);
         if ret < 0 {
