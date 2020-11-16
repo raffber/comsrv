@@ -1,3 +1,5 @@
+mod prologix;
+
 use std::time::Instant;
 
 use async_trait::async_trait;
@@ -13,11 +15,11 @@ use crate::app::WireSerialRequest;
 use crate::cobs::{cobs_pack, cobs_unpack};
 use crate::iotask::{IoHandler, IoTask};
 use crate::serial::params::{DataBits, Parity, StopBits};
+use crate::serial::prologix::{init_prologix, handle_prologix_request};
 
 pub mod params;
 
 const DEFAULT_TIMEOUT_MS: u64 = 500;
-const PROLOGIX_TIMEOUT: f32 = 1.0;
 
 pub enum Request {
     Prologix {
@@ -65,24 +67,32 @@ impl IoHandler for Handler {
 
     async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
         let new_params = req.params();
-        let mut serial = match self.serial.take() {
+        let (mut serial, opened) = match self.serial.take() {
             None => {
                 log::debug!("Opening {}", self.path);
                 let settings = new_params.clone().into();
-                Serial::from_path(&self.path, &settings).map_err(Error::io)?
+                (Serial::from_path(&self.path, &settings).map_err(Error::io)?, true)
             }
             Some((serial, old_params)) => {
                 if old_params == new_params {
                     log::debug!("reusing already open handle to {}", self.path);
-                    serial
+                    (serial, false)
                 } else {
                     drop(serial);
                     log::debug!("Reopening {}", self.path);
                     let settings = new_params.clone().into();
-                    Serial::from_path(&self.path, &settings).map_err(Error::io)?
+                    (Serial::from_path(&self.path, &settings).map_err(Error::io)?, true)
                 }
             }
         };
+        if opened {
+            match req {
+                Request::Prologix { .. } => {
+                    init_prologix(&mut serial).await?;
+                }
+                _ => {}
+            }
+        }
         let ret = handle_request(&mut serial, req).await;
         self.serial.replace((serial, new_params));
         ret
@@ -220,77 +230,4 @@ async fn cobs_query(serial: &mut Serial, data: Vec<u8>, timeout_ms: u32) -> crat
     // unwrap is save because we cancel above loop only in case we pushed x == 0
     let ret = cobs_unpack(&ret).unwrap();
     Ok(Response::Data(ret))
-}
-
-async fn write_prologix(serial: &mut Serial, mut msg: String) -> crate::Result<()> {
-    if !msg.ends_with("\n") {
-        msg.push_str("\n");
-    }
-    serial.write(msg.as_bytes()).await.map(|_| ()).map_err(Error::io)
-}
-
-async fn read_prologix(serial: &mut Serial) -> crate::Result<String> {
-    let start = Instant::now();
-    let mut ret = Vec::new();
-    loop {
-        let mut x = [0; 1];
-        match timeout(Duration::from_secs_f32(PROLOGIX_TIMEOUT), serial.read_exact(&mut x)).await {
-            Ok(Ok(_)) => {
-                let x = x[0];
-                if x == b'\n' {
-                    break;
-                }
-                ret.push(x);
-            }
-            Ok(Err(x)) => {
-                log::debug!("read error");
-                return Err(Error::io(x));
-            }
-            Err(_) => {
-                log::debug!("instrument read timeout");
-                return Err(Error::Timeout);
-            }
-        };
-        let delta = start.elapsed().as_secs_f32();
-        if delta > PROLOGIX_TIMEOUT {
-            return Err(Error::Timeout);
-        }
-    }
-    String::from_utf8(ret).map_err(Error::DecodeError)
-}
-
-async fn handle_prologix_request(serial: &mut Serial, addr: u8, req: ScpiRequest) -> crate::Result<ScpiResponse> {
-    log::debug!("handling prologix request for address {}", addr);
-    let mut ret = Vec::with_capacity(128);
-    let fut = AsyncReadExt::read(serial, &mut ret);
-    match timeout(Duration::from_micros(100), fut).await {
-        Ok(x) => {
-            x.map_err(Error::io)?;
-        }
-        Err(_) => {}
-    };
-    log::debug!("Read: {:?}", ret);
-    ret.clear();
-    let addr_set = format!("++addr {}\n", addr);
-    serial.write(addr_set.as_bytes()).await.map_err(Error::io)?;
-    match req {
-        ScpiRequest::Write(x) => {
-            write_prologix(serial, x).await?;
-            Ok(ScpiResponse::Done)
-        }
-        ScpiRequest::QueryString(x) => {
-            write_prologix(serial, x).await?;
-            serial.write("++read eoi\n".as_bytes()).await.map_err(Error::io)?;
-            let reply = read_prologix(serial).await?;
-            Ok(ScpiResponse::String(reply))
-        }
-        ScpiRequest::QueryBinary(_) => {
-            log::error!("ScpiRequest::QueryBinary not implemented for Prologix!!");
-            Err(Error::NotSupported)
-        }
-        ScpiRequest::ReadRaw => {
-            log::error!("ScpiRequest::ReadRaw not implemented for Prologix!!");
-            Err(Error::NotSupported)
-        }
-    }
 }
