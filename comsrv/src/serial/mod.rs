@@ -11,7 +11,7 @@ use tokio_serial::Serial;
 pub use params::SerialParams;
 
 use crate::{Error, ScpiRequest, ScpiResponse};
-use crate::app::WireSerialRequest;
+use crate::app::ByteStreamRequest;
 use crate::cobs::{cobs_pack, cobs_unpack};
 use crate::iotask::{IoHandler, IoTask};
 use crate::serial::params::{DataBits, Parity, StopBits};
@@ -28,7 +28,7 @@ pub enum Request {
     },
     Serial {
         params: SerialParams,
-        req: WireSerialRequest,
+        req: ByteStreamRequest,
     },
 }
 
@@ -135,14 +135,14 @@ async fn handle_request(serial: &mut Serial, req: Request) -> crate::Result<Resp
     }
 }
 
-async fn handle_serial_request(serial: &mut Serial, req: WireSerialRequest) -> crate::Result<Response> {
+async fn handle_serial_request(serial: &mut Serial, req: ByteStreamRequest) -> crate::Result<Response> {
     match req {
-        WireSerialRequest::Write(data) => {
+        ByteStreamRequest::Write(data) => {
             log::debug!("write: {:?}", data);
             AsyncWriteExt::write_all(serial, &data).await.map_err(Error::io)?;
             Ok(Response::Done)
         }
-        WireSerialRequest::ReadExact { count, timeout_ms } => {
+        ByteStreamRequest::ReadExact { count, timeout_ms } => {
             log::debug!("read exactly {} bytes", count);
             let mut data = vec![0; count as usize];
             let fut = AsyncReadExt::read_exact(serial, data.as_mut_slice());
@@ -152,7 +152,7 @@ async fn handle_serial_request(serial: &mut Serial, req: WireSerialRequest) -> c
             }?;
             Ok(Response::Data(data))
         }
-        WireSerialRequest::ReadUpTo(count) => {
+        ByteStreamRequest::ReadUpTo(count) => {
             log::debug!("read up to {} bytes", count);
             let mut data = vec![0; count as usize];
             let fut = AsyncReadExt::read(serial, &mut data);
@@ -163,7 +163,7 @@ async fn handle_serial_request(serial: &mut Serial, req: WireSerialRequest) -> c
             let data = data[..num_read].to_vec();
             Ok(Response::Data(data))
         }
-        WireSerialRequest::ReadAll => {
+        ByteStreamRequest::ReadAll => {
             log::debug!("read all bytes");
             let mut ret = Vec::new();
             let fut = AsyncReadExt::read_buf(serial, &mut ret);
@@ -175,12 +175,12 @@ async fn handle_serial_request(serial: &mut Serial, req: WireSerialRequest) -> c
             };
             Ok(Response::Data(ret))
         }
-        WireSerialRequest::CobsWrite(data) => {
+        ByteStreamRequest::CobsWrite(data) => {
             let data = cobs_pack(&data);
             AsyncWriteExt::write_all(serial, &data).await.map_err(Error::io)?;
             Ok(Response::Done)
         }
-        WireSerialRequest::CobsQuery { data, timeout_ms } => {
+        ByteStreamRequest::CobsQuery { data, timeout_ms } => {
             cobs_query(serial, data, timeout_ms).await
         }
     }

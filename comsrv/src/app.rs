@@ -10,10 +10,10 @@ use crate::inventory::Inventory;
 use crate::modbus::{ModBusRequest, ModBusResponse};
 use crate::visa::{VisaError, VisaOptions};
 use std::net::SocketAddr;
-use crate::serial::{Request as SerialRequest, Response as SerialResponse};
+use crate::serial::{Request as SerialRequest, Response as SerialResponse, SerialParams};
 
 #[derive(Clone, Serialize, Deserialize)]
-pub enum WireSerialRequest {
+pub enum ByteStreamRequest {
     Write(Vec<u8>),
     ReadExact {
         count: u32,
@@ -29,6 +29,12 @@ pub enum WireSerialRequest {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+pub enum ByteStreamResponse {
+    Done,
+    Data(Vec<u8>),
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
     Scpi {
         addr: String,
@@ -41,9 +47,9 @@ pub enum Request {
         addr: String,
         task: ModBusRequest,
     },
-    Serial {
+    Bytes {
         addr: String,
-        task: WireSerialRequest,
+        task: ByteStreamRequest,
     },
     ListInstruments,
     DropAll,
@@ -54,7 +60,7 @@ pub enum Response {
     Error(RpcError),
     Instruments(Vec<String>),
     Scpi(ScpiResponse),
-    Serial(SerialResponse),
+    Serial(ByteStreamResponse),
     ModBus(ModBusResponse),
     Done,
 }
@@ -182,14 +188,7 @@ impl App {
         }
     }
 
-    async fn handle_serial(&self, addr: &str, task: WireSerialRequest) -> Result<SerialResponse, RpcError> {
-        let addr = Address::parse(&addr)?;
-        let (_, params) = match &addr {
-            Address::Serial { path, params } => (path, params),
-            _ => {
-                return Err(RpcError::NotSupported);
-            }
-        };
+    async fn handle_serial(&self, addr: Address, params: &SerialParams, task: ByteStreamRequest) -> Result<ByteStreamResponse, RpcError> {
         let params = params.clone();
         let req = SerialRequest::Serial {
             params,
@@ -198,7 +197,13 @@ impl App {
         match self.inventory.connect(&addr) {
             Instrument::Serial(mut instr) => {
                 match instr.request(req).await {
-                    Ok(x) => Ok(x),
+                    Ok(x) => {
+                        match x {
+                            SerialResponse::Done => Ok(ByteStreamResponse::Done),
+                            SerialResponse::Data(data) => Ok(ByteStreamResponse::Data(data)),
+                            _ => panic!("Invalid answer. This is a bug"),
+                        }
+                    },
                     Err(x) => {
                         self.inventory.disconnect(&addr);
                         Err(x.into())
@@ -207,6 +212,19 @@ impl App {
             },
             _ => {
                 Err(RpcError::NotSupported)
+            }
+        }
+    }
+
+    async fn handle_bytes(&self, addr: &str, task: ByteStreamRequest) -> Result<ByteStreamResponse, RpcError> {
+        let addr = Address::parse(&addr)?;
+        let addr2 = addr.clone();
+        match &addr {
+            Address::Serial { path: _, params } => {
+                self.handle_serial(addr2, params, task).await
+            },
+            _ => {
+                return Err(RpcError::NotSupported);
             }
         }
     }
@@ -228,8 +246,8 @@ impl App {
                     Err(err) => Response::Error(err)
                 }
             }
-            Request::Serial { addr, task } => {
-                match self.handle_serial(&addr, task).await {
+            Request::Bytes { addr, task } => {
+                match self.handle_bytes(&addr, task).await {
                     Ok(result) => Response::Serial(result),
                     Err(err) => Response::Error(err),
                 }
