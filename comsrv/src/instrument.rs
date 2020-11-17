@@ -79,7 +79,7 @@ pub enum Address {
     },
     Vxi {
         addr: IpAddr,
-    }
+    },
     Socket {
         addr: SocketAddr,
     },
