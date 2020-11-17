@@ -127,7 +127,8 @@ impl Address {
             Ok(Address::Socket {
                 addr
             })
-        } else if splits[0].to_lowercase().starts_with("tcpip") {
+        } else if splits[0].to_lowercase().starts_with("vxi") {
+            // vxi::192.168.0.1:1234
             let addr = &splits[1].to_lowercase();
             let addr: IpAddr = addr.parse().map_err(|_| Error::InvalidAddress)?;
             Ok(Address::Vxi {
@@ -173,7 +174,7 @@ impl Into<String> for Address {
                 format!("socket::{}", addr)
             }
             Address::Vxi { addr } => {
-                format!("tcpip::{}", addr)
+                format!("vxi::{}", addr)
             }
         }
     }

@@ -143,6 +143,7 @@ dependencies = [
  "async-trait",
  "byteorder",
  "bytes 0.6.0",
+ "log",
  "onc-rpc",
  "rand",
  "thiserror",

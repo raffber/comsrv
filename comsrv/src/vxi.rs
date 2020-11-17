@@ -6,6 +6,8 @@ use crate::{Error, ScpiRequest, ScpiResponse, util};
 use crate::iotask::{IoHandler, IoTask};
 use crate::visa::VisaOptions;
 
+const DEFAULT_TERMINATION: &'static str = "\n";
+
 #[derive(Clone)]
 pub struct Instrument {
     inner: IoTask<Handler>
@@ -64,8 +66,11 @@ impl IoHandler for Handler {
 
 async fn handle_request(client: &mut CoreClient, req: ScpiRequest, _options: VisaOptions) -> crate::Result<ScpiResponse> {
     match req {
-        ScpiRequest::Write(data) => {
-            client.device_write(data.as_bytes().to_vec()).await
+        ScpiRequest::Write(mut msg) => {
+            if !msg.ends_with(DEFAULT_TERMINATION) {
+                msg.push_str(DEFAULT_TERMINATION);
+            }
+            client.device_write(msg.as_bytes().to_vec()).await
                 .map(|_| ScpiResponse::Done)
                 .map_err(Error::vxi)
         }
@@ -73,6 +78,10 @@ async fn handle_request(client: &mut CoreClient, req: ScpiRequest, _options: Vis
             client.device_write(data.as_bytes().to_vec()).await.map_err(Error::vxi)?;
             let data = client.device_read().await.map_err(Error::vxi)?;
             let ret = String::from_utf8(data).map_err(Error::DecodeError)?;
+            if !ret.ends_with(DEFAULT_TERMINATION) {
+                return Err(Error::NotTerminated);
+            }
+            let ret = ret[..ret.len() - DEFAULT_TERMINATION.len()].to_string();
             Ok(ScpiResponse::String(ret))
         }
         ScpiRequest::QueryBinary(data) => {
