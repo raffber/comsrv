@@ -24,7 +24,8 @@ mod serial;
 mod iotask;
 mod cobs;
 mod util;
-
+mod sockets;
+mod bytestream;
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

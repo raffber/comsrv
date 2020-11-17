@@ -11,28 +11,7 @@ use crate::modbus::{ModBusRequest, ModBusResponse};
 use crate::visa::{VisaError, VisaOptions};
 use std::net::SocketAddr;
 use crate::serial::{Request as SerialRequest, Response as SerialResponse, SerialParams};
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum ByteStreamRequest {
-    Write(Vec<u8>),
-    ReadExact {
-        count: u32,
-        timeout_ms: u32,
-    },
-    ReadUpTo(u32),
-    ReadAll,
-    CobsWrite(Vec<u8>),
-    CobsQuery {
-        data: Vec<u8>,
-        timeout_ms: u32,
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum ByteStreamResponse {
-    Done,
-    Data(Vec<u8>),
-}
+use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
@@ -199,8 +178,7 @@ impl App {
                 match instr.request(req).await {
                     Ok(x) => {
                         match x {
-                            SerialResponse::Done => Ok(ByteStreamResponse::Done),
-                            SerialResponse::Data(data) => Ok(ByteStreamResponse::Data(data)),
+                            SerialResponse::Bytes(x) => Ok(x),
                             _ => panic!("Invalid answer. This is a bug"),
                         }
                     },

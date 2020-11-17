@@ -1,18 +1,13 @@
 mod prologix;
 
-use std::time::Instant;
-
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::time::{Duration, timeout};
 use tokio_serial::Serial;
 
 pub use params::SerialParams;
 
 use crate::{Error, ScpiRequest, ScpiResponse};
-use crate::app::ByteStreamRequest;
-use crate::cobs::{cobs_pack, cobs_unpack};
+use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
 use crate::iotask::{IoHandler, IoTask};
 use crate::serial::params::{DataBits, Parity, StopBits};
 use crate::serial::prologix::{init_prologix, handle_prologix_request};
@@ -50,8 +45,7 @@ impl Request {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Response {
-    Done,
-    Data(Vec<u8>),
+    Bytes(ByteStreamResponse),
     Scpi(ScpiResponse),
 }
 
@@ -130,104 +124,7 @@ async fn handle_request(serial: &mut Serial, req: Request) -> crate::Result<Resp
             handle_prologix_request(serial, gpib_addr, req).await.map(Response::Scpi)
         }
         Request::Serial { params: _, req } => {
-            handle_serial_request(serial, req).await
+            crate::bytestream::handle(serial, req).await.map(Response::Bytes)
         }
     }
-}
-
-async fn handle_serial_request(serial: &mut Serial, req: ByteStreamRequest) -> crate::Result<Response> {
-    match req {
-        ByteStreamRequest::Write(data) => {
-            log::debug!("write: {:?}", data);
-            AsyncWriteExt::write_all(serial, &data).await.map_err(Error::io)?;
-            Ok(Response::Done)
-        }
-        ByteStreamRequest::ReadExact { count, timeout_ms } => {
-            log::debug!("read exactly {} bytes", count);
-            let mut data = vec![0; count as usize];
-            let fut = AsyncReadExt::read_exact(serial, data.as_mut_slice());
-            let _ = match timeout(Duration::from_millis(timeout_ms as u64), fut).await {
-                Ok(x) => x.map_err(Error::io),
-                Err(_) => Err(Error::Timeout),
-            }?;
-            Ok(Response::Data(data))
-        }
-        ByteStreamRequest::ReadUpTo(count) => {
-            log::debug!("read up to {} bytes", count);
-            let mut data = vec![0; count as usize];
-            let fut = AsyncReadExt::read(serial, &mut data);
-            let num_read = match timeout(Duration::from_micros(100), fut).await {
-                Ok(x) => x.map_err(Error::io)?,
-                Err(_) => 0,
-            };
-            let data = data[..num_read].to_vec();
-            Ok(Response::Data(data))
-        }
-        ByteStreamRequest::ReadAll => {
-            log::debug!("read all bytes");
-            let mut ret = Vec::new();
-            let fut = AsyncReadExt::read_buf(serial, &mut ret);
-            match timeout(Duration::from_micros(100), fut).await {
-                Ok(x) => {
-                    x.map_err(Error::io)?;
-                }
-                Err(_) => {}
-            };
-            Ok(Response::Data(ret))
-        }
-        ByteStreamRequest::CobsWrite(data) => {
-            let data = cobs_pack(&data);
-            AsyncWriteExt::write_all(serial, &data).await.map_err(Error::io)?;
-            Ok(Response::Done)
-        }
-        ByteStreamRequest::CobsQuery { data, timeout_ms } => {
-            cobs_query(serial, data, timeout_ms).await
-        }
-    }
-}
-
-async fn pop(serial: &mut Serial, timeout_ms: u32) -> crate::Result<u8> {
-    let fut = AsyncReadExt::read_u8(serial);
-    match timeout(Duration::from_millis(timeout_ms as u64), fut).await {
-        Ok(x) => x.map_err(Error::io),
-        Err(_) => Err(Error::Timeout),
-    }
-}
-
-async fn cobs_query(serial: &mut Serial, data: Vec<u8>, timeout_ms: u32) -> crate::Result<Response> {
-    let mut garbage = Vec::new();
-    let fut = serial.read_buf(&mut garbage);
-    match timeout(Duration::from_micros(100), fut).await {
-        Ok(x) => {
-            x.map_err(Error::io)?;
-        }
-        Err(_) => {}
-    };
-    let data = cobs_pack(&data);
-    AsyncWriteExt::write_all(serial, &data).await.map_err(Error::io)?;
-    let mut ret = Vec::new();
-    let start = Instant::now();
-    while ret.len() == 0 {
-        let x = pop(serial, timeout_ms).await?;
-        if (Instant::now() - start).as_millis() > timeout_ms as u128 {
-            return Err(Error::Timeout);
-        }
-        if x == 0 {
-            continue;
-        }
-        ret.push(x);
-    }
-    loop {
-        let x = pop(serial, timeout_ms).await?;
-        if (Instant::now() - start).as_millis() > timeout_ms as u128 {
-            return Err(Error::Timeout);
-        }
-        ret.push(x);
-        if x == 0 {
-            break;
-        }
-    }
-    // unwrap is save because we cancel above loop only in case we pushed x == 0
-    let ret = cobs_unpack(&ret).unwrap();
-    Ok(Response::Data(ret))
 }
