@@ -48,6 +48,12 @@ impl Inventory {
         }
     }
 
+    pub fn disconnect_all(&self) {
+        log::debug!("Dropping all instruments");
+        let mut inner = self.0.lock().unwrap();
+        inner.instruments.clear();
+    }
+
     pub fn list(&self) -> Vec<String> {
         let inner = self.0.lock().unwrap();
         inner.instruments.keys().map(|x| x.to_string()).collect()

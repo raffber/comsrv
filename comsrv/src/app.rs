@@ -46,6 +46,7 @@ pub enum Request {
         task: WireSerialRequest,
     },
     ListInstruments,
+    DropAll,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -55,6 +56,7 @@ pub enum Response {
     Scpi(ScpiResponse),
     Serial(SerialResponse),
     ModBus(ModBusResponse),
+    Done,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -231,6 +233,10 @@ impl App {
                     Ok(result) => Response::Serial(result),
                     Err(err) => Response::Error(err),
                 }
+            }
+            Request::DropAll => {
+                self.inventory.disconnect_all();
+                Response::Done
             }
         }
     }
