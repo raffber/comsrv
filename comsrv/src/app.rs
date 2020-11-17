@@ -119,9 +119,6 @@ impl App {
                     },
                 }
             },
-            Instrument::Modbus(_) => {
-                Err(RpcError::NotSupported)
-            },
             Instrument::Serial(mut instr) => {
                 match addr {
                     Address::Prologix { file: _, gpib } => {
@@ -146,6 +143,7 @@ impl App {
                     _ => Err(RpcError::NotSupported)
                 }
             },
+            _ => Err(RpcError::NotSupported)
         }
     }
 

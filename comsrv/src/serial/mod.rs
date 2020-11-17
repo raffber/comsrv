@@ -87,7 +87,14 @@ impl IoHandler for Handler {
                 _ => {}
             }
         }
-        let ret = handle_request(&mut serial, req).await;
+        let ret = match req {
+            Request::Prologix { gpib_addr, req } => {
+                handle_prologix_request(&mut serial, gpib_addr, req).await.map(Response::Scpi)
+            }
+            Request::Serial { params: _, req } => {
+                crate::bytestream::handle(&mut serial, req).await.map(Response::Bytes)
+            }
+        };
         self.serial.replace((serial, new_params));
         ret
     }
@@ -115,16 +122,5 @@ impl Instrument {
 
     pub fn disconnect(mut self) {
         self.inner.disconnect()
-    }
-}
-
-async fn handle_request(serial: &mut Serial, req: Request) -> crate::Result<Response> {
-    match req {
-        Request::Prologix { gpib_addr, req } => {
-            handle_prologix_request(serial, gpib_addr, req).await.map(Response::Scpi)
-        }
-        Request::Serial { params: _, req } => {
-            crate::bytestream::handle(serial, req).await.map(Response::Bytes)
-        }
     }
 }

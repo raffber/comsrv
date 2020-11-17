@@ -31,3 +31,23 @@ impl IoHandler for Handler {
         ret
     }
 }
+
+impl Instrument {
+    pub fn new(addr: SocketAddr) -> Self {
+        let handler = Handler {
+            stream: None,
+            addr,
+        };
+        Self {
+            inner: IoTask::new(handler)
+        }
+    }
+
+    pub async fn request(&mut self, req: ByteStreamRequest) -> crate::Result<ByteStreamResponse> {
+        self.inner.request(req).await
+    }
+
+    pub fn disconnect(mut self) {
+        self.inner.disconnect()
+    }
+}
