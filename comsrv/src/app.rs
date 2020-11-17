@@ -1,25 +1,24 @@
+use std::net::SocketAddr;
+
 use serde::{Deserialize, Serialize};
 use tokio::task;
-
 use wsrpc::server::Server;
 
 use crate::{Error, ScpiRequest, ScpiResponse};
-use crate::instrument::{Instrument, Address};
+use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
+use crate::instrument::{Address, Instrument};
 use crate::instrument::InstrumentOptions;
 use crate::inventory::Inventory;
 use crate::modbus::{ModBusRequest, ModBusResponse};
-use crate::visa::{VisaError, VisaOptions};
-use std::net::SocketAddr;
 use crate::serial::{Request as SerialRequest, Response as SerialResponse, SerialParams};
-use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
+use crate::visa::{VisaError, VisaOptions};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
     Scpi {
         addr: String,
         task: ScpiRequest,
-
-        #[serde(skip_serializing_if = "InstrumentOptions::is_default")]
+        #[serde(skip_serializing_if = "InstrumentOptions::is_default", default)]
         options: InstrumentOptions,
     },
     ModBus {
@@ -56,7 +55,7 @@ pub enum RpcError {
     NotTerminated,
     InvalidAddress,
     Timeout,
-    Vxi(String)
+    Vxi(String),
 }
 
 impl From<Error> for RpcError {
@@ -93,7 +92,7 @@ impl App {
 
     pub async fn run(&self, port: u16) {
         let url = format!("0.0.0.0:{}", port);
-        let http_addr: SocketAddr = format!("0.0.0.0:{}", port+1).parse().unwrap();
+        let http_addr: SocketAddr = format!("0.0.0.0:{}", port + 1).parse().unwrap();
         let mut stream = self.server.listen(url, http_addr).await;
         while let Some(msg) = stream.recv().await {
             let (req, rep) = msg.split();
@@ -118,20 +117,20 @@ impl App {
                     Err(x) => {
                         self.inventory.disconnect(&addr);
                         Err(x.into())
-                    },
+                    }
                 }
-            },
+            }
             Instrument::Serial(mut instr) => {
                 match addr {
                     Address::Prologix { file: _, gpib } => {
                         let response = instr.request(SerialRequest::Prologix {
                             gpib_addr: gpib,
-                            req: task
+                            req: task,
                         }).await;
                         match response {
                             Ok(SerialResponse::Scpi(resp)) => {
                                 Ok(resp)
-                            },
+                            }
                             Ok(_) => {
                                 self.inventory.disconnect(&addr);
                                 Err(RpcError::NotSupported)
@@ -139,12 +138,12 @@ impl App {
                             Err(x) => {
                                 self.inventory.disconnect(&addr);
                                 Err(x.into())
-                            },
+                            }
                         }
-                    },
+                    }
                     _ => Err(RpcError::NotSupported)
                 }
-            },
+            }
             Instrument::Vxi(mut instr) => {
                 let opt = match options {
                     InstrumentOptions::Visa(x) => x.clone(),
@@ -155,9 +154,8 @@ impl App {
                     Err(x) => {
                         self.inventory.disconnect(&addr);
                         Err(x.into())
-                    },
+                    }
                 }
-
             }
             _ => Err(RpcError::NotSupported)
         }
@@ -172,9 +170,9 @@ impl App {
                     Err(x) => {
                         self.inventory.disconnect(&addr);
                         Err(x.into())
-                    },
+                    }
                 }
-            },
+            }
             _ => {
                 Err(RpcError::NotSupported)
             }
@@ -185,7 +183,7 @@ impl App {
         let params = params.clone();
         let req = SerialRequest::Serial {
             params,
-            req: task
+            req: task,
         };
         match self.inventory.connect(&addr) {
             Instrument::Serial(mut instr) => {
@@ -195,13 +193,13 @@ impl App {
                             SerialResponse::Bytes(x) => Ok(x),
                             _ => panic!("Invalid answer. This is a bug"),
                         }
-                    },
+                    }
                     Err(x) => {
                         self.inventory.disconnect(&addr);
                         Err(x.into())
-                    },
+                    }
                 }
-            },
+            }
             _ => {
                 Err(RpcError::NotSupported)
             }
@@ -214,7 +212,7 @@ impl App {
         match &addr {
             Address::Serial { path: _, params } => {
                 self.handle_serial(addr2, params, task).await
-            },
+            }
             _ => {
                 return Err(RpcError::NotSupported);
             }
