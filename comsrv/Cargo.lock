@@ -139,7 +139,7 @@ dependencies = [
 [[package]]
 name = "async-vxi11"
 version = "0.1.0"
-source = "git+https://github.com/raffber/async-vxi11.git?rev=6104009#61040099586ed508d3496b6add5ea94aca504b6a"
+source = "git+https://github.com/raffber/async-vxi11.git?rev=453cb1c#453cb1cd0a03ea9a8f507d2d8298c3f5e9ef23c7"
 dependencies = [
  "async-trait",
  "byteorder",
