@@ -26,3 +26,4 @@ async-trait = "0.1.40"
 async-std="1.6"
 futures="0.3.7"
 base64 = "0.13.0"
+async-vxi11 = {git = "https://github.com/raffber/async-vxi11.git", rev = "453cb1c"}

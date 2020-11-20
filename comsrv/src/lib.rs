@@ -24,7 +24,9 @@ mod serial;
 mod iotask;
 mod cobs;
 mod util;
-
+mod sockets;
+mod bytestream;
+mod vxi;
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -67,11 +69,20 @@ pub enum Error {
     InvalidAddress,
     #[error("Timeout Occured")]
     Timeout,
+    #[error("Vxi11 Error")]
+    Vxi(Arc<async_vxi11::Error>),
 }
 
 impl Error {
     pub fn io(err: io::Error) -> Error {
         Error::Io(Arc::new(err))
+    }
+
+    pub fn vxi(err: async_vxi11::Error) -> Error {
+        match err {
+            async_vxi11::Error::Io(x) => Error::io(x),
+            x => Error::Vxi(Arc::new(x))
+        }
     }
 }
 

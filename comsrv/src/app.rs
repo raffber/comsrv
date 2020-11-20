@@ -1,49 +1,33 @@
+use std::net::SocketAddr;
+
 use serde::{Deserialize, Serialize};
 use tokio::task;
-
 use wsrpc::server::Server;
 
 use crate::{Error, ScpiRequest, ScpiResponse};
-use crate::instrument::{Instrument, Address};
+use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
+use crate::instrument::{Address, Instrument};
 use crate::instrument::InstrumentOptions;
 use crate::inventory::Inventory;
 use crate::modbus::{ModBusRequest, ModBusResponse};
+use crate::serial::{Request as SerialRequest, Response as SerialResponse, SerialParams};
 use crate::visa::{VisaError, VisaOptions};
-use std::net::SocketAddr;
-use crate::serial::{Request as SerialRequest, Response as SerialResponse};
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum WireSerialRequest {
-    Write(Vec<u8>),
-    ReadExact {
-        count: u32,
-        timeout_ms: u32,
-    },
-    ReadUpTo(u32),
-    ReadAll,
-    CobsWrite(Vec<u8>),
-    CobsQuery {
-        data: Vec<u8>,
-        timeout_ms: u32,
-    }
-}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
     Scpi {
         addr: String,
         task: ScpiRequest,
-
-        #[serde(skip_serializing_if = "InstrumentOptions::is_default")]
+        #[serde(skip_serializing_if = "InstrumentOptions::is_default", default)]
         options: InstrumentOptions,
     },
     ModBus {
         addr: String,
         task: ModBusRequest,
     },
-    Serial {
+    Bytes {
         addr: String,
-        task: WireSerialRequest,
+        task: ByteStreamRequest,
     },
     ListInstruments,
     DropAll,
@@ -54,7 +38,7 @@ pub enum Response {
     Error(RpcError),
     Instruments(Vec<String>),
     Scpi(ScpiResponse),
-    Serial(SerialResponse),
+    Bytes(ByteStreamResponse),
     ModBus(ModBusResponse),
     Done,
 }
@@ -71,6 +55,7 @@ pub enum RpcError {
     NotTerminated,
     InvalidAddress,
     Timeout,
+    Vxi(String),
 }
 
 impl From<Error> for RpcError {
@@ -86,6 +71,7 @@ impl From<Error> for RpcError {
             Error::NotTerminated => RpcError::NotTerminated,
             Error::InvalidAddress => RpcError::InvalidAddress,
             Error::Timeout => RpcError::Timeout,
+            Error::Vxi(x) => RpcError::Vxi(format!("{}", x)),
         }
     }
 }
@@ -106,7 +92,7 @@ impl App {
 
     pub async fn run(&self, port: u16) {
         let url = format!("0.0.0.0:{}", port);
-        let http_addr: SocketAddr = format!("0.0.0.0:{}", port+1).parse().unwrap();
+        let http_addr: SocketAddr = format!("0.0.0.0:{}", port + 1).parse().unwrap();
         let mut stream = self.server.listen(url, http_addr).await;
         while let Some(msg) = stream.recv().await {
             let (req, rep) = msg.split();
@@ -131,23 +117,20 @@ impl App {
                     Err(x) => {
                         self.inventory.disconnect(&addr);
                         Err(x.into())
-                    },
+                    }
                 }
-            },
-            Instrument::Modbus(_) => {
-                Err(RpcError::NotSupported)
-            },
+            }
             Instrument::Serial(mut instr) => {
                 match addr {
                     Address::Prologix { file: _, gpib } => {
                         let response = instr.request(SerialRequest::Prologix {
                             gpib_addr: gpib,
-                            req: task
+                            req: task,
                         }).await;
                         match response {
                             Ok(SerialResponse::Scpi(resp)) => {
                                 Ok(resp)
-                            },
+                            }
                             Ok(_) => {
                                 self.inventory.disconnect(&addr);
                                 Err(RpcError::NotSupported)
@@ -155,12 +138,26 @@ impl App {
                             Err(x) => {
                                 self.inventory.disconnect(&addr);
                                 Err(x.into())
-                            },
+                            }
                         }
-                    },
+                    }
                     _ => Err(RpcError::NotSupported)
                 }
-            },
+            }
+            Instrument::Vxi(mut instr) => {
+                let opt = match options {
+                    InstrumentOptions::Visa(x) => x.clone(),
+                    InstrumentOptions::Default => VisaOptions::default(),
+                };
+                match instr.request(task, opt).await {
+                    Ok(x) => Ok(x),
+                    Err(x) => {
+                        self.inventory.disconnect(&addr);
+                        Err(x.into())
+                    }
+                }
+            }
+            _ => Err(RpcError::NotSupported)
         }
     }
 
@@ -173,40 +170,51 @@ impl App {
                     Err(x) => {
                         self.inventory.disconnect(&addr);
                         Err(x.into())
-                    },
+                    }
                 }
-            },
+            }
             _ => {
                 Err(RpcError::NotSupported)
             }
         }
     }
 
-    async fn handle_serial(&self, addr: &str, task: WireSerialRequest) -> Result<SerialResponse, RpcError> {
-        let addr = Address::parse(&addr)?;
-        let (_, params) = match &addr {
-            Address::Serial { path, params } => (path, params),
-            _ => {
-                return Err(RpcError::NotSupported);
-            }
-        };
+    async fn handle_serial(&self, addr: Address, params: &SerialParams, task: ByteStreamRequest) -> Result<ByteStreamResponse, RpcError> {
         let params = params.clone();
         let req = SerialRequest::Serial {
             params,
-            req: task
+            req: task,
         };
         match self.inventory.connect(&addr) {
             Instrument::Serial(mut instr) => {
                 match instr.request(req).await {
-                    Ok(x) => Ok(x),
+                    Ok(x) => {
+                        match x {
+                            SerialResponse::Bytes(x) => Ok(x),
+                            _ => panic!("Invalid answer. This is a bug"),
+                        }
+                    }
                     Err(x) => {
                         self.inventory.disconnect(&addr);
                         Err(x.into())
-                    },
+                    }
                 }
-            },
+            }
             _ => {
                 Err(RpcError::NotSupported)
+            }
+        }
+    }
+
+    async fn handle_bytes(&self, addr: &str, task: ByteStreamRequest) -> Result<ByteStreamResponse, RpcError> {
+        let addr = Address::parse(&addr)?;
+        let addr2 = addr.clone();
+        match &addr {
+            Address::Serial { path: _, params } => {
+                self.handle_serial(addr2, params, task).await
+            }
+            _ => {
+                return Err(RpcError::NotSupported);
             }
         }
     }
@@ -228,9 +236,9 @@ impl App {
                     Err(err) => Response::Error(err)
                 }
             }
-            Request::Serial { addr, task } => {
-                match self.handle_serial(&addr, task).await {
-                    Ok(result) => Response::Serial(result),
+            Request::Bytes { addr, task } => {
+                match self.handle_bytes(&addr, task).await {
+                    Ok(result) => Response::Bytes(result),
                     Err(err) => Response::Error(err),
                 }
             }

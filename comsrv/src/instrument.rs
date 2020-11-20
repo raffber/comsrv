@@ -5,12 +5,15 @@ use serde::{Deserialize, Serialize};
 use crate::visa::asynced::Instrument as VisaInstrument;
 use crate::modbus::Instrument as ModBusInstrument;
 use crate::serial::Instrument as SerialInstrument;
+use crate::vxi::Instrument as VxiInstrument;
 
 use crate::Error;
 use crate::serial::SerialParams;
 use crate::visa::VisaOptions;
 use std::fmt::{Display, Formatter};
 use std::fmt;
+use crate::sockets::Instrument as SocketInstrument;
+use async_std::net::IpAddr;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum InstrumentOptions {
@@ -35,6 +38,8 @@ pub enum Instrument {
     Visa(VisaInstrument),
     Modbus(ModBusInstrument),
     Serial(SerialInstrument),
+    Socket(SocketInstrument),
+    Vxi(VxiInstrument),
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -70,6 +75,12 @@ pub enum Address {
         gpib: u8,
     },
     Modbus {
+        addr: SocketAddr,
+    },
+    Vxi {
+        addr: IpAddr,
+    },
+    Socket {
         addr: SocketAddr,
     },
 }
@@ -109,6 +120,20 @@ impl Address {
                 path,
                 params,
             })
+        } else if splits[0].to_lowercase() == "socket" {
+            // socket::192.168.0.1:1234
+            let addr = &splits[1].to_lowercase();
+            let addr: SocketAddr = addr.parse().map_err(|_| Error::InvalidAddress)?;
+            Ok(Address::Socket {
+                addr
+            })
+        } else if splits[0].to_lowercase().starts_with("vxi") {
+            // vxi::192.168.0.1:1234
+            let addr = &splits[1].to_lowercase();
+            let addr: IpAddr = addr.parse().map_err(|_| Error::InvalidAddress)?;
+            Ok(Address::Vxi {
+                addr
+            })
         } else {
             let splits: Vec<_> = splits.iter().map(|x| x.to_lowercase().to_string()).collect();
             Ok(Address::Visa { splits })
@@ -124,6 +149,8 @@ impl Address {
             Address::Serial { path, .. } => HandleId::new(path.clone()),
             Address::Prologix { file, .. } => HandleId::new(file.clone()),
             Address::Modbus { addr } => HandleId::new(addr.to_string()),
+            Address::Vxi { addr } => HandleId::new(addr.to_string()),
+            Address::Socket { addr } => HandleId::new(addr.to_string())
         }
     }
 }
@@ -142,6 +169,12 @@ impl Into<String> for Address {
             }
             Address::Modbus { addr } => {
                 format!("modbus::{}", addr)
+            }
+            Address::Socket { addr } => {
+                format!("socket::{}", addr)
+            }
+            Address::Vxi { addr } => {
+                format!("vxi::{}", addr)
             }
         }
     }
@@ -173,6 +206,12 @@ impl Instrument {
             Address::Modbus { addr } => {
                 Instrument::Modbus(ModBusInstrument::new(addr.clone()))
             }
+            Address::Socket { addr } => {
+                Instrument::Socket(SocketInstrument::new(addr.clone()))
+            }
+            Address::Vxi { addr } => {
+                Instrument::Vxi(VxiInstrument::new(addr.clone()))
+            }
         }
     }
 
@@ -185,6 +224,12 @@ impl Instrument {
                 x.disconnect()
             }
             Instrument::Serial(x) => {
+                x.disconnect()
+            }
+            Instrument::Socket(x) => {
+                x.disconnect()
+            }
+            Instrument::Vxi(x) => {
                 x.disconnect()
             }
         }
