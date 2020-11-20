@@ -38,7 +38,7 @@ pub enum Response {
     Error(RpcError),
     Instruments(Vec<String>),
     Scpi(ScpiResponse),
-    Serial(ByteStreamResponse),
+    Bytes(ByteStreamResponse),
     ModBus(ModBusResponse),
     Done,
 }
@@ -238,7 +238,7 @@ impl App {
             }
             Request::Bytes { addr, task } => {
                 match self.handle_bytes(&addr, task).await {
-                    Ok(result) => Response::Serial(result),
+                    Ok(result) => Response::Bytes(result),
                     Err(err) => Response::Error(err),
                 }
             }
