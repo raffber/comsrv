@@ -1,19 +1,19 @@
-mod loopback;
-
-use async_can::{Message, Bus, Error};
-use serde::{Serialize, Deserialize};
-use crate::app::{App, Server};
-
-use std::fmt::Display;
 use std::fmt;
-use crate::can::loopback::LoopbackDevice;
-use async_can::Bus as CanBus;
-use crate::iotask::{IoTask, IoHandler};
+use std::fmt::Display;
+
+use async_can::Message;
+pub use async_can::Message as CanMessage;
+use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::mpsc;
 use tokio::task;
 
-pub use async_can::Message as CanMessage;
+use crate::app::{Response, Server};
+use crate::can::device::CanDevice;
+use crate::iotask::{IoHandler, IoTask};
+
+mod loopback;
+mod device;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum CanRequest {
@@ -67,75 +67,20 @@ impl Display for CanAddress {
     }
 }
 
-impl From<async_can::Error> for crate::Error {
-    fn from(x: Error) -> Self {
-        match x {
-            Error::Io(err) => crate::Error::io(err),
-        }
-    }
-}
-
-enum CanDevice {
-    Loopback(LoopbackDevice),
-    Bus(CanBus),
-}
-
-impl CanDevice {
-    async fn send(&self, msg: async_can::Message) -> crate::Result<()> {
-        todo!()
-    }
-}
-
-#[cfg(target_os = "linux")]
-impl CanDevice {
-    fn new(addr: CanAddress) -> crate::Result<Self> {
-        match addr {
-            CanAddress::PCan { .. } => {
-                Err(crate::Error::NotSupported)
-            }
-            CanAddress::Socket(ifname) => {
-                Ok(CanDevice::Bus(CanBus::connect(ifname)?))
-            }
-            CanAddress::Loopback => {
-                Ok(CanDevice::Loopback(LoopbackDevice::new()))
-            }
-        }
-    }
-}
-
-#[cfg(target_os = "windows")]
-impl CanDevice {
-    fn new(addr: CanAddress) -> crate::Result<Self> {
-        match addr {
-            CanAddress::PCan(ifname) => {
-                Ok(CanDevice::Bus(CanBus::connect(ifname)?))
-            }
-            CanAddress::Socket(_) => {
-                Err(crate::Error::NotSupported)
-            }
-            CanAddress::Loopback => {
-                Ok(CanDevice::Loopback(LoopbackDevice::new()))
-            }
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct Instrument {
-    addr: CanAddress,
     io: IoTask<Handler>,
 }
 
 impl Instrument {
     pub fn new(server: &Server, addr: CanAddress) -> Self {
         let handler = Handler {
-            addr: addr.clone(),
+            addr,
             server: server.clone(),
             device: None,
             listener: None,
         };
         Self {
-            addr,
             io: IoTask::new(handler),
         }
     }
@@ -156,12 +101,6 @@ struct Handler {
     listener: Option<UnboundedSender<ListenerMsg>>,
 }
 
-impl Handler {
-    fn create_device(&self) -> crate::Result<CanDevice> {
-        todo!()
-    }
-}
-
 #[async_trait::async_trait]
 impl IoHandler for Handler {
     type Request = CanRequest;
@@ -173,41 +112,66 @@ impl IoHandler for Handler {
         // note that we don't generally support this anyways for socketcan...
         // TODO: we should support a manual drop in the root API, such that this can be worked around
         if self.device.is_none() {
-            self.device.replace(self.create_device()?);
+            self.device.replace(CanDevice::new(self.addr.clone())?);
         }
         // save because we just created it
         let device = self.device.as_ref().unwrap();
 
         match req {
             CanRequest::Start => {
+                if let Some(tx) = self.listener.as_ref() {
+                    // XXX: this is a hacky way to tell if the channel has been closed.
+                    // this will be fixed in tokio-0.3.x (and 1.x) series
+                    if tx.send(ListenerMsg::Ping).is_err() {
+                        self.listener.take();
+                    }
+                }
                 if self.listener.is_none() {
-                    let device = self.create_device()?;
+                    let device = CanDevice::new(self.addr.clone())?;
                     let (tx, rx) = mpsc::unbounded_channel();
                     let fut = listener_task(rx, device, self.server.clone());
                     task::spawn(fut);
                     self.listener.replace(tx);
                 }
                 Ok(CanResponse::Started)
-            },
+            }
             CanRequest::Stop => {
                 if let Some(tx) = self.listener.take() {
                     let _ = tx.send(ListenerMsg::Stop);
                 }
                 Ok(CanResponse::Stopped)
-            },
+            }
             CanRequest::Send(msg) => {
                 device.send(msg).await?;
                 Ok(CanResponse::Sent)
-            },
+            }
         }
     }
 }
 
 
 enum ListenerMsg {
-    Stop
+    Stop,
+    Ping,
 }
 
-async fn listener_task(rx: UnboundedReceiver<ListenerMsg>, device: CanDevice, server: Server) {
-    todo!()
+async fn listener_task(mut rx: UnboundedReceiver<ListenerMsg>, device: CanDevice, server: Server) {
+    loop {
+        let msg: crate::Result<CanMessage> = tokio::select! {
+            msg = rx.recv() => match msg {
+                Some(ListenerMsg::Ping) => continue,
+                Some(ListenerMsg::Stop) => break, // stop command
+                None => break, // instrument dropped
+            },
+            msg = device.recv() => msg
+        };
+        match msg {
+            Ok(msg) => server.broadcast(Response::Can(CanResponse::Rx(msg))).await,
+            Err(_) => {
+                // TODO: should probably try to reconnect here
+                rx.close();
+                break;
+            }
+        }
+    }
 }

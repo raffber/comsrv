@@ -59,11 +59,11 @@ impl LoopbackDevice {
         Self
     }
 
-    async fn recv(&self) -> crate::Result<CanMessage> {
+    pub async fn recv(&self) -> crate::Result<CanMessage> {
         LOOPBACK_ADAPTER.recv().await
     }
 
-    fn send(&self, msg: CanMessage) {
+    pub fn send(&self, msg: CanMessage) {
         LOOPBACK_ADAPTER.send(msg)
     }
 }
