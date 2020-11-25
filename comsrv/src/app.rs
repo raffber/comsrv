@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use serde::{Deserialize, Serialize};
 use tokio::task;
-use wsrpc::server::Server;
+use wsrpc::server::Server as WsrpcServer;
 
 use crate::{Error, ScpiRequest, ScpiResponse};
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
@@ -82,9 +82,11 @@ impl From<Error> for RpcError {
     }
 }
 
+pub type Server = WsrpcServer<Request, Response>;
+
 #[derive(Clone)]
 pub struct App {
-    server: Server<Request, Response>,
+    server: Server,
     inventory: Inventory,
 }
 
@@ -112,7 +114,7 @@ impl App {
 
     async fn handle_scpi(&self, addr: String, task: ScpiRequest, options: &InstrumentOptions) -> Result<ScpiResponse, RpcError> {
         let addr = Address::parse(&addr)?;
-        match self.inventory.connect(&addr) {
+        match self.inventory.connect(&self.server, &addr) {
             Instrument::Visa(instr) => {
                 let opt = match options {
                     InstrumentOptions::Visa(x) => x.clone(),
@@ -169,7 +171,7 @@ impl App {
 
     async fn handle_modbus(&self, addr: String, task: ModBusRequest) -> Result<ModBusResponse, RpcError> {
         let addr = Address::parse(&addr)?;
-        match self.inventory.connect(&addr) {
+        match self.inventory.connect(&self.server, &addr) {
             Instrument::Modbus(mut instr) => {
                 match instr.request(task).await {
                     Ok(x) => Ok(x),
@@ -191,7 +193,7 @@ impl App {
             params,
             req: task,
         };
-        match self.inventory.connect(&addr) {
+        match self.inventory.connect(&self.server, &addr) {
             Instrument::Serial(mut instr) => {
                 match instr.request(req).await {
                     Ok(x) => {
@@ -227,20 +229,16 @@ impl App {
 
     async fn handle_can(&self, addr: &str, task: CanRequest) -> Result<CanResponse, RpcError> {
         let addr = Address::parse(&addr)?;
-        let mut device = match self.inventory.connect(&addr) {
+        let mut device = match self.inventory.connect(&self.server, &addr) {
             Instrument::Can(device) => device,
             _ => return Err(RpcError::NotSupported)
         };
-        match task {
-            CanRequest::Start => {
-                device.start_listen(self.clone()).map_err(|x| x.into())
-            }
-            CanRequest::Stop => {
-                device.stop_listen().map_err(|x| x.into())
-            }
-            CanRequest::Send(msg) => {
-                device.send(msg).await.map_err(|x| x.into())
-            }
+        match device.request(task).await {
+            Ok(x) => Ok(x),
+            Err(x) => {
+                self.inventory.disconnect(&addr);
+                Err(x.into())
+            },
         }
     }
 

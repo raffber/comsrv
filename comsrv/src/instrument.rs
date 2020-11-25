@@ -14,7 +14,8 @@ use crate::sockets::Instrument as SocketInstrument;
 use crate::visa::asynced::Instrument as VisaInstrument;
 use crate::visa::VisaOptions;
 use crate::vxi::Instrument as VxiInstrument;
-use crate::can::Instrument as CanInstrument;
+use crate::can::{Instrument as CanInstrument, CanAddress};
+use crate::app::Server;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum InstrumentOptions {
@@ -86,7 +87,7 @@ pub enum Address {
         addr: SocketAddr,
     },
     Can {
-        device: String,
+        addr: CanAddress,
     },
 }
 
@@ -140,10 +141,22 @@ impl Address {
                 addr
             })
         } else if splits[0].to_lowercase() == "can" {
-            // can::can0
-            let addr = &splits[1].to_lowercase();
+            // can::socket::can0 or can::loopback or can::pcan::usb1
+            let kind = &splits[1].to_lowercase();
+            let can_addr = if kind == "socket" {
+                if splits.len() < 3 {
+                    return Err(Error::InvalidAddress);
+                }
+                CanAddress::Socket(splits[3].to_lowercase())
+            } else if kind == "loopback" {
+                CanAddress::Loopback
+            } else if kind == "pcan" {
+                CanAddress::PCan
+            } else {
+                return Err(Error::InvalidAddress);
+            };
             Ok(Address::Can {
-                device: addr.clone()
+                addr: can_addr
             })
         } else {
             let splits: Vec<_> = splits.iter().map(|x| x.to_lowercase().to_string()).collect();
@@ -162,7 +175,7 @@ impl Address {
             Address::Modbus { addr } => HandleId::new(addr.to_string()),
             Address::Vxi { addr } => HandleId::new(addr.to_string()),
             Address::Socket { addr } => HandleId::new(addr.to_string()),
-            Address::Can { device } => HandleId::new(device.to_string())
+            Address::Can { addr } => HandleId::new(addr.to_string())
         }
     }
 }
@@ -188,8 +201,8 @@ impl Into<String> for Address {
             Address::Vxi { addr } => {
                 format!("vxi::{}", addr)
             }
-            Address::Can { device } => {
-                format!("can::{}", device)
+            Address::Can { addr } => {
+                format!("can::{}", addr)
             }
         }
     }
@@ -203,7 +216,7 @@ impl Display for Address {
 }
 
 impl Instrument {
-    pub fn connect(addr: &Address) -> Instrument {
+    pub fn connect(server: &Server, addr: &Address) -> Instrument {
         match addr {
             Address::Visa { splits } => {
                 let addr = splits.join("::");
@@ -227,8 +240,8 @@ impl Instrument {
             Address::Vxi { addr } => {
                 Instrument::Vxi(VxiInstrument::new(addr.clone()))
             }
-            Address::Can { device } => {
-                Instrument::Can(CanInstrument::new(device))
+            Address::Can { addr } => {
+                Instrument::Can(CanInstrument::new(server, addr.clone()))
             }
         }
     }
