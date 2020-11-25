@@ -13,6 +13,8 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::mpsc;
 use tokio::task;
 
+pub use async_can::Message as CanMessage;
+
 #[derive(Serialize, Deserialize, Clone)]
 pub enum CanRequest {
     Start,
@@ -170,6 +172,12 @@ impl IoHandler for Handler {
         // just embed bitrate into CanRequest
         // note that we don't generally support this anyways for socketcan...
         // TODO: we should support a manual drop in the root API, such that this can be worked around
+        if self.device.is_none() {
+            self.device.replace(self.create_device()?);
+        }
+        // save because we just created it
+        let device = self.device.as_ref().unwrap();
+
         match req {
             CanRequest::Start => {
                 if self.listener.is_none() {
@@ -183,16 +191,11 @@ impl IoHandler for Handler {
             },
             CanRequest::Stop => {
                 if let Some(tx) = self.listener.take() {
-                    tx.send(ListenerMsg::Stop);
+                    let _ = tx.send(ListenerMsg::Stop);
                 }
                 Ok(CanResponse::Stopped)
             },
             CanRequest::Send(msg) => {
-                let device = if let Some(device) = self.device.take() {
-                    device
-                } else {
-                    self.create_device()?
-                };
                 device.send(msg).await?;
                 Ok(CanResponse::Sent)
             },
