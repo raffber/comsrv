@@ -6,6 +6,7 @@ use wsrpc::server::Server;
 
 use crate::{Error, ScpiRequest, ScpiResponse};
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
+use crate::can::{CanRequest, CanResponse};
 use crate::instrument::{Address, Instrument};
 use crate::instrument::InstrumentOptions;
 use crate::inventory::Inventory;
@@ -29,6 +30,10 @@ pub enum Request {
         addr: String,
         task: ByteStreamRequest,
     },
+    Can {
+        addr: String,
+        task: CanRequest,
+    },
     ListInstruments,
     DropAll,
 }
@@ -40,6 +45,7 @@ pub enum Response {
     Scpi(ScpiResponse),
     Bytes(ByteStreamResponse),
     ModBus(ModBusResponse),
+    Can(CanResponse),
     Done,
 }
 
@@ -214,7 +220,26 @@ impl App {
                 self.handle_serial(addr2, params, task).await
             }
             _ => {
-                return Err(RpcError::NotSupported);
+                Err(RpcError::NotSupported)
+            }
+        }
+    }
+
+    async fn handle_can(&self, addr: &str, task: CanRequest) -> Result<CanResponse, RpcError> {
+        let addr = Address::parse(&addr)?;
+        let mut device = match self.inventory.connect(&addr) {
+            Instrument::Can(device) => device,
+            _ => return Err(RpcError::NotSupported)
+        };
+        match task {
+            CanRequest::Start => {
+                device.start_listen(self.clone()).map_err(|x| x.into())
+            }
+            CanRequest::Stop => {
+                device.stop_listen().map_err(|x| x.into())
+            }
+            CanRequest::Send(msg) => {
+                device.send(msg).await.map_err(|x| x.into())
             }
         }
     }
@@ -239,6 +264,12 @@ impl App {
             Request::Bytes { addr, task } => {
                 match self.handle_bytes(&addr, task).await {
                     Ok(result) => Response::Bytes(result),
+                    Err(err) => Response::Error(err),
+                }
+            }
+            Request::Can { addr, task } => {
+                match self.handle_can(&addr, task).await {
+                    Ok(result) => Response::Can(result),
                     Err(err) => Response::Error(err),
                 }
             }

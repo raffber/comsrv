@@ -27,6 +27,7 @@ mod util;
 mod sockets;
 mod bytestream;
 mod vxi;
+mod can;
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -71,6 +72,12 @@ pub enum Error {
     Timeout,
     #[error("Vxi11 Error")]
     Vxi(Arc<async_vxi11::Error>),
+    #[error("Requested device does not exist")]
+    NoSuchDevice(String),
+    #[error("Invalid CAN ID")]
+    InvalidCanId,
+    #[error("CAN message has too much data")]
+    CanTooMuchData,
 }
 
 impl Error {

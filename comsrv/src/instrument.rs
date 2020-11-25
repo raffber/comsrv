@@ -1,19 +1,20 @@
+use std::fmt::{Display, Formatter};
+use std::fmt;
 use std::hash::Hash;
 use std::net::SocketAddr;
 
+use async_std::net::IpAddr;
 use serde::{Deserialize, Serialize};
-use crate::visa::asynced::Instrument as VisaInstrument;
-use crate::modbus::Instrument as ModBusInstrument;
-use crate::serial::Instrument as SerialInstrument;
-use crate::vxi::Instrument as VxiInstrument;
 
 use crate::Error;
+use crate::modbus::Instrument as ModBusInstrument;
+use crate::serial::Instrument as SerialInstrument;
 use crate::serial::SerialParams;
-use crate::visa::VisaOptions;
-use std::fmt::{Display, Formatter};
-use std::fmt;
 use crate::sockets::Instrument as SocketInstrument;
-use async_std::net::IpAddr;
+use crate::visa::asynced::Instrument as VisaInstrument;
+use crate::visa::VisaOptions;
+use crate::vxi::Instrument as VxiInstrument;
+use crate::can::Instrument as CanInstrument;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum InstrumentOptions {
@@ -40,6 +41,7 @@ pub enum Instrument {
     Serial(SerialInstrument),
     Socket(SocketInstrument),
     Vxi(VxiInstrument),
+    Can(CanInstrument),
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -82,6 +84,9 @@ pub enum Address {
     },
     Socket {
         addr: SocketAddr,
+    },
+    Can {
+        device: String,
     },
 }
 
@@ -127,12 +132,18 @@ impl Address {
             Ok(Address::Socket {
                 addr
             })
-        } else if splits[0].to_lowercase().starts_with("vxi") {
+        } else if splits[0].to_lowercase() == "vxi" {
             // vxi::192.168.0.1:1234
             let addr = &splits[1].to_lowercase();
             let addr: IpAddr = addr.parse().map_err(|_| Error::InvalidAddress)?;
             Ok(Address::Vxi {
                 addr
+            })
+        } else if splits[0].to_lowercase() == "can" {
+            // can::can0
+            let addr = &splits[1].to_lowercase();
+            Ok(Address::Can {
+                device: addr.clone()
             })
         } else {
             let splits: Vec<_> = splits.iter().map(|x| x.to_lowercase().to_string()).collect();
@@ -150,7 +161,8 @@ impl Address {
             Address::Prologix { file, .. } => HandleId::new(file.clone()),
             Address::Modbus { addr } => HandleId::new(addr.to_string()),
             Address::Vxi { addr } => HandleId::new(addr.to_string()),
-            Address::Socket { addr } => HandleId::new(addr.to_string())
+            Address::Socket { addr } => HandleId::new(addr.to_string()),
+            Address::Can { device } => HandleId::new(device.to_string())
         }
     }
 }
@@ -175,6 +187,9 @@ impl Into<String> for Address {
             }
             Address::Vxi { addr } => {
                 format!("vxi::{}", addr)
+            }
+            Address::Can { device } => {
+                format!("can::{}", device)
             }
         }
     }
@@ -212,6 +227,9 @@ impl Instrument {
             Address::Vxi { addr } => {
                 Instrument::Vxi(VxiInstrument::new(addr.clone()))
             }
+            Address::Can { device } => {
+                Instrument::Can(CanInstrument::new(device))
+            }
         }
     }
 
@@ -230,6 +248,9 @@ impl Instrument {
                 x.disconnect()
             }
             Instrument::Vxi(x) => {
+                x.disconnect()
+            }
+            Instrument::Can(x) => {
                 x.disconnect()
             }
         }
