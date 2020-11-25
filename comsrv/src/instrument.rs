@@ -147,11 +147,19 @@ impl Address {
                 if splits.len() < 3 {
                     return Err(Error::InvalidAddress);
                 }
-                CanAddress::Socket(splits[3].to_lowercase())
+                CanAddress::Socket(splits[2].to_lowercase())
             } else if kind == "loopback" {
                 CanAddress::Loopback
             } else if kind == "pcan" {
-                CanAddress::PCan
+                if splits.len() < 4 {
+                    return Err(Error::InvalidAddress);
+                }
+                let ifname = splits[2].to_lowercase();
+                let bitrate: u32 = splits[3].to_lowercase().parse().map_err(|_| Error::InvalidAddress)?;
+                CanAddress::PCan {
+                    ifname,
+                    bitrate
+                }
             } else {
                 return Err(Error::InvalidAddress);
             };
@@ -175,7 +183,7 @@ impl Address {
             Address::Modbus { addr } => HandleId::new(addr.to_string()),
             Address::Vxi { addr } => HandleId::new(addr.to_string()),
             Address::Socket { addr } => HandleId::new(addr.to_string()),
-            Address::Can { addr } => HandleId::new(addr.to_string())
+            Address::Can { addr } => HandleId::new(addr.interface())
         }
     }
 }
