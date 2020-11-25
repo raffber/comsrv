@@ -13,6 +13,7 @@ pub trait IoHandler: Send {
     type Response: Message;
 
     async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response>;
+    fn disconnect(&mut self) {}
 }
 
 enum RequestMsg<T: IoHandler> {
@@ -48,6 +49,7 @@ impl<T: 'static + IoHandler> IoTask<T> {
                         let _ = answer.send(result);
                     },
                     RequestMsg::Drop => {
+                        handler.disconnect();
                         break
                     },
                 }

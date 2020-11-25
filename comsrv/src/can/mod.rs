@@ -9,6 +9,9 @@ use std::fmt;
 use crate::can::loopback::LoopbackDevice;
 use async_can::Bus as CanBus;
 use crate::iotask::{IoTask, IoHandler};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc;
+use tokio::task;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum CanRequest {
@@ -62,16 +65,22 @@ impl Display for CanAddress {
     }
 }
 
-enum CanDevice {
-    Loopback(LoopbackDevice),
-    Bus(CanBus),
-}
-
 impl From<async_can::Error> for crate::Error {
     fn from(x: Error) -> Self {
         match x {
             Error::Io(err) => crate::Error::io(err),
         }
+    }
+}
+
+enum CanDevice {
+    Loopback(LoopbackDevice),
+    Bus(CanBus),
+}
+
+impl CanDevice {
+    async fn send(&self, msg: async_can::Message) -> crate::Result<()> {
+        todo!()
     }
 }
 
@@ -121,6 +130,7 @@ impl Instrument {
             addr: addr.clone(),
             server: server.clone(),
             device: None,
+            listener: None,
         };
         Self {
             addr,
@@ -141,10 +151,13 @@ struct Handler {
     addr: CanAddress,
     server: Server,
     device: Option<CanDevice>,
+    listener: Option<UnboundedSender<ListenerMsg>>,
 }
 
-enum ListenerMsg {
-    Stop
+impl Handler {
+    fn create_device(&self) -> crate::Result<CanDevice> {
+        todo!()
+    }
 }
 
 #[async_trait::async_trait]
@@ -153,7 +166,45 @@ impl IoHandler for Handler {
     type Response = CanResponse;
 
     async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
-        unimplemented!()
+        // TODO: this is missing reconfigurable bitrate
+        // just embed bitrate into CanRequest
+        // note that we don't generally support this anyways for socketcan...
+        // TODO: we should support a manual drop in the root API, such that this can be worked around
+        match req {
+            CanRequest::Start => {
+                if self.listener.is_none() {
+                    let device = self.create_device()?;
+                    let (tx, rx) = mpsc::unbounded_channel();
+                    let fut = listener_task(rx, device, self.server.clone());
+                    task::spawn(fut);
+                    self.listener.replace(tx);
+                }
+                Ok(CanResponse::Started)
+            },
+            CanRequest::Stop => {
+                if let Some(tx) = self.listener.take() {
+                    tx.send(ListenerMsg::Stop);
+                }
+                Ok(CanResponse::Stopped)
+            },
+            CanRequest::Send(msg) => {
+                let device = if let Some(device) = self.device.take() {
+                    device
+                } else {
+                    self.create_device()?
+                };
+                device.send(msg).await?;
+                Ok(CanResponse::Sent)
+            },
+        }
     }
 }
 
+
+enum ListenerMsg {
+    Stop
+}
+
+async fn listener_task(rx: UnboundedReceiver<ListenerMsg>, device: CanDevice, server: Server) {
+    todo!()
+}
