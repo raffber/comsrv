@@ -219,3 +219,26 @@ async fn listener_task(mut rx: UnboundedReceiver<ListenerMsg>, device: CanDevice
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn loopback() {
+        let srv = Server::new();
+
+        let (_rx, _client) = srv.loopback().await;
+
+        let mut instr = Instrument::new(&srv, CanAddress::Loopback);
+        let resp = instr.request(CanRequest::Start).await;
+        let _expected_resp = CanResponse::Started(CanAddress::Loopback.interface());
+        assert!(matches!(resp, Ok(_expected_resp)));
+
+        let msg = CanMessage::new_data(0xABCD, true, &[1,2,3,4]).unwrap();
+        let _sent = instr.request(CanRequest::Send(msg)).await;
+
+
+        
+    }
+}
