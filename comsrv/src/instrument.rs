@@ -10,7 +10,7 @@ use crate::Error;
 use crate::modbus::Instrument as ModBusInstrument;
 use crate::serial::Instrument as SerialInstrument;
 use crate::serial::SerialParams;
-use crate::sockets::Instrument as SocketInstrument;
+use crate::tcp::Instrument as TcpInstrument;
 use crate::visa::asynced::Instrument as VisaInstrument;
 use crate::visa::VisaOptions;
 use crate::vxi::Instrument as VxiInstrument;
@@ -40,7 +40,7 @@ pub enum Instrument {
     Visa(VisaInstrument),
     Modbus(ModBusInstrument),
     Serial(SerialInstrument),
-    Socket(SocketInstrument),
+    Tcp(TcpInstrument),
     Vxi(VxiInstrument),
     Can(CanInstrument),
 }
@@ -83,7 +83,7 @@ pub enum Address {
     Vxi {
         addr: IpAddr,
     },
-    Socket {
+    Tcp {
         addr: SocketAddr,
     },
     Can {
@@ -126,11 +126,11 @@ impl Address {
                 path,
                 params,
             })
-        } else if splits[0].to_lowercase() == "socket" {
-            // socket::192.168.0.1:1234
+        } else if splits[0].to_lowercase() == "tcp" {
+            // tcp::192.168.0.1:1234
             let addr = &splits[1].to_lowercase();
             let addr: SocketAddr = addr.parse().map_err(|_| Error::InvalidAddress)?;
-            Ok(Address::Socket {
+            Ok(Address::Tcp {
                 addr
             })
         } else if splits[0].to_lowercase() == "vxi" {
@@ -182,7 +182,7 @@ impl Address {
             Address::Prologix { file, .. } => HandleId::new(file.clone()),
             Address::Modbus { addr } => HandleId::new(addr.to_string()),
             Address::Vxi { addr } => HandleId::new(addr.to_string()),
-            Address::Socket { addr } => HandleId::new(addr.to_string()),
+            Address::Tcp { addr } => HandleId::new(addr.to_string()),
             Address::Can { addr } => HandleId::new(addr.interface())
         }
     }
@@ -203,8 +203,8 @@ impl Into<String> for Address {
             Address::Modbus { addr } => {
                 format!("modbus::{}", addr)
             }
-            Address::Socket { addr } => {
-                format!("socket::{}", addr)
+            Address::Tcp { addr } => {
+                format!("tcp::{}", addr)
             }
             Address::Vxi { addr } => {
                 format!("vxi::{}", addr)
@@ -242,8 +242,8 @@ impl Instrument {
             Address::Modbus { addr } => {
                 Instrument::Modbus(ModBusInstrument::new(addr.clone()))
             }
-            Address::Socket { addr } => {
-                Instrument::Socket(SocketInstrument::new(addr.clone()))
+            Address::Tcp { addr } => {
+                Instrument::Tcp(TcpInstrument::new(addr.clone()))
             }
             Address::Vxi { addr } => {
                 Instrument::Vxi(VxiInstrument::new(addr.clone()))
@@ -265,7 +265,7 @@ impl Instrument {
             Instrument::Serial(x) => {
                 x.disconnect()
             }
-            Instrument::Socket(x) => {
+            Instrument::Tcp(x) => {
                 x.disconnect()
             }
             Instrument::Vxi(x) => {

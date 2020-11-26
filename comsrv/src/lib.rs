@@ -25,7 +25,7 @@ mod serial;
 mod iotask;
 mod cobs;
 mod util;
-mod sockets;
+mod tcp;
 mod bytestream;
 mod vxi;
 mod can;
