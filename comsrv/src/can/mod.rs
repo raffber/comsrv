@@ -83,6 +83,10 @@ pub enum CanError {
     BusError(async_can::BusError),
     #[error("Transmit Queue full")]
     TransmitQueueFull,
+    #[error("Id is too long")]
+    IdTooLong,
+    #[error("Data is too long")]
+    DataTooLong,
 }
 
 impl From<async_can::Error> for CanError {
@@ -96,6 +100,8 @@ impl From<async_can::Error> for CanError {
             Error::PCanReadFailed(code, desc) => CanError::PCanError(code, desc),
             Error::BusError(err) => CanError::BusError(err),
             Error::TransmitQueueFull => CanError::TransmitQueueFull,
+            Error::IdTooLong => CanError::IdTooLong,
+            Error::DataTooLong => CanError::DataTooLong,
         }
     }
 }
