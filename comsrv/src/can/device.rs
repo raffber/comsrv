@@ -73,9 +73,18 @@ impl CanDevice {
 #[cfg(target_os = "windows")]
 impl CanDevice {
     pub fn new(addr: CanAddress) -> crate::Result<Self> {
-        match addr {
-            CanAddress::PCan(ifname) => {
-                Ok(CanDevice::Bus(CanBus::connect(ifname)?))
+        match &addr {
+            CanAddress::PCan { ifname, bitrate } => {
+                let device = CanBus::connect(ifname, *bitrate).map_err(|x| {
+                    crate::Error::Can {
+                        addr: addr.interface(),
+                        err: x.into()
+                    }
+                })?;
+                Ok(CanDevice::Bus {
+                    device,
+                    addr
+                })
             }
             CanAddress::Socket(_) => {
                 Err(crate::Error::NotSupported)
