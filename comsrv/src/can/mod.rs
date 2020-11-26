@@ -155,6 +155,21 @@ struct Handler {
     listener: Option<UnboundedSender<ListenerMsg>>,
 }
 
+impl Handler {
+    fn check_listener(&mut self) {
+        if let Some(tx) = self.listener.as_ref() {
+            // XXX: this is a hacky way to tell if the channel has been closed.
+            // this will be fixed in tokio-0.3.x (and 1.x) series
+            // by introduction of the is_closed() function
+            if tx.send(ListenerMsg::Ping).is_err() {
+                // there was some error... drop listener and device
+                self.listener.take();
+                self.device.take();
+            }
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl IoHandler for Handler {
     type Request = CanRequest;
@@ -165,6 +180,7 @@ impl IoHandler for Handler {
         // just embed bitrate into CanRequest
         // note that we don't generally support this anyways for socketcan...
         // TODO: we should support a manual drop in the root API, such that this can be worked around
+        self.check_listener();
         if self.device.is_none() {
             self.device.replace(CanDevice::new(self.addr.clone())?);
         }
