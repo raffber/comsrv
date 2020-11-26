@@ -1,14 +1,15 @@
 use std::fmt;
 use std::fmt::Display;
 
-use async_can::Message;
+use async_can::{Message, Error};
 pub use async_can::Message as CanMessage;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::mpsc;
 use tokio::task;
+use thiserror::Error;
 
-use crate::app::{Response, Server};
+use crate::app::{Response, Server, RpcError};
 use crate::can::device::CanDevice;
 use crate::iotask::{IoHandler, IoTask};
 
@@ -24,8 +25,8 @@ pub enum CanRequest {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum CanResponse {
-    Started,
-    Stopped,
+    Started(String),
+    Stopped(String),
     Sent,
     Rx(Message),
 }
@@ -64,6 +65,38 @@ impl Display for CanAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let x: String = self.clone().into();
         f.write_str(&x)
+    }
+}
+
+
+#[derive(Debug, Error, Clone, Serialize, Deserialize)]
+pub enum CanError {
+    #[error("IO Error: {0}")]
+    Io(String),
+    #[error("Invalid interface address")]
+    InvalidInterfaceAddress,
+    #[error("Invalid bit rate")]
+    InvalidBitRate,
+    #[error("PCan error {0}: {1}")]
+    PCanError(u32, String),
+    #[error("Error in CAN bus: {0}")]
+    BusError(async_can::BusError),
+    #[error("Transmit Queue full")]
+    TransmitQueueFull,
+}
+
+impl From<async_can::Error> for CanError {
+    fn from(err: async_can::Error) -> Self {
+        match err {
+            Error::Io(err) => CanError::Io(format!("{}", err)),
+            Error::InvalidInterfaceAddress => CanError::InvalidInterfaceAddress,
+            Error::InvalidBitRate => CanError::InvalidBitRate,
+            Error::PCanInitFailed(code, desc) => CanError::PCanError(code, desc),
+            Error::PCanWriteFailed(code, desc) => CanError::PCanError(code, desc),
+            Error::PCanReadFailed(code, desc) => CanError::PCanError(code, desc),
+            Error::BusError(err) => CanError::BusError(err),
+            Error::TransmitQueueFull => CanError::TransmitQueueFull,
+        }
     }
 }
 
@@ -133,13 +166,13 @@ impl IoHandler for Handler {
                     task::spawn(fut);
                     self.listener.replace(tx);
                 }
-                Ok(CanResponse::Started)
+                Ok(CanResponse::Started(self.addr.interface()))
             }
             CanRequest::Stop => {
                 if let Some(tx) = self.listener.take() {
                     let _ = tx.send(ListenerMsg::Stop);
                 }
-                Ok(CanResponse::Stopped)
+                Ok(CanResponse::Stopped(self.addr.interface()))
             }
             CanRequest::Send(msg) => {
                 device.send(msg).await?;
@@ -157,7 +190,7 @@ enum ListenerMsg {
 
 async fn listener_task(mut rx: UnboundedReceiver<ListenerMsg>, device: CanDevice, server: Server) {
     loop {
-        let msg: crate::Result<CanMessage> = tokio::select! {
+        let msg: Result<CanMessage, CanError> = tokio::select! {
             msg = rx.recv() => match msg {
                 Some(ListenerMsg::Ping) => continue,
                 Some(ListenerMsg::Stop) => break, // stop command
@@ -167,9 +200,20 @@ async fn listener_task(mut rx: UnboundedReceiver<ListenerMsg>, device: CanDevice
         };
         match msg {
             Ok(msg) => server.broadcast(Response::Can(CanResponse::Rx(msg))).await,
-            Err(_) => {
-                // TODO: should probably try to reconnect here
-                rx.close();
+            Err(err) => {
+                let send_err = RpcError::Can {
+                    addr: device.address().into(),
+                    err: err.clone(),
+                };
+                server.broadcast(Response::Error(send_err)).await;
+                // depending on error, continue listening or quit...
+                match err {
+                    CanError::Io(_) | CanError::InvalidInterfaceAddress | CanError::InvalidBitRate | CanError::PCanError(_, _) => {
+                        server.broadcast(Response::Can(CanResponse::Stopped(device.address().interface()))).await;
+                        rx.close()
+                    },
+                    _ => {}
+                }
                 break;
             }
         }

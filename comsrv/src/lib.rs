@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use visa::VisaError;
+use crate::can::CanError;
 
 mod instrument;
 mod modbus;
@@ -72,14 +73,11 @@ pub enum Error {
     Timeout,
     #[error("Vxi11 Error")]
     Vxi(Arc<async_vxi11::Error>),
-    #[error("Bitrate is invalid")]
-    InvalidBitRate,
-    #[error("Error from PCan ({0}): {1}")]
-    PCanError(u32, String),
-    #[error("Can Bus error: {0}")]
-    CanBusError(async_can::BusError),
-    #[error("Send Queue Full")]
-    CanSendQueueFull,
+    #[error("CAN Error from [{addr}]: {err}")]
+    Can {
+        addr: String,
+        err: CanError,
+    },
 }
 
 impl Error {

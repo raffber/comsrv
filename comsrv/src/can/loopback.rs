@@ -1,5 +1,5 @@
 use lazy_static;
-use crate::can::CanMessage;
+use crate::can::{CanMessage, CanError};
 use std::collections::VecDeque;
 use std::sync::Mutex;
 use tokio::sync::oneshot;
@@ -34,7 +34,7 @@ impl LoopbackAdapter {
         }
     }
 
-    async fn recv(&self) -> crate::Result<CanMessage> {
+    async fn recv(&self) -> Result<CanMessage, CanError> {
         let rx = {
             let mut state = self.state.lock().unwrap();
             if let Some(x) = state.buf.pop_front() {
@@ -44,7 +44,8 @@ impl LoopbackAdapter {
             state.next.replace(tx);
             rx
         };
-        rx.await.map_err(|_| crate::Error::Disconnected)
+        // hm... not sure which error to send here
+        rx.await.map_err(|_| CanError::BusError(async_can::BusError::Off))
     }
 }
 
@@ -59,7 +60,7 @@ impl LoopbackDevice {
         Self
     }
 
-    pub async fn recv(&self) -> crate::Result<CanMessage> {
+    pub async fn recv(&self) -> Result<CanMessage, CanError> {
         LOOPBACK_ADAPTER.recv().await
     }
 

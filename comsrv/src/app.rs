@@ -6,7 +6,7 @@ use wsrpc::server::Server as WsrpcServer;
 
 use crate::{Error, ScpiRequest, ScpiResponse};
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
-use crate::can::{CanRequest, CanResponse};
+use crate::can::{CanRequest, CanResponse, CanError};
 use crate::instrument::{Address, Instrument};
 use crate::instrument::InstrumentOptions;
 use crate::inventory::Inventory;
@@ -62,10 +62,10 @@ pub enum RpcError {
     InvalidAddress,
     Timeout,
     Vxi(String),
-    InvalidBitRate,
-    PCanError(u32, String),
-    CanBusError(async_can::BusError),
-    CanSendQueueFull,
+    Can {
+        addr: String,
+        err: CanError,
+    },
 }
 
 impl From<Error> for RpcError {
@@ -82,10 +82,7 @@ impl From<Error> for RpcError {
             Error::InvalidAddress => RpcError::InvalidAddress,
             Error::Timeout => RpcError::Timeout,
             Error::Vxi(x) => RpcError::Vxi(format!("{}", x)),
-            Error::InvalidBitRate => RpcError::InvalidBitRate,
-            Error::PCanError(code, desc) => RpcError::PCanError(code, desc),
-            Error::CanBusError(err) => RpcError::CanBusError(err),
-            Error::CanSendQueueFull => RpcError::CanSendQueueFull,
+            Error::Can { addr, err } => RpcError::Can { addr, err }
         }
     }
 }
@@ -246,7 +243,7 @@ impl App {
             Err(x) => {
                 self.inventory.disconnect(&addr);
                 Err(x.into())
-            },
+            }
         }
     }
 
