@@ -1,4 +1,4 @@
-use async_can::Bus as CanBus;
+use async_can::{Bus as CanBus, Error};
 
 use crate::can::{CanAddress, CanMessage};
 /// This module is responsible for mapping CAN functionality a device to different backends
@@ -9,6 +9,13 @@ impl From<async_can::Error> for crate::Error {
     fn from(x: async_can::Error) -> Self {
         match x {
             async_can::Error::Io(err) => crate::Error::io(err),
+            Error::InvalidInterfaceAddress => crate::Error::InvalidAddress,
+            Error::InvalidBitRate => crate::Error::InvalidBitRate,
+            Error::PCanInitFailed(code, desc) => crate::Error::PCanError(code, desc),
+            Error::PCanWriteFailed(code, desc) => crate::Error::PCanError(code, desc),
+            Error::PCanReadFailed(code, desc) => crate::Error::PCanError(code, desc),
+            Error::BusError(err) => {crate::Error::CanBusError(err)},
+            Error::TransmitQueueFull => crate::Error::CanSendQueueFull
         }
     }
 }

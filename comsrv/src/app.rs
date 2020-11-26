@@ -62,6 +62,10 @@ pub enum RpcError {
     InvalidAddress,
     Timeout,
     Vxi(String),
+    InvalidBitRate,
+    PCanError(u32, String),
+    CanBusError(async_can::BusError),
+    CanSendQueueFull,
 }
 
 impl From<Error> for RpcError {
@@ -78,6 +82,10 @@ impl From<Error> for RpcError {
             Error::InvalidAddress => RpcError::InvalidAddress,
             Error::Timeout => RpcError::Timeout,
             Error::Vxi(x) => RpcError::Vxi(format!("{}", x)),
+            Error::InvalidBitRate => RpcError::InvalidBitRate,
+            Error::PCanError(code, desc) => RpcError::PCanError(code, desc),
+            Error::CanBusError(err) => RpcError::CanBusError(err),
+            Error::CanSendQueueFull => RpcError::CanSendQueueFull,
         }
     }
 }
