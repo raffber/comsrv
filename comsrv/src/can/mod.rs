@@ -1,15 +1,15 @@
 use std::fmt;
 use std::fmt::Display;
 
-use async_can::{Message, Error};
+use async_can::{Error, Message};
 pub use async_can::Message as CanMessage;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::mpsc;
 use tokio::task;
-use thiserror::Error;
 
-use crate::app::{Response, Server, RpcError};
+use crate::app::{Response, RpcError, Server};
 use crate::can::device::CanDevice;
 use crate::iotask::{IoHandler, IoTask};
 
@@ -211,7 +211,7 @@ async fn listener_task(mut rx: UnboundedReceiver<ListenerMsg>, device: CanDevice
                     CanError::Io(_) | CanError::InvalidInterfaceAddress | CanError::InvalidBitRate | CanError::PCanError(_, _) => {
                         server.broadcast(Response::Can(CanResponse::Stopped(device.address().interface()))).await;
                         rx.close()
-                    },
+                    }
                     _ => {}
                 }
                 break;
@@ -228,17 +228,23 @@ mod tests {
     async fn loopback() {
         let srv = Server::new();
 
-        let (_rx, _client) = srv.loopback().await;
+        let (_, mut client) = srv.loopback().await;
 
         let mut instr = Instrument::new(&srv, CanAddress::Loopback);
         let resp = instr.request(CanRequest::Start).await;
         let _expected_resp = CanResponse::Started(CanAddress::Loopback.interface());
         assert!(matches!(resp, Ok(_expected_resp)));
 
-        let msg = CanMessage::new_data(0xABCD, true, &[1,2,3,4]).unwrap();
-        let _sent = instr.request(CanRequest::Send(msg)).await;
+        let msg = CanMessage::new_data(0xABCD, true, &[1, 2, 3, 4]).unwrap();
+        let sent = instr.request(CanRequest::Send(msg)).await;
+        assert!(matches!(sent, Ok(CanResponse::Sent)));
 
-
-        
+        let rx = client.next().await.unwrap();
+        let resp = if let wsrpc::Response::Notify(x) = rx { x } else { panic!() };
+        let msg = if let Response::Can(CanResponse::Rx(msg)) = resp { msg } else { panic!() };
+        let msg = if let Message::Data(msg) = msg { msg } else { panic!() };
+        assert_eq!(msg.dlc(), 4);
+        assert_eq!(&msg.data(), &[1,2,3,4]);
+        assert!(msg.ext_id());
     }
 }
