@@ -59,8 +59,6 @@ pub enum Error {
     Disconnected,
     #[error("Operation not supported")]
     NotSupported,
-    #[error("Cannot connect")]
-    CannotConnect,
     #[error("Cannot decode: {0}")]
     DecodeError(FromUtf8Error),
     #[error("Invalid binary header")]

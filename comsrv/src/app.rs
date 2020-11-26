@@ -55,7 +55,6 @@ pub enum RpcError {
     Visa(VisaError),
     Disconnected,
     NotSupported,
-    CannotConnect,
     DecodeError(String),
     InvalidBinaryHeader,
     NotTerminated,
@@ -75,7 +74,6 @@ impl From<Error> for RpcError {
             Error::Io(x) => RpcError::Io(format!("{}", x)),
             Error::Disconnected => RpcError::Disconnected,
             Error::NotSupported => RpcError::NotSupported,
-            Error::CannotConnect => RpcError::CannotConnect,
             Error::DecodeError(x) => RpcError::DecodeError(format!("{}", x)),
             Error::InvalidBinaryHeader => RpcError::InvalidBinaryHeader,
             Error::NotTerminated => RpcError::NotTerminated,
@@ -241,7 +239,9 @@ impl App {
         match device.request(task).await {
             Ok(x) => Ok(x),
             Err(x) => {
-                self.inventory.disconnect(&addr);
+                if device.check_disconnect(&x) {
+                    self.inventory.disconnect(&addr);
+                }
                 Err(x.into())
             }
         }

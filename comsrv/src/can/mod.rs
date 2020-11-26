@@ -131,6 +131,21 @@ impl Instrument {
     pub fn disconnect(mut self) {
         self.io.disconnect();
     }
+
+    pub fn check_disconnect(&self, err: &crate::Error) -> bool {
+        match &err {
+            crate::Error::Io(_) | crate::Error::Disconnected => {
+                true
+            }
+            crate::Error::Can { addr: _, err } => {
+                match err {
+                    CanError::Io(_) | CanError::InvalidInterfaceAddress | CanError::InvalidBitRate | CanError::PCanError(_, _) => true,
+                    _ => false,
+                }
+            }
+            _ => false
+        }
+    }
 }
 
 struct Handler {
