@@ -93,6 +93,8 @@ pub enum CanError {
     IdTooLong,
     #[error("Data is too long")]
     DataTooLong,
+    #[error("Message is not valid")]
+    InvalidMessage,
 }
 
 impl From<async_can::Error> for CanError {
