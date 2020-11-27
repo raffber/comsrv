@@ -354,6 +354,7 @@ dependencies = [
  "async-trait",
  "async-vxi11",
  "base64 0.13.0",
+ "byteorder",
  "cfg-if 0.1.10",
  "clap",
  "dlopen",

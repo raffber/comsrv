@@ -227,7 +227,11 @@ impl IoHandler for Handler {
                 Ok(CanResponse::Started(self.addr.interface()))
             }
             CanRequest::TxGct(msg) => {
-                for msg in gct::encode(msg) {
+                let msgs = gct::encode(msg).map_err(|err| crate::Error::Can {
+                    addr: self.addr.interface(),
+                    err
+                })?;
+                for msg in msgs {
                     if self.loopback {
                         let _ = listener.send(ListenerMsg::Loopback(msg.clone()));
                     }
