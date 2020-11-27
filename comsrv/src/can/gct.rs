@@ -55,9 +55,10 @@ pub enum GctMessage {
 impl GctMessage {
     fn validate(&self) -> Result<(), CanError> {
         let ok = match self {
-            GctMessage::SysCtrl { src, dst, data, .. } => {
+            GctMessage::SysCtrl { src, dst, data, cmd, .. } => {
+                let cmd_ok = *cmd < 1024;
                 let addr_ok = *src < BROADCAST_ADDR && *dst <= BROADCAST_ADDR;
-                addr_ok && data.len() <= 8
+                addr_ok && data.len() <= 8 && cmd_ok
             }
             GctMessage::MonitoringData { src, group_idx, reading_idx, data, } => {
                 *src < BROADCAST_ADDR && data.len() < 8 && *group_idx < 32 && *reading_idx < 64
