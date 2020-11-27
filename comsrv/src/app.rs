@@ -35,6 +35,7 @@ pub enum Request {
     },
     ListInstruments,
     DropAll,
+    Shutdown,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -276,6 +277,11 @@ impl App {
             }
             Request::DropAll => {
                 self.inventory.disconnect_all();
+                Response::Done
+            }
+            Request::Shutdown => {
+                self.inventory.disconnect_all();
+                self.server.shutdown().await;
                 Response::Done
             }
         }
