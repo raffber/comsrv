@@ -1,6 +1,6 @@
 from poke.can import CanException, CanMessage, GctMessage
 from poke.comsrv import get_default_ws_url, ComSrvException
-from pywsrpc.client import Client
+from pywsrpc.client import Client, Receiver
 
 
 class CanSrv(object):
@@ -62,3 +62,6 @@ class CanSrv(object):
             return None
 
         return self._client.listen(flt)
+
+    def unregister(self, rx: Receiver):
+        self._client.unregister(rx)
