@@ -23,6 +23,7 @@ pub enum CanRequest {
     ListenRaw(bool),
     ListenGct(bool),
     StopAll,
+    EnableLoopback(bool),
     TxRaw(Message),
     TxGct(GctMessage),
 }
@@ -31,7 +32,7 @@ pub enum CanRequest {
 pub enum CanResponse {
     Started(String),
     Stopped(String),
-    Sent,
+    Ok,
     Rx(Message),
     Gct(GctMessage),
 }
@@ -123,6 +124,7 @@ impl Instrument {
             server: server.clone(),
             device: None,
             listener: None,
+            loopback: false
         };
         Self {
             io: IoTask::new(handler),
@@ -158,6 +160,7 @@ struct Handler {
     server: Server,
     device: Option<CanDevice>,
     listener: Option<UnboundedSender<ListenerMsg>>,
+    loopback: bool,
 }
 
 impl Handler {
@@ -211,8 +214,11 @@ impl IoHandler for Handler {
                 Ok(CanResponse::Stopped(self.addr.interface()))
             }
             CanRequest::TxRaw(msg) => {
+                if self.loopback {
+                    let _ = listener.send(ListenerMsg::Loopback(msg.clone()));
+                }
                 device.send(msg).await?;
-                Ok(CanResponse::Sent)
+                Ok(CanResponse::Ok)
             }
             CanRequest::ListenGct(en) => {
                 let _ = listener.send(ListenerMsg::EnableGct(en));
@@ -220,9 +226,16 @@ impl IoHandler for Handler {
             }
             CanRequest::TxGct(msg) => {
                 for msg in gct::encode(msg) {
+                    if self.loopback {
+                        let _ = listener.send(ListenerMsg::Loopback(msg.clone()));
+                    }
                     device.send(msg).await?;
                 }
-                Ok(CanResponse::Sent)
+                Ok(CanResponse::Ok)
+            }
+            CanRequest::EnableLoopback(en) => {
+                self.loopback = en;
+                Ok(CanResponse::Ok)
             }
         }
     }
@@ -232,6 +245,7 @@ impl IoHandler for Handler {
 enum ListenerMsg {
     EnableGct(bool),
     EnableRaw(bool),
+    Loopback(CanMessage),
     Ping,
 }
 
@@ -245,7 +259,7 @@ struct Listener {
 }
 
 impl Listener {
-    fn rx_control(&mut self, msg: ListenerMsg) {
+    async fn rx_control(&mut self, msg: ListenerMsg) {
         match msg {
             ListenerMsg::EnableGct(en) => {
                 if !self.listen_gct {
@@ -257,6 +271,9 @@ impl Listener {
                 self.listen_raw = en;
             }
             ListenerMsg::Ping => {}
+            ListenerMsg::Loopback(msg) => {
+                self.rx(msg).await
+            }
         }
     }
 
@@ -302,7 +319,7 @@ async fn listener_task(mut rx: UnboundedReceiver<ListenerMsg>, device: CanDevice
     loop {
         tokio::select! {
             msg = rx.recv() => match msg {
-                Some(msg) => listener.rx_control(msg),
+                Some(msg) => listener.rx_control(msg).await,
                 None => break
             },
             msg = listener.device.recv() => match msg {
@@ -331,7 +348,7 @@ mod tests {
 
         let msg = CanMessage::new_data(0xABCD, true, &[1, 2, 3, 4]).unwrap();
         let sent = instr.request(CanRequest::TxRaw(msg)).await;
-        assert!(matches!(sent, Ok(CanResponse::Sent)));
+        assert!(matches!(sent, Ok(CanResponse::Ok)));
 
         let rx = client.next().await.unwrap();
         let resp = if let wsrpc::Response::Notify(x) = rx { x } else { panic!() };
