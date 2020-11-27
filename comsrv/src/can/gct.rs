@@ -42,8 +42,6 @@ pub enum GctMessage {
     Ddp {
         src: u8,
         dst: u8,
-        answer: bool,
-        cmd: u8,
         data: Vec<u8>,
     },
     Heartbeat {
@@ -66,7 +64,7 @@ impl GctMessage {
             GctMessage::MonitoringRequest { src, dst, group_idx, .. } => {
                 *src < BROADCAST_ADDR && *dst <= BROADCAST_ADDR && *group_idx < 32
             }
-            GctMessage::Ddp { src, dst, data, .. } => {
+            GctMessage::Ddp { src, dst, data } => {
                 let addr_ok = *src < BROADCAST_ADDR && *dst <= BROADCAST_ADDR;
                 addr_ok && data.len() <= MAX_DDP_DATA_LEN
             }
@@ -202,21 +200,17 @@ impl DdpDecoder {
     }
 
     fn decode_completed(&mut self) -> Option<GctMessage> {
-        if self.data.len() < 2 {
+        if self.data.len() < 1 {
             return None;
         }
         if crc8(&self.data) != 0 {
             return None;
         }
-        let cmd = self.data[0] & 0x7F;
-        let answer = self.data[0] & 0x80 > 0;
         let data = self.data[1..self.data.len() - 1].to_vec();
 
         Some(GctMessage::Ddp {
             src: self.src_start_addr,
             dst: self.dst_addr,
-            answer,
-            cmd,
             data,
         })
     }
@@ -315,14 +309,8 @@ pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
             LittleEndian::write_u64(&mut data, readings);
             vec![Message::new_data(id.0, true, &data).unwrap()]
         }
-        GctMessage::Ddp { src, dst, answer, cmd, data: frame_data } => {
-            let cmd = cmd | (answer as u8) << 7;
-
-            let mut data = Vec::with_capacity(frame_data.len() + 2);
-            data.push(cmd);
-            data.extend(frame_data);
+        GctMessage::Ddp { src, dst, mut data } => {
             data.push(crc8(&data));
-
             let chunks: Vec<_> = data.chunks(8).collect();
             let num_chunks = chunks.len();
             let mut ret = Vec::with_capacity(num_chunks);
