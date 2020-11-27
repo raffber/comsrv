@@ -343,9 +343,9 @@ mod tests {
 
     #[tokio::test]
     async fn loopback() {
-        let srv = Server::new();
+        let (srv, rx_srv) = Server::new();
 
-        let (_, mut client) = srv.loopback().await;
+        let mut client = srv.loopback().await;
 
         let mut instr = Instrument::new(&srv, CanAddress::Loopback);
         let resp = instr.request(CanRequest::ListenRaw(true)).await;

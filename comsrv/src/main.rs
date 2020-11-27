@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::process::exit;
 
 use clap::{App as ClapApp, Arg};
@@ -30,7 +31,11 @@ fn main() {
 
     let mut rt = Runtime::new().unwrap();
     rt.block_on(async move {
-        let app = App::new();
-        app.run(port).await;
+        let (app, rx) = App::new();
+
+        let url = format!("0.0.0.0:{}", port);
+        let http_addr: SocketAddr = format!("0.0.0.0:{}", port + 1).parse().unwrap();
+        app.server.listen(url, http_addr).await;
+        app.run(rx).await;
     });
 }

@@ -1,12 +1,13 @@
 use std::net::SocketAddr;
 
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task;
-use wsrpc::server::Server as WsrpcServer;
+use wsrpc::server::{Requested, Server as WsrpcServer};
 
 use crate::{Error, ScpiRequest, ScpiResponse};
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
-use crate::can::{CanRequest, CanResponse, CanError};
+use crate::can::{CanError, CanRequest, CanResponse};
 use crate::instrument::{Address, Instrument};
 use crate::instrument::InstrumentOptions;
 use crate::inventory::Inventory;
@@ -89,23 +90,22 @@ pub type Server = WsrpcServer<Request, Response>;
 
 #[derive(Clone)]
 pub struct App {
-    server: Server,
-    inventory: Inventory,
+    pub server: Server,
+    pub inventory: Inventory,
 }
 
 impl App {
-    pub fn new() -> Self {
-        App {
-            server: Server::new(),
+    pub fn new() -> (Self, UnboundedReceiver<Requested<Request, Response>>) {
+        let (server, rx) = Server::new();
+        let app = App {
+            server,
             inventory: Inventory::new(),
-        }
+        };
+        (app, rx)
     }
 
-    pub async fn run(&self, port: u16) {
-        let url = format!("0.0.0.0:{}", port);
-        let http_addr: SocketAddr = format!("0.0.0.0:{}", port + 1).parse().unwrap();
-        let mut stream = self.server.listen(url, http_addr).await;
-        while let Some(msg) = stream.recv().await {
+    pub async fn run(&self, mut rx: UnboundedReceiver<Requested<Request, Response>>) {
+        while let Some(msg) = rx.recv().await {
             let (req, rep) = msg.split();
             let app = self.clone();
             task::spawn(async move {
