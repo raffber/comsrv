@@ -1,8 +1,30 @@
-from typing import Optional
-
 from poke.can import CanException, CanMessage, GctMessage
 from poke.comsrv import get_default_ws_url, ComSrvException
 from pywsrpc.client import Client, Receiver
+from typing import Optional
+
+def gct_filter(msg):
+    if 'Notify' not in msg:
+        return None
+    if 'Can' not in msg['Notify']:
+        return None
+    can = msg['Notify']['Can']
+    if 'Gct' in can:
+        msg = can['Gct']
+        return GctMessage.from_comsrv(msg)
+    return None
+
+
+def raw_filter(msg):
+    if 'Notify' not in msg:
+        return None
+    if 'Can' not in msg['Notify']:
+        return None
+    can = msg['Notify']['Can']
+    if 'Raw' in can:
+        msg = can['Raw']
+        return CanMessage.from_comsrv(msg)
+    return None
 
 
 class CanSrv(object):
@@ -18,6 +40,8 @@ class CanSrv(object):
         await self._client.connect(url)
 
     async def rpc(self, task):
+        if not self._client.connected:
+            await self._client.connect(get_default_ws_url())
         resp = await self._client.query({'Can': {'addr': self._device, 'task': task}})
         if 'Error' in resp:
             if 'Can' in resp['Error']:
@@ -37,37 +61,19 @@ class CanSrv(object):
             raise CanException('Invalid message type.')
         await self.rpc(task)
 
-    async def raw(self):
+    async def listen_raw(self):
         await self.rpc({'ListenRaw': True})
 
-        def flt(msg):
-            if 'Notify' not in msg:
-                return None
-            if 'Can' not in msg['Notify']:
-                return None
-            can = msg['Notify']['Can']
-            if 'Raw' in can:
-                msg = can['Raw']
-                return CanMessage.from_comsrv(msg)
-            return None
+    async def listen_gct(self):
+        await self.rpc({'ListenGct': True})
 
-        return self._client.listen(flt)
+    async def raw(self):
+        await self.rpc({'ListenRaw': True})
+        return self._client.listen(raw_filter)
 
     async def gct(self):
         await self.rpc({'ListenGct': True})
-
-        def flt(msg):
-            if 'Notify' not in msg:
-                return None
-            if 'Can' not in msg['Notify']:
-                return None
-            can = msg['Notify']['Can']
-            if 'Gct' in can:
-                msg = can['Gct']
-                return GctMessage.from_comsrv(msg)
-            return None
-
-        return self._client.listen(flt)
+        return self._client.listen(gct_filter)
 
     def unregister(self, rx: Receiver):
         self._client.unregister(rx)
