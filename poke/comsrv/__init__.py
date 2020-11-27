@@ -39,7 +39,7 @@ def get_default_http_url():
 
 
 def get_default_ws_url():
-    return 'ws://{}:{}'.format(_default_host, _default_http_port)
+    return 'ws://{}:{}'.format(_default_host, _default_ws_port)
 
 
 async def get(addr, data):
@@ -63,3 +63,4 @@ async def connect_client(url=None):
 from .scpi import ScpiPipe
 from .modbus import ModBusDevice
 from .serial import SerialPipe
+from .can import CanSrv

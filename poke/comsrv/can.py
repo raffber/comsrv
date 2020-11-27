@@ -1,10 +1,14 @@
+from typing import Optional
+
 from poke.can import CanException, CanMessage, GctMessage
 from poke.comsrv import get_default_ws_url, ComSrvException
 from pywsrpc.client import Client, Receiver
 
 
 class CanSrv(object):
-    def __init__(self, client: Client, device: str):
+    def __init__(self, device: str, client: Optional[Client] = None):
+        if client is None:
+            client = Client()
         self._client = client
         self._device = device
 
@@ -20,7 +24,9 @@ class CanSrv(object):
                 raise CanException(resp['Error']['Can'])
             else:
                 raise ComSrvException(resp['Error'])
-        return resp
+        if 'Can' not in resp:
+            raise ComSrvException('Unexpected wire format')
+        return resp['Can']
 
     async def send(self, msg):
         if isinstance(msg, CanMessage):
@@ -65,3 +71,7 @@ class CanSrv(object):
 
     def unregister(self, rx: Receiver):
         self._client.unregister(rx)
+
+    @property
+    def client(self):
+        return self._client
