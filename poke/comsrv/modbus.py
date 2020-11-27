@@ -1,12 +1,12 @@
 from typing import List
 
-from . import _get_default_url, get, ComSrvException
+from . import get_default_http_url, get, ComSrvException
 
 
 class ModBusDevice(object):
     def __init__(self, addr, url=None):
         if url is None:
-            url = _get_default_url()
+            url = get_default_http_url()
         self._url = url
         self._addr = addr
 
