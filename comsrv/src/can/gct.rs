@@ -59,11 +59,11 @@ impl GctMessage {
                 let addr_ok = *src < BROADCAST_ADDR && *dst <= BROADCAST_ADDR;
                 addr_ok && data.len() <= 8
             }
-            GctMessage::MonitoringData { src, .. } => {
-                *src < BROADCAST_ADDR
+            GctMessage::MonitoringData { src, group_idx, reading_idx, data, } => {
+                *src < BROADCAST_ADDR && data.len() < 8 && *group_idx < 32 && *reading_idx < 64
             }
-            GctMessage::MonitoringRequest { src, dst, .. } => {
-                *src < BROADCAST_ADDR && *dst <= BROADCAST_ADDR
+            GctMessage::MonitoringRequest { src, dst, group_idx, .. } => {
+                *src < BROADCAST_ADDR && *dst <= BROADCAST_ADDR && *group_idx < 32
             }
             GctMessage::Ddp { src, dst, data, .. } => {
                 let addr_ok = *src < BROADCAST_ADDR && *dst <= BROADCAST_ADDR;
@@ -169,7 +169,7 @@ impl MessageId {
     }
 
     fn type_data(&self) -> u16 {
-        ((self.0 >> 11) & 0x7FF) as u16
+        (self.0 & 0x7FF) as u16
     }
 }
 

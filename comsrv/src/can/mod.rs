@@ -33,7 +33,7 @@ pub enum CanResponse {
     Started(String),
     Stopped(String),
     Ok,
-    Rx(Message),
+    Raw(Message),
     Gct(GctMessage),
 }
 
@@ -285,7 +285,7 @@ impl Listener {
 
     async fn rx(&mut self, msg: Message) {
         if self.listen_raw {
-            let tx = Response::Can(CanResponse::Rx(msg.clone()));
+            let tx = Response::Can(CanResponse::Raw(msg.clone()));
             self.server.broadcast(tx).await;
         }
         if self.listen_gct {
@@ -358,7 +358,7 @@ mod tests {
 
         let rx = client.next().await.unwrap();
         let resp = if let wsrpc::Response::Notify(x) = rx { x } else { panic!() };
-        let msg = if let Response::Can(CanResponse::Rx(msg)) = resp { msg } else { panic!() };
+        let msg = if let Response::Can(CanResponse::Raw(msg)) = resp { msg } else { panic!() };
         let msg = if let Message::Data(msg) = msg { msg } else { panic!() };
         assert_eq!(msg.dlc(), 4);
         assert_eq!(&msg.data(), &[1, 2, 3, 4]);
