@@ -343,7 +343,7 @@ mod tests {
 
     #[tokio::test]
     async fn loopback() {
-        let (srv, rx_srv) = Server::new();
+        let (srv, _) = Server::new();
 
         let mut client = srv.loopback().await;
 
