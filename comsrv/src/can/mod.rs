@@ -20,8 +20,8 @@ mod gct;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum CanRequest {
-    ListenRaw,
-    ListenGct,
+    ListenRaw(bool),
+    ListenGct(bool),
     StopAll,
     TxRaw(Message),
     TxGct(GctMessage),
@@ -201,20 +201,21 @@ impl IoHandler for Handler {
         let listener = self.listener.as_ref().unwrap();
 
         match req {
-            CanRequest::ListenRaw => {
-                let _ = listener.send(ListenerMsg::StartRaw);
+            CanRequest::ListenRaw(en) => {
+                let _ = listener.send(ListenerMsg::EnableRaw(en));
                 Ok(CanResponse::Started(self.addr.interface()))
             }
             CanRequest::StopAll => {
-                let _ = listener.send(ListenerMsg::StopAll);
+                let _ = listener.send(ListenerMsg::EnableRaw(false));
+                let _ = listener.send(ListenerMsg::EnableGct(false));
                 Ok(CanResponse::Stopped(self.addr.interface()))
             }
             CanRequest::TxRaw(msg) => {
                 device.send(msg).await?;
                 Ok(CanResponse::Sent)
             }
-            CanRequest::ListenGct => {
-                let _ = listener.send(ListenerMsg::StartGct);
+            CanRequest::ListenGct(en) => {
+                let _ = listener.send(ListenerMsg::EnableGct(en));
                 Ok(CanResponse::Started(self.addr.interface()))
             }
             CanRequest::TxGct(msg) => {
@@ -229,11 +230,8 @@ impl IoHandler for Handler {
 
 
 enum ListenerMsg {
-    StartGct,
-    StopGct,
-    StartRaw,
-    StopRaw,
-    StopAll,
+    EnableGct(bool),
+    EnableRaw(bool),
     Ping,
 }
 
@@ -249,25 +247,14 @@ struct Listener {
 impl Listener {
     fn rx_control(&mut self, msg: ListenerMsg) {
         match msg {
-            ListenerMsg::StartGct => {
+            ListenerMsg::EnableGct(en) => {
                 if !self.listen_gct {
                     self.decoder.reset();
                 }
-                self.listen_gct = true;
+                self.listen_gct = en;
             }
-            ListenerMsg::StopGct => {
-                self.listen_gct = false;
-                self.decoder.reset();
-            }
-            ListenerMsg::StartRaw => {
-                self.listen_raw = true;
-            }
-            ListenerMsg::StopRaw => {
-                self.listen_raw = false;
-            }
-            ListenerMsg::StopAll => {
-                self.listen_raw = false;
-                self.listen_gct = false;
+            ListenerMsg::EnableRaw(en) => {
+                self.listen_raw = en;
             }
             ListenerMsg::Ping => {}
         }
@@ -338,7 +325,7 @@ mod tests {
         let (_, mut client) = srv.loopback().await;
 
         let mut instr = Instrument::new(&srv, CanAddress::Loopback);
-        let resp = instr.request(CanRequest::ListenRaw).await;
+        let resp = instr.request(CanRequest::ListenRaw(true)).await;
         let _expected_resp = CanResponse::Started(CanAddress::Loopback.interface());
         assert!(matches!(resp, Ok(_expected_resp)));
 
