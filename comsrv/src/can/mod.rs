@@ -11,16 +11,20 @@ use tokio::task;
 
 use crate::app::{Response, RpcError, Server};
 use crate::can::device::CanDevice;
+use crate::can::gct::{Decoder, GctMessage};
 use crate::iotask::{IoHandler, IoTask};
 
 mod loopback;
 mod device;
+mod gct;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum CanRequest {
-    Start,
-    Stop,
-    Send(Message),
+    ListenRaw,
+    ListenGct,
+    StopAll,
+    TxRaw(Message),
+    TxGct(GctMessage),
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -29,6 +33,7 @@ pub enum CanResponse {
     Stopped(String),
     Sent,
     Rx(Message),
+    Gct(GctMessage),
 }
 
 #[derive(Clone, Hash)]
@@ -184,35 +189,38 @@ impl IoHandler for Handler {
         if self.device.is_none() {
             self.device.replace(CanDevice::new(self.addr.clone())?);
         }
+        if self.listener.is_none() {
+            let device = CanDevice::new(self.addr.clone())?;
+            let (tx, rx) = mpsc::unbounded_channel();
+            let fut = listener_task(rx, device, self.server.clone());
+            task::spawn(fut);
+            self.listener.replace(tx);
+        }
         // save because we just created it
         let device = self.device.as_ref().unwrap();
+        let listener = self.listener.as_ref().unwrap();
 
         match req {
-            CanRequest::Start => {
-                if let Some(tx) = self.listener.as_ref() {
-                    // XXX: this is a hacky way to tell if the channel has been closed.
-                    // this will be fixed in tokio-0.3.x (and 1.x) series
-                    if tx.send(ListenerMsg::Ping).is_err() {
-                        self.listener.take();
-                    }
-                }
-                if self.listener.is_none() {
-                    let device = CanDevice::new(self.addr.clone())?;
-                    let (tx, rx) = mpsc::unbounded_channel();
-                    let fut = listener_task(rx, device, self.server.clone());
-                    task::spawn(fut);
-                    self.listener.replace(tx);
-                }
+            CanRequest::ListenRaw => {
+                let _ = listener.send(ListenerMsg::StartRaw);
                 Ok(CanResponse::Started(self.addr.interface()))
             }
-            CanRequest::Stop => {
-                if let Some(tx) = self.listener.take() {
-                    let _ = tx.send(ListenerMsg::Stop);
-                }
+            CanRequest::StopAll => {
+                let _ = listener.send(ListenerMsg::StopAll);
                 Ok(CanResponse::Stopped(self.addr.interface()))
             }
-            CanRequest::Send(msg) => {
+            CanRequest::TxRaw(msg) => {
                 device.send(msg).await?;
+                Ok(CanResponse::Sent)
+            }
+            CanRequest::ListenGct => {
+                let _ = listener.send(ListenerMsg::StartGct);
+                Ok(CanResponse::Started(self.addr.interface()))
+            }
+            CanRequest::TxGct(msg) => {
+                for msg in gct::encode(msg) {
+                    device.send(msg).await?;
+                }
                 Ok(CanResponse::Sent)
             }
         }
@@ -221,41 +229,103 @@ impl IoHandler for Handler {
 
 
 enum ListenerMsg {
-    Stop,
+    StartGct,
+    StopGct,
+    StartRaw,
+    StopRaw,
+    StopAll,
     Ping,
 }
 
-async fn listener_task(mut rx: UnboundedReceiver<ListenerMsg>, device: CanDevice, server: Server) {
-    loop {
-        let msg: Result<CanMessage, CanError> = tokio::select! {
-            msg = rx.recv() => match msg {
-                Some(ListenerMsg::Ping) => continue,
-                Some(ListenerMsg::Stop) => break, // stop command
-                None => break, // instrument dropped
-            },
-            msg = device.recv() => msg
-        };
+
+struct Listener {
+    listen_gct: bool,
+    listen_raw: bool,
+    decoder: Decoder,
+    server: Server,
+    device: CanDevice,
+}
+
+impl Listener {
+    fn rx_control(&mut self, msg: ListenerMsg) {
         match msg {
-            Ok(msg) => server.broadcast(Response::Can(CanResponse::Rx(msg))).await,
-            Err(err) => {
-                let send_err = RpcError::Can {
-                    addr: device.address().into(),
-                    err: err.clone(),
-                };
-                server.broadcast(Response::Error(send_err)).await;
-                // depending on error, continue listening or quit...
-                match err {
-                    CanError::Io(_) | CanError::InvalidInterfaceAddress | CanError::InvalidBitRate | CanError::PCanError(_, _) => {
-                        server.broadcast(Response::Can(CanResponse::Stopped(device.address().interface()))).await;
-                        rx.close()
-                    }
-                    _ => {}
+            ListenerMsg::StartGct => {
+                if !self.listen_gct {
+                    self.decoder.reset();
                 }
-                break;
+                self.listen_gct = true;
+            }
+            ListenerMsg::StopGct => {
+                self.listen_gct = false;
+                self.decoder.reset();
+            }
+            ListenerMsg::StartRaw => {
+                self.listen_raw = true;
+            }
+            ListenerMsg::StopRaw => {
+                self.listen_raw = false;
+            }
+            ListenerMsg::StopAll => {
+                self.listen_raw = false;
+                self.listen_gct = false;
+            }
+            ListenerMsg::Ping => {}
+        }
+    }
+
+    async fn rx(&mut self, msg: Message) {
+        if self.listen_raw {
+            let tx = Response::Can(CanResponse::Rx(msg.clone()));
+            self.server.broadcast(tx).await;
+        }
+        if self.listen_gct {
+            if let Some(msg) = self.decoder.decode(msg) {
+                let msg = Response::Can(CanResponse::Gct(msg));
+                self.server.broadcast(msg).await;
+            }
+        }
+    }
+
+    async fn err(&mut self, err: CanError) -> bool {
+        let send_err = RpcError::Can {
+            addr: self.device.address().into(),
+            err: err.clone(),
+        };
+        self.server.broadcast(Response::Error(send_err)).await;
+        // depending on error, continue listening or quit...
+        match err {
+            CanError::Io(_) | CanError::InvalidInterfaceAddress | CanError::InvalidBitRate | CanError::PCanError(_, _) => {
+                let tx = Response::Can(CanResponse::Stopped(self.device.address().interface()));
+                self.server.broadcast(tx).await;
+                false
+            }
+            _ => true
+        }
+    }
+}
+
+async fn listener_task(mut rx: UnboundedReceiver<ListenerMsg>, device: CanDevice, server: Server) {
+    let mut listener = Listener {
+        listen_gct: false,
+        listen_raw: false,
+        decoder: Decoder::new(),
+        server,
+        device,
+    };
+    loop {
+        tokio::select! {
+            msg = rx.recv() => match msg {
+                Some(msg) => listener.rx_control(msg),
+                None => break
+            },
+            msg = listener.device.recv() => match msg {
+                Ok(msg) => listener.rx(msg).await,
+                Err(err) => if !listener.err(err).await { break; }
             }
         }
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -268,12 +338,12 @@ mod tests {
         let (_, mut client) = srv.loopback().await;
 
         let mut instr = Instrument::new(&srv, CanAddress::Loopback);
-        let resp = instr.request(CanRequest::Start).await;
+        let resp = instr.request(CanRequest::ListenRaw).await;
         let _expected_resp = CanResponse::Started(CanAddress::Loopback.interface());
         assert!(matches!(resp, Ok(_expected_resp)));
 
         let msg = CanMessage::new_data(0xABCD, true, &[1, 2, 3, 4]).unwrap();
-        let sent = instr.request(CanRequest::Send(msg)).await;
+        let sent = instr.request(CanRequest::TxRaw(msg)).await;
         assert!(matches!(sent, Ok(CanResponse::Sent)));
 
         let rx = client.next().await.unwrap();
@@ -281,7 +351,7 @@ mod tests {
         let msg = if let Response::Can(CanResponse::Rx(msg)) = resp { msg } else { panic!() };
         let msg = if let Message::Data(msg) = msg { msg } else { panic!() };
         assert_eq!(msg.dlc(), 4);
-        assert_eq!(&msg.data(), &[1,2,3,4]);
+        assert_eq!(&msg.data(), &[1, 2, 3, 4]);
         assert!(msg.ext_id());
     }
 }
