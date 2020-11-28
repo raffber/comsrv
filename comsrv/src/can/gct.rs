@@ -206,7 +206,7 @@ impl DdpDecoder {
         if crc8(&self.data) != 0 {
             return None;
         }
-        let data = self.data[1..self.data.len() - 1].to_vec();
+        let data = self.data[0..self.data.len() - 1].to_vec();
 
         Some(GctMessage::Ddp {
             src: self.src_start_addr,
