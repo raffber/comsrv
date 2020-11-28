@@ -189,13 +189,13 @@ impl App {
         }
     }
 
-    async fn handle_serial(&self, addr: Address, params: &SerialParams, task: ByteStreamRequest) -> Result<ByteStreamResponse, RpcError> {
+    async fn handle_serial(&self, addr: &Address, params: &SerialParams, task: ByteStreamRequest) -> Result<ByteStreamResponse, RpcError> {
         let params = params.clone();
         let req = SerialRequest::Serial {
             params,
             req: task,
         };
-        match self.inventory.connect(&self.server, &addr) {
+        match self.inventory.connect(&self.server, addr) {
             Instrument::Serial(mut instr) => {
                 match instr.request(req).await {
                     Ok(x) => {
@@ -216,12 +216,32 @@ impl App {
         }
     }
 
+
+    async fn handle_tcp(&self, addr: &Address, task: ByteStreamRequest) -> Result<ByteStreamResponse, RpcError> {
+        match self.inventory.connect(&self.server, &addr) {
+            Instrument::Tcp(mut instr) => {
+                match instr.request(task).await {
+                    Ok(x) => Ok(x),
+                    Err(x) => {
+                        self.inventory.disconnect(&addr);
+                        Err(x.into())
+                    }
+                }
+            }
+            _ => {
+                Err(RpcError::NotSupported)
+            }
+        }
+    }
+
     async fn handle_bytes(&self, addr: &str, task: ByteStreamRequest) -> Result<ByteStreamResponse, RpcError> {
         let addr = Address::parse(&addr)?;
-        let addr2 = addr.clone();
         match &addr {
             Address::Serial { path: _, params } => {
-                self.handle_serial(addr2, params, task).await
+                self.handle_serial(&addr, params, task).await
+            },
+            Address::Tcp { .. } => {
+                self.handle_tcp(&addr, task).await
             }
             _ => {
                 Err(RpcError::NotSupported)
