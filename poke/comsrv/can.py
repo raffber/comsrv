@@ -3,6 +3,7 @@ from poke.comsrv import get_default_ws_url, ComSrvException
 from pywsrpc.client import Client, Receiver
 from typing import Optional
 
+
 def gct_filter(msg):
     if 'Notify' not in msg:
         return None
@@ -27,7 +28,7 @@ def raw_filter(msg):
     return None
 
 
-class CanSrv(object):
+class CanBus(object):
     def __init__(self, device: str, client: Optional[Client] = None):
         if client is None:
             client = Client()
@@ -38,6 +39,7 @@ class CanSrv(object):
         if url is None:
             url = get_default_ws_url()
         await self._client.connect(url)
+        return self
 
     async def rpc(self, task):
         if not self._client.connected:

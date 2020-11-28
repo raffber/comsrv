@@ -63,4 +63,4 @@ async def connect_client(url=None):
 from .scpi import ScpiPipe
 from .modbus import ModBusDevice
 from .serial import SerialPipe
-from .can import CanSrv
+from .can import CanBus
