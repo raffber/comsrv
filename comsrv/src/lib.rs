@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use visa::VisaError;
+use crate::can::CanError;
 
 mod instrument;
 mod modbus;
@@ -24,9 +25,10 @@ mod serial;
 mod iotask;
 mod cobs;
 mod util;
-mod sockets;
+mod tcp;
 mod bytestream;
 mod vxi;
+mod can;
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -57,8 +59,6 @@ pub enum Error {
     Disconnected,
     #[error("Operation not supported")]
     NotSupported,
-    #[error("Cannot connect")]
-    CannotConnect,
     #[error("Cannot decode: {0}")]
     DecodeError(FromUtf8Error),
     #[error("Invalid binary header")]
@@ -71,6 +71,11 @@ pub enum Error {
     Timeout,
     #[error("Vxi11 Error")]
     Vxi(Arc<async_vxi11::Error>),
+    #[error("CAN Error from [{addr}]: {err}")]
+    Can {
+        addr: String,
+        err: CanError,
+    },
 }
 
 impl Error {

@@ -1,11 +1,11 @@
-use std::net::SocketAddr;
-
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task;
-use wsrpc::server::Server;
+use wsrpc::server::{Requested, Server as WsrpcServer};
 
 use crate::{Error, ScpiRequest, ScpiResponse};
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
+use crate::can::{CanError, CanRequest, CanResponse};
 use crate::instrument::{Address, Instrument};
 use crate::instrument::InstrumentOptions;
 use crate::inventory::Inventory;
@@ -29,8 +29,13 @@ pub enum Request {
         addr: String,
         task: ByteStreamRequest,
     },
+    Can {
+        addr: String,
+        task: CanRequest,
+    },
     ListInstruments,
     DropAll,
+    Shutdown,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -40,6 +45,7 @@ pub enum Response {
     Scpi(ScpiResponse),
     Bytes(ByteStreamResponse),
     ModBus(ModBusResponse),
+    Can(CanResponse),
     Done,
 }
 
@@ -49,13 +55,16 @@ pub enum RpcError {
     Visa(VisaError),
     Disconnected,
     NotSupported,
-    CannotConnect,
     DecodeError(String),
     InvalidBinaryHeader,
     NotTerminated,
     InvalidAddress,
     Timeout,
     Vxi(String),
+    Can {
+        addr: String,
+        err: CanError,
+    },
 }
 
 impl From<Error> for RpcError {
@@ -65,36 +74,37 @@ impl From<Error> for RpcError {
             Error::Io(x) => RpcError::Io(format!("{}", x)),
             Error::Disconnected => RpcError::Disconnected,
             Error::NotSupported => RpcError::NotSupported,
-            Error::CannotConnect => RpcError::CannotConnect,
             Error::DecodeError(x) => RpcError::DecodeError(format!("{}", x)),
             Error::InvalidBinaryHeader => RpcError::InvalidBinaryHeader,
             Error::NotTerminated => RpcError::NotTerminated,
             Error::InvalidAddress => RpcError::InvalidAddress,
             Error::Timeout => RpcError::Timeout,
             Error::Vxi(x) => RpcError::Vxi(format!("{}", x)),
+            Error::Can { addr, err } => RpcError::Can { addr, err }
         }
     }
 }
+
+pub type Server = WsrpcServer<Request, Response>;
 
 #[derive(Clone)]
 pub struct App {
-    server: Server<Request, Response>,
-    inventory: Inventory,
+    pub server: Server,
+    pub inventory: Inventory,
 }
 
 impl App {
-    pub fn new() -> Self {
-        App {
-            server: Server::new(),
+    pub fn new() -> (Self, UnboundedReceiver<Requested<Request, Response>>) {
+        let (server, rx) = Server::new();
+        let app = App {
+            server,
             inventory: Inventory::new(),
-        }
+        };
+        (app, rx)
     }
 
-    pub async fn run(&self, port: u16) {
-        let url = format!("0.0.0.0:{}", port);
-        let http_addr: SocketAddr = format!("0.0.0.0:{}", port + 1).parse().unwrap();
-        let mut stream = self.server.listen(url, http_addr).await;
-        while let Some(msg) = stream.recv().await {
+    pub async fn run(&self, mut rx: UnboundedReceiver<Requested<Request, Response>>) {
+        while let Some(msg) = rx.recv().await {
             let (req, rep) = msg.split();
             let app = self.clone();
             task::spawn(async move {
@@ -106,7 +116,7 @@ impl App {
 
     async fn handle_scpi(&self, addr: String, task: ScpiRequest, options: &InstrumentOptions) -> Result<ScpiResponse, RpcError> {
         let addr = Address::parse(&addr)?;
-        match self.inventory.connect(&addr) {
+        match self.inventory.connect(&self.server, &addr) {
             Instrument::Visa(instr) => {
                 let opt = match options {
                     InstrumentOptions::Visa(x) => x.clone(),
@@ -163,7 +173,7 @@ impl App {
 
     async fn handle_modbus(&self, addr: String, task: ModBusRequest) -> Result<ModBusResponse, RpcError> {
         let addr = Address::parse(&addr)?;
-        match self.inventory.connect(&addr) {
+        match self.inventory.connect(&self.server, &addr) {
             Instrument::Modbus(mut instr) => {
                 match instr.request(task).await {
                     Ok(x) => Ok(x),
@@ -179,13 +189,13 @@ impl App {
         }
     }
 
-    async fn handle_serial(&self, addr: Address, params: &SerialParams, task: ByteStreamRequest) -> Result<ByteStreamResponse, RpcError> {
+    async fn handle_serial(&self, addr: &Address, params: &SerialParams, task: ByteStreamRequest) -> Result<ByteStreamResponse, RpcError> {
         let params = params.clone();
         let req = SerialRequest::Serial {
             params,
             req: task,
         };
-        match self.inventory.connect(&addr) {
+        match self.inventory.connect(&self.server, addr) {
             Instrument::Serial(mut instr) => {
                 match instr.request(req).await {
                     Ok(x) => {
@@ -206,15 +216,52 @@ impl App {
         }
     }
 
-    async fn handle_bytes(&self, addr: &str, task: ByteStreamRequest) -> Result<ByteStreamResponse, RpcError> {
-        let addr = Address::parse(&addr)?;
-        let addr2 = addr.clone();
-        match &addr {
-            Address::Serial { path: _, params } => {
-                self.handle_serial(addr2, params, task).await
+
+    async fn handle_tcp(&self, addr: &Address, task: ByteStreamRequest) -> Result<ByteStreamResponse, RpcError> {
+        match self.inventory.connect(&self.server, &addr) {
+            Instrument::Tcp(mut instr) => {
+                match instr.request(task).await {
+                    Ok(x) => Ok(x),
+                    Err(x) => {
+                        self.inventory.disconnect(&addr);
+                        Err(x.into())
+                    }
+                }
             }
             _ => {
-                return Err(RpcError::NotSupported);
+                Err(RpcError::NotSupported)
+            }
+        }
+    }
+
+    async fn handle_bytes(&self, addr: &str, task: ByteStreamRequest) -> Result<ByteStreamResponse, RpcError> {
+        let addr = Address::parse(&addr)?;
+        match &addr {
+            Address::Serial { path: _, params } => {
+                self.handle_serial(&addr, params, task).await
+            },
+            Address::Tcp { .. } => {
+                self.handle_tcp(&addr, task).await
+            }
+            _ => {
+                Err(RpcError::NotSupported)
+            }
+        }
+    }
+
+    async fn handle_can(&self, addr: &str, task: CanRequest) -> Result<CanResponse, RpcError> {
+        let addr = Address::parse(&addr)?;
+        let mut device = match self.inventory.connect(&self.server, &addr) {
+            Instrument::Can(device) => device,
+            _ => return Err(RpcError::NotSupported)
+        };
+        match device.request(task).await {
+            Ok(x) => Ok(x),
+            Err(x) => {
+                if device.check_disconnect(&x) {
+                    self.inventory.disconnect(&addr);
+                }
+                Err(x.into())
             }
         }
     }
@@ -242,8 +289,19 @@ impl App {
                     Err(err) => Response::Error(err),
                 }
             }
+            Request::Can { addr, task } => {
+                match self.handle_can(&addr, task).await {
+                    Ok(result) => Response::Can(result),
+                    Err(err) => Response::Error(err),
+                }
+            }
             Request::DropAll => {
                 self.inventory.disconnect_all();
+                Response::Done
+            }
+            Request::Shutdown => {
+                self.inventory.disconnect_all();
+                self.server.shutdown().await;
                 Response::Done
             }
         }

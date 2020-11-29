@@ -1,19 +1,21 @@
+use std::fmt::{Display, Formatter};
+use std::fmt;
 use std::hash::Hash;
 use std::net::SocketAddr;
 
+use async_std::net::IpAddr;
 use serde::{Deserialize, Serialize};
-use crate::visa::asynced::Instrument as VisaInstrument;
-use crate::modbus::Instrument as ModBusInstrument;
-use crate::serial::Instrument as SerialInstrument;
-use crate::vxi::Instrument as VxiInstrument;
 
 use crate::Error;
+use crate::modbus::Instrument as ModBusInstrument;
+use crate::serial::Instrument as SerialInstrument;
 use crate::serial::SerialParams;
+use crate::tcp::Instrument as TcpInstrument;
+use crate::visa::asynced::Instrument as VisaInstrument;
 use crate::visa::VisaOptions;
-use std::fmt::{Display, Formatter};
-use std::fmt;
-use crate::sockets::Instrument as SocketInstrument;
-use async_std::net::IpAddr;
+use crate::vxi::Instrument as VxiInstrument;
+use crate::can::{Instrument as CanInstrument, CanAddress};
+use crate::app::Server;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum InstrumentOptions {
@@ -38,8 +40,9 @@ pub enum Instrument {
     Visa(VisaInstrument),
     Modbus(ModBusInstrument),
     Serial(SerialInstrument),
-    Socket(SocketInstrument),
+    Tcp(TcpInstrument),
     Vxi(VxiInstrument),
+    Can(CanInstrument),
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -80,8 +83,11 @@ pub enum Address {
     Vxi {
         addr: IpAddr,
     },
-    Socket {
+    Tcp {
         addr: SocketAddr,
+    },
+    Can {
+        addr: CanAddress,
     },
 }
 
@@ -120,19 +126,45 @@ impl Address {
                 path,
                 params,
             })
-        } else if splits[0].to_lowercase() == "socket" {
-            // socket::192.168.0.1:1234
+        } else if splits[0].to_lowercase() == "tcp" {
+            // tcp::192.168.0.1:1234
             let addr = &splits[1].to_lowercase();
             let addr: SocketAddr = addr.parse().map_err(|_| Error::InvalidAddress)?;
-            Ok(Address::Socket {
+            Ok(Address::Tcp {
                 addr
             })
-        } else if splits[0].to_lowercase().starts_with("vxi") {
+        } else if splits[0].to_lowercase() == "vxi" {
             // vxi::192.168.0.1:1234
             let addr = &splits[1].to_lowercase();
             let addr: IpAddr = addr.parse().map_err(|_| Error::InvalidAddress)?;
             Ok(Address::Vxi {
                 addr
+            })
+        } else if splits[0].to_lowercase() == "can" {
+            // can::socket::can0 or can::loopback or can::pcan::usb1
+            let kind = &splits[1].to_lowercase();
+            let can_addr = if kind == "socket" {
+                if splits.len() < 3 {
+                    return Err(Error::InvalidAddress);
+                }
+                CanAddress::Socket(splits[2].to_lowercase())
+            } else if kind == "loopback" {
+                CanAddress::Loopback
+            } else if kind == "pcan" {
+                if splits.len() < 4 {
+                    return Err(Error::InvalidAddress);
+                }
+                let ifname = splits[2].to_lowercase();
+                let bitrate: u32 = splits[3].to_lowercase().parse().map_err(|_| Error::InvalidAddress)?;
+                CanAddress::PCan {
+                    ifname,
+                    bitrate
+                }
+            } else {
+                return Err(Error::InvalidAddress);
+            };
+            Ok(Address::Can {
+                addr: can_addr
             })
         } else {
             let splits: Vec<_> = splits.iter().map(|x| x.to_lowercase().to_string()).collect();
@@ -150,7 +182,8 @@ impl Address {
             Address::Prologix { file, .. } => HandleId::new(file.clone()),
             Address::Modbus { addr } => HandleId::new(addr.to_string()),
             Address::Vxi { addr } => HandleId::new(addr.to_string()),
-            Address::Socket { addr } => HandleId::new(addr.to_string())
+            Address::Tcp { addr } => HandleId::new(addr.to_string()),
+            Address::Can { addr } => HandleId::new(addr.interface())
         }
     }
 }
@@ -170,11 +203,14 @@ impl Into<String> for Address {
             Address::Modbus { addr } => {
                 format!("modbus::{}", addr)
             }
-            Address::Socket { addr } => {
-                format!("socket::{}", addr)
+            Address::Tcp { addr } => {
+                format!("tcp::{}", addr)
             }
             Address::Vxi { addr } => {
                 format!("vxi::{}", addr)
+            }
+            Address::Can { addr } => {
+                format!("can::{}", addr)
             }
         }
     }
@@ -188,7 +224,7 @@ impl Display for Address {
 }
 
 impl Instrument {
-    pub fn connect(addr: &Address) -> Instrument {
+    pub fn connect(server: &Server, addr: &Address) -> Instrument {
         match addr {
             Address::Visa { splits } => {
                 let addr = splits.join("::");
@@ -206,11 +242,14 @@ impl Instrument {
             Address::Modbus { addr } => {
                 Instrument::Modbus(ModBusInstrument::new(addr.clone()))
             }
-            Address::Socket { addr } => {
-                Instrument::Socket(SocketInstrument::new(addr.clone()))
+            Address::Tcp { addr } => {
+                Instrument::Tcp(TcpInstrument::new(addr.clone()))
             }
             Address::Vxi { addr } => {
                 Instrument::Vxi(VxiInstrument::new(addr.clone()))
+            }
+            Address::Can { addr } => {
+                Instrument::Can(CanInstrument::new(server, addr.clone()))
             }
         }
     }
@@ -226,10 +265,13 @@ impl Instrument {
             Instrument::Serial(x) => {
                 x.disconnect()
             }
-            Instrument::Socket(x) => {
+            Instrument::Tcp(x) => {
                 x.disconnect()
             }
             Instrument::Vxi(x) => {
+                x.disconnect()
+            }
+            Instrument::Can(x) => {
                 x.disconnect()
             }
         }

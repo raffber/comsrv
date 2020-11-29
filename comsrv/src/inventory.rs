@@ -7,6 +7,7 @@ use std::sync::Mutex;
 
 use crate::instrument::{Instrument, HandleId, Address};
 use crate::Error;
+use crate::app::Server;
 
 #[derive(Clone)]
 pub struct Connecting {
@@ -30,12 +31,12 @@ impl Inventory {
         ret
     }
 
-    pub fn connect(&self, addr: &Address) -> Instrument {
+    pub fn connect(&self, server: &Server, addr: &Address) -> Instrument {
         let mut inner = self.0.lock().unwrap();
         if let Some(ret) = inner.instruments.get(&addr.handle_id()) {
             return ret.clone();
         }
-        let new_instr = Instrument::connect(addr);
+        let new_instr = Instrument::connect(&server, addr);
         inner.instruments.insert(addr.handle_id(), new_instr.clone());
         new_instr
     }
