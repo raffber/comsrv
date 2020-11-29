@@ -1,9 +1,9 @@
-use tokio::io::{AsyncWrite, AsyncRead, AsyncReadExt, AsyncWriteExt};
-use crate::Error;
-use crate::cobs::{cobs_pack, cobs_unpack};
-use serde::{Serialize, Deserialize};
-use tokio::time::{Duration, timeout, Instant};
+use serde::{Deserialize, Serialize};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::time::{Duration, timeout};
 
+use crate::cobs::{cobs_pack, cobs_unpack};
+use crate::Error;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum ByteStreamRequest {
@@ -19,12 +19,26 @@ pub enum ByteStreamRequest {
         data: Vec<u8>,
         timeout_ms: u32,
     },
+    WriteLine {
+        line: String,
+        term: u8,
+    },
+    ReadLine {
+        timeout_ms: u32,
+        term: u8,
+    },
+    QueryLine {
+        line: String,
+        timeout_ms: u32,
+        term: u8,
+    },
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum ByteStreamResponse {
     Done,
     Data(Vec<u8>),
+    String(String),
 }
 
 pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(stream: &mut T, req: ByteStreamRequest) -> crate::Result<ByteStreamResponse> {
@@ -39,7 +53,7 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(stream: &mut T, req: Byte
             let mut data = vec![0; count as usize];
             let fut = AsyncReadExt::read_exact(stream, data.as_mut_slice());
             let _ = match timeout(Duration::from_millis(timeout_ms as u64), fut).await {
-                Ok(x) => x.map_err(Error::io),
+                Ok(x) => Ok(x?),
                 Err(_) => Err(Error::Timeout),
             }?;
             Ok(ByteStreamResponse::Data(data))
@@ -49,7 +63,7 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(stream: &mut T, req: Byte
             let mut data = vec![0; count as usize];
             let fut = AsyncReadExt::read(stream, &mut data);
             let num_read = match timeout(Duration::from_micros(100), fut).await {
-                Ok(x) => x.map_err(Error::io)?,
+                Ok(x) => x?,
                 Err(_) => 0,
             };
             let data = data[..num_read].to_vec();
@@ -60,60 +74,99 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(stream: &mut T, req: Byte
             let mut ret = Vec::new();
             let fut = AsyncReadExt::read_buf(stream, &mut ret);
             match timeout(Duration::from_micros(100), fut).await {
-                Ok(x) => {
-                    x.map_err(Error::io)?;
-                }
+                Ok(x) => { x?; }
                 Err(_) => {}
             };
             Ok(ByteStreamResponse::Data(ret))
         }
         ByteStreamRequest::CobsWrite(data) => {
             let data = cobs_pack(&data);
-            AsyncWriteExt::write_all(stream, &data).await.map_err(Error::io)?;
+            AsyncWriteExt::write_all(stream, &data).await?;
             Ok(ByteStreamResponse::Done)
         }
         ByteStreamRequest::CobsQuery { data, timeout_ms } => {
-            cobs_query(stream, data, timeout_ms).await
+            let duration = Duration::from_millis(timeout_ms as u64);
+            match timeout(duration, cobs_query(stream, data)).await {
+                Ok(x) => x,
+                Err(_) => Err(crate::Error::Timeout)
+            }
+        }
+        ByteStreamRequest::WriteLine { mut line, term } => {
+            check_term(term)?;
+            line.push(term as char);
+            AsyncWriteExt::write_all(stream, line.as_bytes()).await?;
+            Ok(ByteStreamResponse::Done)
+        }
+        ByteStreamRequest::ReadLine { timeout_ms, term } => {
+            check_term(term)?;
+            let ret = read_to_term_timeout(stream, term, timeout_ms).await?;
+            Ok(ByteStreamResponse::String(ret))
+        }
+        ByteStreamRequest::QueryLine { mut line, timeout_ms, term } => {
+            check_term(term)?;
+            line.push(term as char);
+            AsyncWriteExt::write_all(stream, line.as_bytes()).await?;
+            let ret = read_to_term_timeout(stream, term, timeout_ms).await?;
+            Ok(ByteStreamResponse::String(ret))
         }
     }
 }
 
-async fn pop<T: AsyncRead + AsyncWrite + Unpin>(stream: &mut T, timeout_ms: u32) -> crate::Result<u8> {
-    let fut = AsyncReadExt::read_u8(stream);
-    match timeout(Duration::from_millis(timeout_ms as u64), fut).await {
-        Ok(x) => x.map_err(Error::io),
-        Err(_) => Err(Error::Timeout),
+async fn pop<T: AsyncRead + Unpin>(stream: &mut T) -> crate::Result<u8> {
+    Ok(AsyncReadExt::read_u8(stream).await?)
+}
+
+async fn read_to_term_timeout<T: AsyncReadExt + Unpin>(stream: &mut T, term: u8, timeout_ms: u32) -> crate::Result<String> {
+    let duration = Duration::from_millis(timeout_ms as u64);
+    let fut = read_to_term(stream, term);
+    match timeout(duration, fut).await {
+        Ok(x) => x,
+        Err(_) => Err(crate::Error::Timeout),
     }
 }
 
-async fn cobs_query<T: AsyncRead + AsyncWrite + Unpin>(stream: &mut T, data: Vec<u8>, timeout_ms: u32) -> crate::Result<ByteStreamResponse> {
+async fn read_to_term<T: AsyncReadExt + Unpin>(stream: &mut T, term: u8) -> crate::Result<String> {
+    let mut ret = Vec::new();
+    loop {
+        let x = pop(stream).await?;
+        if x == term {
+            break;
+        }
+        ret.push(x);
+    }
+    String::from_utf8(ret).map_err(crate::Error::DecodeError)
+}
+
+fn check_term(term: u8) -> crate::Result<()> {
+    if term == 0 || term > 128 {
+        Err(crate::Error::InvalidRequest)
+    } else {
+        Ok(())
+    }
+}
+
+
+async fn cobs_query<T: AsyncRead + AsyncWrite + Unpin>(stream: &mut T, data: Vec<u8>) -> crate::Result<ByteStreamResponse> {
     let mut garbage = Vec::new();
     let fut = stream.read_buf(&mut garbage);
     match timeout(Duration::from_micros(100), fut).await {
-        Ok(x) => {
-            x.map_err(Error::io)?;
-        }
+        Ok(x) => {x?;},
         Err(_) => {}
     };
     let data = cobs_pack(&data);
     AsyncWriteExt::write_all(stream, &data).await.map_err(Error::io)?;
     let mut ret = Vec::new();
-    let start = Instant::now();
-    while ret.len() == 0 {
-        let x = pop(stream, timeout_ms).await?;
-        if (Instant::now() - start).as_millis() > timeout_ms as u128 {
-            return Err(Error::Timeout);
-        }
-        if x == 0 {
-            continue;
-        }
-        ret.push(x);
-    }
+    // keep readings zeroes
     loop {
-        let x = pop(stream, timeout_ms).await?;
-        if (Instant::now() - start).as_millis() > timeout_ms as u128 {
-            return Err(Error::Timeout);
+        let x = pop(stream).await?;
+        if x != 0 {
+            ret.push(x);
+            break;
         }
+    }
+    // read non-zero values
+    loop {
+        let x = pop(stream).await?;
         ret.push(x);
         if x == 0 {
             break;
