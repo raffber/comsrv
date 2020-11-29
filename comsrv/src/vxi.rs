@@ -5,8 +5,11 @@ use async_vxi11::CoreClient;
 use crate::{Error, ScpiRequest, ScpiResponse, util};
 use crate::iotask::{IoHandler, IoTask};
 use crate::visa::VisaOptions;
+use tokio::time::Duration;
 
 const DEFAULT_TERMINATION: &'static str = "\n";
+
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Clone)]
 pub struct Instrument {
@@ -58,7 +61,9 @@ impl IoHandler for Handler {
         } else {
             CoreClient::connect(self.addr.clone()).await.map_err(Error::vxi)?
         };
-        let ret = handle_request(&mut client, req.req, req.options).await;
+        let fut = handle_request(&mut client, req.req, req.options);
+        let ret = tokio::time::timeout(DEFAULT_TIMEOUT, fut).await
+            .map_err(|_| crate::Error::Timeout)?;
         self.client.replace(client);
         ret
     }
