@@ -15,6 +15,7 @@ pub enum ByteStreamRequest {
     ReadUpTo(u32),
     ReadAll,
     CobsWrite(Vec<u8>),
+    CobsRead(u32), // timeout
     CobsQuery {
         data: Vec<u8>,
         timeout_ms: u32,
@@ -84,6 +85,13 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(stream: &mut T, req: Byte
             AsyncWriteExt::write_all(stream, &data).await?;
             Ok(ByteStreamResponse::Done)
         }
+        ByteStreamRequest::CobsRead(timeout_ms) => {
+            let duration = Duration::from_millis(timeout_ms as u64);
+            match timeout(duration, cobs_read(stream)).await {
+                Ok(x) => x,
+                Err(_) => Err(crate::Error::Timeout)
+            }
+        }
         ByteStreamRequest::CobsQuery { data, timeout_ms } => {
             let duration = Duration::from_millis(timeout_ms as u64);
             match timeout(duration, cobs_query(stream, data)).await {
@@ -145,16 +153,7 @@ fn check_term(term: u8) -> crate::Result<()> {
     }
 }
 
-
-async fn cobs_query<T: AsyncRead + AsyncWrite + Unpin>(stream: &mut T, data: Vec<u8>) -> crate::Result<ByteStreamResponse> {
-    let mut garbage = Vec::new();
-    let fut = stream.read_buf(&mut garbage);
-    match timeout(Duration::from_micros(100), fut).await {
-        Ok(x) => {x?;},
-        Err(_) => {}
-    };
-    let data = cobs_pack(&data);
-    AsyncWriteExt::write_all(stream, &data).await.map_err(Error::io)?;
+async fn cobs_read<T: AsyncRead + Unpin>(stream: &mut T) -> crate::Result<ByteStreamResponse> {
     let mut ret = Vec::new();
     // keep readings zeroes
     loop {
@@ -175,4 +174,16 @@ async fn cobs_query<T: AsyncRead + AsyncWrite + Unpin>(stream: &mut T, data: Vec
     // unwrap is save because we cancel above loop only in case we pushed x == 0
     let ret = cobs_unpack(&ret).unwrap();
     Ok(ByteStreamResponse::Data(ret))
+}
+
+async fn cobs_query<T: AsyncRead + AsyncWrite + Unpin>(stream: &mut T, data: Vec<u8>) -> crate::Result<ByteStreamResponse> {
+    let mut garbage = Vec::new();
+    let fut = stream.read_buf(&mut garbage);
+    match timeout(Duration::from_micros(100), fut).await {
+        Ok(x) => {x?;},
+        Err(_) => {}
+    };
+    let data = cobs_pack(&data);
+    AsyncWriteExt::write_all(stream, &data).await.map_err(Error::io)?;
+    cobs_read(stream).await
 }
