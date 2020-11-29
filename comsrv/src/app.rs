@@ -18,8 +18,9 @@ pub enum Request {
     Scpi {
         addr: String,
         task: ScpiRequest,
+
         #[serde(skip_serializing_if = "InstrumentOptions::is_default", default)]
-        options: InstrumentOptions,
+        options: InstrumentOptions, // XXX: currently unused, remove?
     },
     ModBus {
         addr: String,

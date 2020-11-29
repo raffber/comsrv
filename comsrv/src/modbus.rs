@@ -15,22 +15,18 @@ fn is_one(x: &u16) -> bool {
 pub enum ModBusRequest {
     ReadCoil {
         addr: u16,
-        #[serde(skip_serializing_if = "is_one")]
         cnt: u16,
     },
     ReadDiscrete {
         addr: u16,
-        #[serde(skip_serializing_if = "is_one")]
         cnt: u16,
     },
     ReadInput {
         addr: u16,
-        #[serde(skip_serializing_if = "is_one")]
         cnt: u16,
     },
     ReadHolding {
         addr: u16,
-        #[serde(skip_serializing_if = "is_one")]
         cnt: u16,
     },
     WriteCoil {
