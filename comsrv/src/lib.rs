@@ -65,6 +65,8 @@ pub enum Error {
     InvalidBinaryHeader,
     #[error("String message not terminated")]
     NotTerminated,
+    #[error("Invalid request data")]
+    InvalidRequest,
     #[error("Invalid Address")]
     InvalidAddress,
     #[error("Timeout Occured")]
@@ -88,6 +90,12 @@ impl Error {
             async_vxi11::Error::Io(x) => Error::io(x),
             x => Error::Vxi(Arc::new(x))
         }
+    }
+}
+
+impl From<io::Error> for Error {
+    fn from(err: io::Error) -> Self {
+        Error::io(err)
     }
 }
 

@@ -59,6 +59,7 @@ pub enum RpcError {
     InvalidBinaryHeader,
     NotTerminated,
     InvalidAddress,
+    InvalidRequest,
     Timeout,
     Vxi(String),
     Can {
@@ -80,7 +81,8 @@ impl From<Error> for RpcError {
             Error::InvalidAddress => RpcError::InvalidAddress,
             Error::Timeout => RpcError::Timeout,
             Error::Vxi(x) => RpcError::Vxi(format!("{}", x)),
-            Error::Can { addr, err } => RpcError::Can { addr, err }
+            Error::Can { addr, err } => RpcError::Can { addr, err },
+            Error::InvalidRequest => RpcError::InvalidRequest,
         }
     }
 }
