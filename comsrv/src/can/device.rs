@@ -28,7 +28,7 @@ impl CanDevice {
         }
     }
 
-    pub async fn recv(&self) -> Result<CanMessage, CanError> {
+    pub async fn recv(&mut self) -> Result<CanMessage, CanError> {
         match self {
             CanDevice::Loopback(lo) => lo.recv().await,
             CanDevice::Bus{ device, addr: _ } => Ok(device.recv().await?)

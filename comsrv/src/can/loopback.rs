@@ -1,51 +1,23 @@
 use lazy_static;
 use crate::can::{CanMessage, CanError};
-use std::collections::VecDeque;
-use std::sync::Mutex;
-use tokio::sync::oneshot;
+use tokio::sync::broadcast;
 
 const MAX_SIZE: usize = 1000;
 
-struct AdapterShared {
-    buf: VecDeque<CanMessage>,
-    next: Option<oneshot::Sender<CanMessage>>
-}
 
 struct LoopbackAdapter {
-    state: Mutex<AdapterShared>
+    tx: broadcast::Sender<CanMessage>,
 }
 
 impl LoopbackAdapter {
     fn new() -> Self {
-        Self {
-            state: Mutex::new(AdapterShared { buf: Default::default(), next: None }),
-        }
+        let (tx, _) = broadcast::channel(MAX_SIZE);
+        Self { tx }
     }
 
     fn send(&self, msg: CanMessage) {
-        let mut state = self.state.lock().unwrap();
-        while state.buf.len() >= MAX_SIZE {
-            state.buf.pop_front();
-        }
-        if let Some(tx) = state.next.take() {
-            let _ = tx.send(msg);
-        } else {
-            state.buf.push_back(msg);
-        }
-    }
-
-    async fn recv(&self) -> Result<CanMessage, CanError> {
-        let rx = {
-            let mut state = self.state.lock().unwrap();
-            if let Some(x) = state.buf.pop_front() {
-                return Ok(x);
-            }
-            let (tx,rx) = oneshot::channel();
-            state.next.replace(tx);
-            rx
-        };
-        // hm... not sure which error to send here
-        rx.await.map_err(|_| CanError::BusError(async_can::BusError::Off))
+        let tx = self.tx.clone();
+        let _ = tx.send(msg);
     }
 }
 
@@ -53,15 +25,18 @@ lazy_static! {
     static ref LOOPBACK_ADAPTER: LoopbackAdapter = LoopbackAdapter::new();
 }
 
-pub struct LoopbackDevice;
+pub struct LoopbackDevice {
+    rx: broadcast::Receiver<CanMessage>,
+}
 
 impl LoopbackDevice {
     pub fn new() -> Self {
-        Self
+        let rx = LOOPBACK_ADAPTER.tx.subscribe();
+        Self { rx }
     }
 
-    pub async fn recv(&self) -> Result<CanMessage, CanError> {
-        LOOPBACK_ADAPTER.recv().await
+    pub async fn recv(&mut self) -> Result<CanMessage, CanError> {
+        self.rx.recv().await.map_err(|_| CanError::BusError(async_can::BusError::Off))
     }
 
     pub fn send(&self, msg: CanMessage) {
