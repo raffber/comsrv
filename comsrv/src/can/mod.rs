@@ -17,6 +17,7 @@ use crate::iotask::{IoHandler, IoTask};
 mod loopback;
 mod device;
 mod gct;
+mod crc;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum CanRequest {
