@@ -17,14 +17,21 @@ const MSGTYPE_HEARTBEAT: u8 = 14;
 
 const MAX_DDP_DATA_LEN: usize = 62; // 8 message * 8bytes - crc - cmd
 
+
+#[derive(Clone, Serialize, Deserialize)]
+pub enum SysCtrlType {
+    Value,
+    Query,
+    None,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub enum GctMessage {
     SysCtrl {
         src: u8,
         dst: u8,
         cmd: u16,
-        value: bool,
-        query: bool,
+        tp: SysCtrlType,
         data: Vec<u8>,
     },
     MonitoringData {
@@ -86,13 +93,25 @@ impl GctMessage {
         if id.src() == BROADCAST_ADDR {
             return None;
         }
+        let value = (id.type_data() & 2) > 0;
+        let query = (id.type_data() & 1) > 0;
+        if value && query {
+            return None;
+        }
+        let tp = if value {
+            SysCtrlType::Value
+        } else if query {
+            SysCtrlType::Query
+        } else {
+            SysCtrlType::None
+        };
+
         Some(GctMessage::SysCtrl {
             src: id.src(),
             dst: id.dst(),
             cmd: id.type_data() >> 2,
-            value: (id.type_data() & 2) > 0,
-            query: (id.type_data() & 1) > 0,
             data: msg.data().to_vec(),
+            tp
         })
     }
 
@@ -293,7 +312,12 @@ impl Decoder {
 pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
     msg.validate()?;
     let ret = match msg {
-        GctMessage::SysCtrl { src, dst, cmd, value, query, data } => {
+        GctMessage::SysCtrl { src, dst, cmd, tp, data } => {
+            let (value, query) = match tp {
+                SysCtrlType::Value => (true, false),
+                SysCtrlType::Query => (false, true),
+                SysCtrlType::None => (false, false),
+            };
             let type_data = (cmd << 2) | (value as u16) << 1 | query as u16;
             let id = MessageId::new(MSGTYPE_SYSCTRL, src, dst, type_data);
             vec![Message::new_data(id.0, true, &data).unwrap()]
