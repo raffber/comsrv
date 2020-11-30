@@ -42,6 +42,7 @@ dependencies = [
 [[package]]
 name = "async-can"
 version = "0.1.0"
+source = "git+https://github.com/raffber/async-can.git?rev=8fd6d7077564aca9f5b3ace8736a140578461f04#8fd6d7077564aca9f5b3ace8736a140578461f04"
 dependencies = [
  "bindgen",
  "dlopen",
