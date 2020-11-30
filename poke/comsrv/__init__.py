@@ -46,9 +46,9 @@ async def get(addr, data):
     data = json.dumps(data).encode()
     async with ClientSession() as session:
         async with session.get(addr, data=data) as resp:
-            if resp.status != 200:
-                raise ComSrvException()
             data = json.loads(await resp.text())
+            if resp.status != 200:
+                raise ComSrvException(data)
             return data
 
 
@@ -60,7 +60,7 @@ async def connect_client(url=None):
     return client
 
 
-from .scpi import ScpiPipe
 from .modbus import ModBusDevice
 from .serial import SerialPipe
 from .can import CanBus
+from .scpi import ScpiPipe
