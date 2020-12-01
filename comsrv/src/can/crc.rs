@@ -27,3 +27,20 @@ pub fn crc16(data: &[u8]) -> u16 {
     crc
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_crc16() {
+        let data = [0x31_u8, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39];
+        let crc = crc16(&data);
+        assert_eq!(crc, 0x29B1);
+
+        let mut new_data = data.to_vec();
+        new_data.push((crc >> 8) as u8);
+        new_data.push((crc & 0xFF) as u8);
+        let new_crc = crc16(&new_data);
+        assert_eq!(new_crc, 0);
+    }
+}

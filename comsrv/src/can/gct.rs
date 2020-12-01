@@ -6,6 +6,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use serde::{Deserialize, Serialize};
 
 use crate::can::CanError;
+use crate::can::crc::crc16;
 
 const BROADCAST_ADDR: u8 = 0x7F;
 
@@ -219,13 +220,13 @@ impl DdpDecoder {
     }
 
     fn decode_completed(&mut self) -> Option<GctMessage> {
-        if self.data.len() < 1 {
+        if self.data.len() < 2 {
             return None;
         }
-        if crc8(&self.data) != 0 {
+        if crc16(&self.data) != 0 {
             return None;
         }
-        let data = self.data[0..self.data.len() - 1].to_vec();
+        let data = self.data[0..self.data.len() - 2].to_vec();
 
         Some(GctMessage::Ddp {
             src: self.src_start_addr,
@@ -334,7 +335,9 @@ pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
             vec![Message::new_data(id.0, true, &data).unwrap()]
         }
         GctMessage::Ddp { src, dst, mut data } => {
-            data.push(crc8(&data));
+            let crc = crc16(&data);
+            data.push((crc >> 8) as u8);
+            data.push((crc & 0xFF_u16) as u8);
             let chunks: Vec<_> = data.chunks(8).collect();
             let num_chunks = chunks.len();
             let mut ret = Vec::with_capacity(num_chunks);
@@ -356,21 +359,4 @@ pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
         }
     };
     Ok(ret)
-}
-
-pub fn crc8(data: &[u8]) -> u8 {
-    let poly = 0x07_u8;
-    let mut crc = 0xFF_u8;
-    for b in data {
-        crc ^= *b;
-        for _ in 0..8 {
-            if (crc & 0x80) != 0 {
-                crc = (crc << 1) ^ poly;
-            } else {
-                crc <<= 1;
-            }
-        }
-        crc &= 0xFF;
-    }
-    return crc;
 }
