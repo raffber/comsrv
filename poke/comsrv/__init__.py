@@ -60,6 +60,42 @@ async def connect_client(url=None):
     return client
 
 
+class ComSrv(object):
+    def __init__(self, url=None):
+        if url is None:
+            url = get_default_http_url()
+        self._url = url
+
+    async def drop(self, addr):
+        result = await get(self._url, {
+            'Drop': addr
+        })
+        if 'Error' in result:
+            raise ComSrvException(result['Error'])
+
+    async def drop_all(self):
+        result = await get(self._url, {
+            'Drop': None
+        })
+        if 'Error' in result:
+            raise ComSrvException(result['Error'])
+
+    async def shutdown(self):
+        result = await get(self._url, {
+            'Shutdown': None
+        })
+        if 'Error' in result:
+            raise ComSrvException(result['Error'])
+
+    async def list_instruments(self):
+        result = await get(self._url, {
+            'ListInstruments': None
+        })
+        if 'Error' in result:
+            raise ComSrvException(result['Error'])
+        return result['Instruments']
+
+
 from .modbus import ModBusDevice
 from .serial import SerialPipe
 from .can import CanBus
