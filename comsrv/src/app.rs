@@ -36,6 +36,7 @@ pub enum Request {
     },
     ListInstruments,
     DropAll,
+    Drop(String),
     Shutdown,
 }
 
@@ -306,6 +307,15 @@ impl App {
                 self.inventory.disconnect_all();
                 self.server.shutdown().await;
                 Response::Done
+            }
+            Request::Drop(addr) => {
+                match Address::parse(&addr) {
+                    Ok(addr) => {
+                        self.inventory.disconnect(&addr);
+                        Response::Done
+                    },
+                    Err(err) => Response::Error(err.into()),
+                }
             }
         }
     }
