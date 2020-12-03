@@ -356,13 +356,13 @@ mod tests {
         let msg = CanMessage::new_data(0xABCD, true, &[1, 2, 3, 4]).unwrap();
         let sent = instr.request(CanRequest::TxRaw(msg)).await;
         assert!(matches!(sent, Ok(CanResponse::Ok)));
-        //
-        // let rx = client.next().await.unwrap();
-        // let resp = if let wsrpc::Response::Notify(x) = rx { x } else { panic!() };
-        // let msg = if let Response::Can(CanResponse::Raw(msg)) = resp { msg } else { panic!() };
-        // let msg = if let Message::Data(msg) = msg { msg } else { panic!() };
-        // assert_eq!(msg.dlc(), 4);
-        // assert_eq!(&msg.data(), &[1, 2, 3, 4]);
-        // assert!(msg.ext_id());
+
+        let rx = client.next().await.unwrap();
+        let resp = if let wsrpc::Response::Notify(x) = rx { x } else { panic!() };
+        let msg = if let Response::Can(CanResponse::Raw(msg)) = resp { msg } else { panic!() };
+        let msg = if let Message::Data(msg) = msg { msg } else { panic!() };
+        assert_eq!(msg.dlc(), 4);
+        assert_eq!(&msg.data(), &[1, 2, 3, 4]);
+        assert!(msg.ext_id());
     }
 }

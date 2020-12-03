@@ -321,3 +321,38 @@ impl App {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn shutdown_one() {
+        let (server, mut rx) = Server::new();
+
+        let client = server.loopback().await;
+        let (tx, _) = client.split();
+        let _ = tx.send(wsrpc::Request::new(Request::Shutdown));
+
+        let msg = rx.recv().await.unwrap();
+        let (req, _) = msg.split();
+        assert!(matches!(req, Request::Shutdown));
+        server.shutdown().await;
+    }
+
+
+    #[tokio::test]
+    async fn shutdown_two() {
+        let (server, _) = Server::new();
+
+        let mut client = server.loopback().await;
+
+        server.broadcast(Response::Done).await;
+        let rx_msg = client.next().await.unwrap();
+        match rx_msg {
+            wsrpc::Response::Notify(msg) => assert!(matches!(msg, Response::Done)),
+            _ => panic!()
+        }
+
+        server.shutdown().await;
+    }
+}
