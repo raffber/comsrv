@@ -1,8 +1,8 @@
-use tokio_serial::Serial;
 use crate::{Error, ScpiRequest, ScpiResponse};
+use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::{delay_for, timeout};
-use std::time::{Duration, Instant};
+use tokio_serial::Serial;
 
 const PROLOGIX_TIMEOUT: f32 = 1.0;
 
@@ -15,7 +15,11 @@ pub async fn init_prologix(serial: &mut Serial) -> crate::Result<()> {
     write(serial, "++ifc 0\n").await
 }
 
-pub async fn handle_prologix_request(serial: &mut Serial, addr: u8, req: ScpiRequest) -> crate::Result<ScpiResponse> {
+pub async fn handle_prologix_request(
+    serial: &mut Serial,
+    addr: u8,
+    req: ScpiRequest,
+) -> crate::Result<ScpiResponse> {
     log::debug!("handling prologix request for address {}", addr);
     let mut ret = Vec::with_capacity(128);
     let fut = AsyncReadExt::read(serial, &mut ret);
@@ -55,15 +59,22 @@ pub async fn handle_prologix_request(serial: &mut Serial, addr: u8, req: ScpiReq
 }
 
 async fn write(serial: &mut Serial, msg: &str) -> crate::Result<()> {
-    serial.write(msg.as_bytes()).await.map(|_| ()).map_err(Error::io)
+    serial
+        .write(msg.as_bytes())
+        .await
+        .map(|_| ())
+        .map_err(Error::io)
 }
-
 
 async fn write_prologix(serial: &mut Serial, mut msg: String) -> crate::Result<()> {
     if !msg.ends_with("\n") {
         msg.push_str("\n");
     }
-    serial.write(msg.as_bytes()).await.map(|_| ()).map_err(Error::io)
+    serial
+        .write(msg.as_bytes())
+        .await
+        .map(|_| ())
+        .map_err(Error::io)
 }
 
 async fn read_prologix(serial: &mut Serial) -> crate::Result<String> {
@@ -71,7 +82,12 @@ async fn read_prologix(serial: &mut Serial) -> crate::Result<String> {
     let mut ret = Vec::new();
     loop {
         let mut x = [0; 1];
-        match timeout(Duration::from_secs_f32(PROLOGIX_TIMEOUT), serial.read_exact(&mut x)).await {
+        match timeout(
+            Duration::from_secs_f32(PROLOGIX_TIMEOUT),
+            serial.read_exact(&mut x),
+        )
+        .await
+        {
             Ok(Ok(_)) => {
                 let x = x[0];
                 if x == b'\n' {
@@ -97,4 +113,3 @@ async fn read_prologix(serial: &mut Serial) -> crate::Result<String> {
     }
     String::from_utf8(ret).map_err(Error::DecodeError)
 }
-

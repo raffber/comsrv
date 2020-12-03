@@ -6,11 +6,11 @@ use tokio_serial::Serial;
 
 pub use params::SerialParams;
 
-use crate::{Error, ScpiRequest, ScpiResponse};
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
 use crate::iotask::{IoHandler, IoTask};
 use crate::serial::params::{DataBits, Parity, StopBits};
-use crate::serial::prologix::{init_prologix, handle_prologix_request};
+use crate::serial::prologix::{handle_prologix_request, init_prologix};
+use crate::{Error, ScpiRequest, ScpiResponse};
 
 pub mod params;
 
@@ -30,15 +30,13 @@ pub enum Request {
 impl Request {
     pub fn params(&self) -> SerialParams {
         match self {
-            Request::Prologix { .. } => {
-                SerialParams {
-                    baud: 9600,
-                    data_bits: DataBits::Eight,
-                    stop_bits: StopBits::One,
-                    parity: Parity::None,
-                }
-            }
-            Request::Serial { params, req: _ } => params.clone()
+            Request::Prologix { .. } => SerialParams {
+                baud: 9600,
+                data_bits: DataBits::Eight,
+                stop_bits: StopBits::One,
+                parity: Parity::None,
+            },
+            Request::Serial { params, req: _ } => params.clone(),
         }
     }
 }
@@ -65,7 +63,10 @@ impl IoHandler for Handler {
             None => {
                 log::debug!("Opening {}", self.path);
                 let settings = new_params.clone().into();
-                (Serial::from_path(&self.path, &settings).map_err(Error::io)?, true)
+                (
+                    Serial::from_path(&self.path, &settings).map_err(Error::io)?,
+                    true,
+                )
             }
             Some((serial, old_params)) => {
                 if old_params == new_params {
@@ -75,7 +76,10 @@ impl IoHandler for Handler {
                     drop(serial);
                     log::debug!("Reopening {}", self.path);
                     let settings = new_params.clone().into();
-                    (Serial::from_path(&self.path, &settings).map_err(Error::io)?, true)
+                    (
+                        Serial::from_path(&self.path, &settings).map_err(Error::io)?,
+                        true,
+                    )
                 }
             }
         };
@@ -89,11 +93,13 @@ impl IoHandler for Handler {
         }
         let ret = match req {
             Request::Prologix { gpib_addr, req } => {
-                handle_prologix_request(&mut serial, gpib_addr, req).await.map(Response::Scpi)
+                handle_prologix_request(&mut serial, gpib_addr, req)
+                    .await
+                    .map(Response::Scpi)
             }
-            Request::Serial { params: _, req } => {
-                crate::bytestream::handle(&mut serial, req).await.map(Response::Bytes)
-            }
+            Request::Serial { params: _, req } => crate::bytestream::handle(&mut serial, req)
+                .await
+                .map(Response::Bytes),
         };
         self.serial.replace((serial, new_params));
         ret
@@ -107,12 +113,9 @@ pub struct Instrument {
 
 impl Instrument {
     pub fn new(path: String) -> Self {
-        let handler = Handler {
-            serial: None,
-            path,
-        };
+        let handler = Handler { serial: None, path };
         Self {
-            inner: IoTask::new(handler)
+            inner: IoTask::new(handler),
         }
     }
 

@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-pub use visa_sys::{VisaError, VisaResult};
 use visa_sys::Instrument as VisaInstrument;
+pub use visa_sys::{VisaError, VisaResult};
 
-use crate::{ScpiRequest, ScpiResponse, util};
 use crate::Error;
+use crate::{util, ScpiRequest, ScpiResponse};
 
 mod consts;
 
@@ -16,7 +16,6 @@ const DEFAULT_CHUNK_SIZE: usize = 20 * 1024;
 // from pyvisa
 const DEFAULT_TERMINATION: &'static str = "\n";
 
-
 #[derive(Clone, Serialize, Deserialize)]
 pub struct VisaOptions {}
 
@@ -26,7 +25,6 @@ impl Default for VisaOptions {
     }
 }
 
-
 pub struct Instrument {
     instr: VisaInstrument,
 }
@@ -34,7 +32,7 @@ pub struct Instrument {
 impl Instrument {
     pub fn open(addr: &str, _options: &VisaOptions) -> VisaResult<Self> {
         Ok(Self {
-            instr: VisaInstrument::open(addr.to_string().clone(), Some(DEFAULT_TIMEOUT))?
+            instr: VisaInstrument::open(addr.to_string().clone(), Some(DEFAULT_TIMEOUT))?,
         })
     }
 
@@ -58,7 +56,11 @@ impl Instrument {
         Ok(ret)
     }
 
-    pub fn query_string<T: AsRef<str>>(&self, msg: T, options: &VisaOptions) -> crate::Result<String> {
+    pub fn query_string<T: AsRef<str>>(
+        &self,
+        msg: T,
+        options: &VisaOptions,
+    ) -> crate::Result<String> {
         log::debug!("Query[{}]: `{}`", self.instr.addr(), msg.as_ref());
         self.write(msg, options).map_err(Error::Visa)?;
         let rx = self.read().map_err(Error::Visa)?;
@@ -78,7 +80,11 @@ impl Instrument {
         todo!()
     }
 
-    pub fn query_binary<T: AsRef<str>>(&self, msg: T, option: &VisaOptions) -> crate::Result<Vec<u8>> {
+    pub fn query_binary<T: AsRef<str>>(
+        &self,
+        msg: T,
+        option: &VisaOptions,
+    ) -> crate::Result<Vec<u8>> {
         log::debug!("QueryBinary[{}]: `{}`", self.instr.addr(), msg.as_ref());
         self.write(msg, option).map_err(Error::Visa)?;
         let rx = self.read().map_err(Error::Visa)?;
@@ -90,12 +96,24 @@ impl Instrument {
         self.instr.addr()
     }
 
-    pub fn handle_scpi(&self, req: ScpiRequest, options: &VisaOptions) -> crate::Result<ScpiResponse> {
+    pub fn handle_scpi(
+        &self,
+        req: ScpiRequest,
+        options: &VisaOptions,
+    ) -> crate::Result<ScpiResponse> {
         match req {
-            ScpiRequest::Write(x) => self.write(x, options).map_err(Error::Visa).map(|_| ScpiResponse::Done),
+            ScpiRequest::Write(x) => self
+                .write(x, options)
+                .map_err(Error::Visa)
+                .map(|_| ScpiResponse::Done),
             ScpiRequest::QueryString(x) => self.query_string(x, options).map(ScpiResponse::String),
-            ScpiRequest::QueryBinary(x) => self.query_binary(x, options).map(|data| ScpiResponse::Binary { data }),
-            ScpiRequest::ReadRaw => self.read().map_err(Error::Visa).map(|data| ScpiResponse::Binary { data })
+            ScpiRequest::QueryBinary(x) => self
+                .query_binary(x, options)
+                .map(|data| ScpiResponse::Binary { data }),
+            ScpiRequest::ReadRaw => self
+                .read()
+                .map_err(Error::Visa)
+                .map(|data| ScpiResponse::Binary { data }),
         }
     }
 }

@@ -5,8 +5,8 @@ use async_can::{DataFrame, Message};
 use byteorder::{ByteOrder, LittleEndian};
 use serde::{Deserialize, Serialize};
 
-use crate::can::CanError;
 use crate::can::crc::crc16;
+use crate::can::CanError;
 
 const BROADCAST_ADDR: u8 = 0x7F;
 
@@ -17,7 +17,6 @@ const MSGTYPE_DDP: u8 = 12;
 const MSGTYPE_HEARTBEAT: u8 = 14;
 
 const MAX_DDP_DATA_LEN: usize = 62; // 8 message * 8bytes - crc - cmd
-
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum SysCtrlType {
@@ -61,17 +60,29 @@ pub enum GctMessage {
 impl GctMessage {
     fn validate(&self) -> Result<(), CanError> {
         let ok = match self {
-            GctMessage::SysCtrl { src, dst, data, cmd, .. } => {
+            GctMessage::SysCtrl {
+                src,
+                dst,
+                data,
+                cmd,
+                ..
+            } => {
                 let cmd_ok = *cmd < 1024;
                 let addr_ok = *src < BROADCAST_ADDR && *dst <= BROADCAST_ADDR;
                 addr_ok && data.len() <= 8 && cmd_ok
             }
-            GctMessage::MonitoringData { src, group_idx, reading_idx, data, } => {
-                *src < BROADCAST_ADDR && data.len() < 8 && *group_idx < 32 && *reading_idx < 64
-            }
-            GctMessage::MonitoringRequest { src, dst, group_idx, .. } => {
-                *src < BROADCAST_ADDR && *dst <= BROADCAST_ADDR && *group_idx < 32
-            }
+            GctMessage::MonitoringData {
+                src,
+                group_idx,
+                reading_idx,
+                data,
+            } => *src < BROADCAST_ADDR && data.len() < 8 && *group_idx < 32 && *reading_idx < 64,
+            GctMessage::MonitoringRequest {
+                src,
+                dst,
+                group_idx,
+                ..
+            } => *src < BROADCAST_ADDR && *dst <= BROADCAST_ADDR && *group_idx < 32,
             GctMessage::Ddp { src, dst, data } => {
                 let addr_ok = *src < BROADCAST_ADDR && *dst <= BROADCAST_ADDR;
                 addr_ok && data.len() <= MAX_DDP_DATA_LEN
@@ -112,7 +123,7 @@ impl GctMessage {
             dst: id.dst(),
             cmd: id.type_data() >> 2,
             data: msg.data().to_vec(),
-            tp
+            tp,
         })
     }
 
@@ -279,7 +290,9 @@ pub struct Decoder {
 
 impl Decoder {
     pub fn new() -> Self {
-        Self { ddp: Default::default() }
+        Self {
+            ddp: Default::default(),
+        }
     }
 
     pub fn reset(&mut self) {
@@ -305,7 +318,7 @@ impl Decoder {
                 decoder.decode(msg)
             }
             MSGTYPE_HEARTBEAT => GctMessage::try_decode_heartbeat(msg),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -313,7 +326,13 @@ impl Decoder {
 pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
     msg.validate()?;
     let ret = match msg {
-        GctMessage::SysCtrl { src, dst, cmd, tp, data } => {
+        GctMessage::SysCtrl {
+            src,
+            dst,
+            cmd,
+            tp,
+            data,
+        } => {
             let (value, query) = match tp {
                 SysCtrlType::Value => (true, false),
                 SysCtrlType::Query => (false, true),
@@ -323,13 +342,28 @@ pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
             let id = MessageId::new(MSGTYPE_SYSCTRL, src, dst, type_data);
             vec![Message::new_data(id.0, true, &data).unwrap()]
         }
-        GctMessage::MonitoringData { src, group_idx, reading_idx, data } => {
+        GctMessage::MonitoringData {
+            src,
+            group_idx,
+            reading_idx,
+            data,
+        } => {
             let type_data = ((group_idx as u16) << 6) | reading_idx as u16;
             let id = MessageId::new(MSGTYPE_MONITORING_DATA, src, BROADCAST_ADDR, type_data);
             vec![Message::new_data(id.0, true, &data).unwrap()]
         }
-        GctMessage::MonitoringRequest { src, dst, group_idx, readings } => {
-            let id = MessageId::new(MSGTYPE_MONITORING_REQUEST, src, dst, (group_idx as u16) << 6);
+        GctMessage::MonitoringRequest {
+            src,
+            dst,
+            group_idx,
+            readings,
+        } => {
+            let id = MessageId::new(
+                MSGTYPE_MONITORING_REQUEST,
+                src,
+                dst,
+                (group_idx as u16) << 6,
+            );
             let mut data = [0_u8; 8];
             LittleEndian::write_u64(&mut data, readings);
             vec![Message::new_data(id.0, true, &data).unwrap()]

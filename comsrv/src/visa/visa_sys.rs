@@ -27,10 +27,7 @@ impl Display for VisaError {
 impl VisaError {
     pub fn new(code: i32) -> Self {
         let desc = describe_status(code);
-        Self {
-            desc,
-            code,
-        }
+        Self { desc, code }
     }
 }
 
@@ -39,7 +36,6 @@ impl From<VisaError> for crate::Error {
         crate::Error::Visa(err)
     }
 }
-
 
 cfg_if::cfg_if! {
     if #[cfg(unix)] {
@@ -58,15 +54,27 @@ type ViAttrState = u64;
 
 #[derive(Clone, WrapperApi)]
 struct Api {
-    viOpen: unsafe extern "C" fn(session: ViSession, rsrc: *const c_char,
-                                 access_mode: ViAccessMode, timeout: u32, vi: *mut ViObject) -> ViStatus,
+    viOpen: unsafe extern "C" fn(
+        session: ViSession,
+        rsrc: *const c_char,
+        access_mode: ViAccessMode,
+        timeout: u32,
+        vi: *mut ViObject,
+    ) -> ViStatus,
     viOpenDefaultRM: extern "C" fn(vi: *mut ViSession) -> ViStatus,
     viClose: extern "C" fn(vi: ViObject) -> ViStatus,
     viSetAttribute: extern "C" fn(vi: ViObject, attr: ViAttr, value: ViAttrState) -> ViStatus,
     viGetAttribute: unsafe extern "C" fn(vi: ViObject, attr: ViAttr, value: *mut u64) -> ViStatus,
-    viStatusDesc: unsafe extern "C" fn(vi: ViObject, status: ViStatus, value: *mut c_char) -> ViStatus,
-    viRead: unsafe extern "C" fn(vi: ViSession, buf: *mut u8, cnt: u32, cnt_ret: *mut u32) -> ViStatus,
-    viWrite: unsafe extern "C" fn(vi: ViSession, buf: *const u8, cnt: u32, cnt_ret: *mut u32) -> ViStatus,
+    viStatusDesc:
+        unsafe extern "C" fn(vi: ViObject, status: ViStatus, value: *mut c_char) -> ViStatus,
+    viRead:
+        unsafe extern "C" fn(vi: ViSession, buf: *mut u8, cnt: u32, cnt_ret: *mut u32) -> ViStatus,
+    viWrite: unsafe extern "C" fn(
+        vi: ViSession,
+        buf: *const u8,
+        cnt: u32,
+        cnt_ret: *mut u32,
+    ) -> ViStatus,
     viClear: unsafe extern "C" fn(vi: ViSession) -> ViStatus,
 }
 
@@ -85,16 +93,14 @@ impl Visa {
         tmpfile.write_all(VISA_LIB).unwrap();
         let (_, path) = tmpfile.keep().unwrap();
         let name = path.to_str().unwrap();
-        let cont: Container<Api> = unsafe { Container::load(name) }.expect("Could not load VISA: Is it installed?");
+        let cont: Container<Api> =
+            unsafe { Container::load(name) }.expect("Could not load VISA: Is it installed?");
         let mut rm: ViSession = 0;
         let ret = cont.viOpenDefaultRM(&mut rm as *mut ViSession);
         if ret < 0 {
             panic!("Could not open resource manager: Error Code {}", ret);
         }
-        Visa {
-            api: cont,
-            rm,
-        }
+        Visa { api: cont, rm }
     }
 }
 
@@ -111,7 +117,10 @@ impl Drop for Visa {
     fn drop(&mut self) {
         let status = VISA.api.viClose(self.rm);
         if status < 0 {
-            panic!(format!("Error dropping resource manager: {}", describe_status(status)));
+            panic!(format!(
+                "Error dropping resource manager: {}",
+                describe_status(status)
+            ));
         }
     }
 }
@@ -123,10 +132,7 @@ pub struct Attr {
 
 impl Attr {
     fn new(instr: ViObject, code: ViAttr) -> Self {
-        Attr {
-            instr,
-            code,
-        }
+        Attr { instr, code }
     }
 
     pub fn set(&self, value: u64) -> Result<(), VisaError> {
@@ -141,7 +147,9 @@ impl Attr {
     pub fn get(&self) -> Result<u64, VisaError> {
         let (stat, ret) = unsafe {
             let mut ret = 0_u64;
-            let stat = VISA.api.viGetAttribute(self.instr, self.code, &mut ret as *mut u64);
+            let stat = VISA
+                .api
+                .viGetAttribute(self.instr, self.code, &mut ret as *mut u64);
             (stat, ret)
         };
         if stat < 0 {
@@ -168,7 +176,9 @@ impl Instrument {
                 0
             };
             let mut handle: ViObject = 0;
-            let status = VISA.api.viOpen(VISA.rm, cstr.as_ptr(), 0, tmo, &mut handle as *mut ViObject);
+            let status =
+                VISA.api
+                    .viOpen(VISA.rm, cstr.as_ptr(), 0, tmo, &mut handle as *mut ViObject);
             if status < 0 {
                 return Err(VisaError::new(status));
             }
@@ -181,7 +191,9 @@ impl Instrument {
         let code = unsafe {
             let ptr = data.as_mut_ptr();
             let mut actually_read = 0_u32;
-            let ret = VISA.api.viRead(self.instr, ptr, size as u32, &mut actually_read as *mut u32);
+            let ret = VISA
+                .api
+                .viRead(self.instr, ptr, size as u32, &mut actually_read as *mut u32);
             if ret < 0 {
                 return Err(VisaError::new(ret));
             }
@@ -197,7 +209,12 @@ impl Instrument {
         let ptr = data.as_ptr();
         let mut actually_written = 0_u32;
         unsafe {
-            let ret = VISA.api.viWrite(self.instr, ptr, data.len() as u32, &mut actually_written as *mut u32);
+            let ret = VISA.api.viWrite(
+                self.instr,
+                ptr,
+                data.len() as u32,
+                &mut actually_written as *mut u32,
+            );
             if ret < 0 {
                 return Err(VisaError::new(ret));
             }

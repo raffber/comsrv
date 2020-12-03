@@ -1,13 +1,13 @@
-use crate::iotask::{IoTask, IoHandler};
-use tokio::net::TcpStream;
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
-use async_std::net::SocketAddr;
+use crate::iotask::{IoHandler, IoTask};
 use crate::Error;
+use async_std::net::SocketAddr;
 use async_trait::async_trait;
+use tokio::net::TcpStream;
 
 #[derive(Clone)]
 pub struct Instrument {
-    inner: IoTask<Handler>
+    inner: IoTask<Handler>,
 }
 
 struct Handler {
@@ -24,7 +24,9 @@ impl IoHandler for Handler {
         let mut stream = if let Some(stream) = self.stream.take() {
             stream
         } else {
-            TcpStream::connect(&self.addr.clone()).await.map_err(Error::io)?
+            TcpStream::connect(&self.addr.clone())
+                .await
+                .map_err(Error::io)?
         };
         let ret = crate::bytestream::handle(&mut stream, req).await;
         self.stream.replace(stream);
@@ -34,12 +36,9 @@ impl IoHandler for Handler {
 
 impl Instrument {
     pub fn new(addr: SocketAddr) -> Self {
-        let handler = Handler {
-            stream: None,
-            addr,
-        };
+        let handler = Handler { stream: None, addr };
         Self {
-            inner: IoTask::new(handler)
+            inner: IoTask::new(handler),
         }
     }
 

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tokio::time::{Duration, timeout};
+use tokio::time::{timeout, Duration};
 
 use crate::cobs::{cobs_pack, cobs_unpack};
 use crate::Error;
@@ -42,11 +42,16 @@ pub enum ByteStreamResponse {
     String(String),
 }
 
-pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(stream: &mut T, req: ByteStreamRequest) -> crate::Result<ByteStreamResponse> {
+pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
+    stream: &mut T,
+    req: ByteStreamRequest,
+) -> crate::Result<ByteStreamResponse> {
     match req {
         ByteStreamRequest::Write(data) => {
             log::debug!("write: {:?}", data);
-            AsyncWriteExt::write_all(stream, &data).await.map_err(Error::io)?;
+            AsyncWriteExt::write_all(stream, &data)
+                .await
+                .map_err(Error::io)?;
             Ok(ByteStreamResponse::Done)
         }
         ByteStreamRequest::ReadExact { count, timeout_ms } => {
@@ -75,7 +80,9 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(stream: &mut T, req: Byte
             let mut ret = Vec::new();
             let fut = AsyncReadExt::read_buf(stream, &mut ret);
             match timeout(Duration::from_micros(100), fut).await {
-                Ok(x) => { x?; }
+                Ok(x) => {
+                    x?;
+                }
                 Err(_) => {}
             };
             Ok(ByteStreamResponse::Data(ret))
@@ -89,14 +96,14 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(stream: &mut T, req: Byte
             let duration = Duration::from_millis(timeout_ms as u64);
             match timeout(duration, cobs_read(stream)).await {
                 Ok(x) => x,
-                Err(_) => Err(crate::Error::Timeout)
+                Err(_) => Err(crate::Error::Timeout),
             }
         }
         ByteStreamRequest::CobsQuery { data, timeout_ms } => {
             let duration = Duration::from_millis(timeout_ms as u64);
             match timeout(duration, cobs_query(stream, data)).await {
                 Ok(x) => x,
-                Err(_) => Err(crate::Error::Timeout)
+                Err(_) => Err(crate::Error::Timeout),
             }
         }
         ByteStreamRequest::WriteLine { mut line, term } => {
@@ -110,7 +117,11 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(stream: &mut T, req: Byte
             let ret = read_to_term_timeout(stream, term, timeout_ms).await?;
             Ok(ByteStreamResponse::String(ret))
         }
-        ByteStreamRequest::QueryLine { mut line, timeout_ms, term } => {
+        ByteStreamRequest::QueryLine {
+            mut line,
+            timeout_ms,
+            term,
+        } => {
             check_term(term)?;
             line.push(term as char);
             AsyncWriteExt::write_all(stream, line.as_bytes()).await?;
@@ -124,7 +135,11 @@ async fn pop<T: AsyncRead + Unpin>(stream: &mut T) -> crate::Result<u8> {
     Ok(AsyncReadExt::read_u8(stream).await?)
 }
 
-async fn read_to_term_timeout<T: AsyncReadExt + Unpin>(stream: &mut T, term: u8, timeout_ms: u32) -> crate::Result<String> {
+async fn read_to_term_timeout<T: AsyncReadExt + Unpin>(
+    stream: &mut T,
+    term: u8,
+    timeout_ms: u32,
+) -> crate::Result<String> {
     let duration = Duration::from_millis(timeout_ms as u64);
     let fut = read_to_term(stream, term);
     match timeout(duration, fut).await {
@@ -176,14 +191,21 @@ async fn cobs_read<T: AsyncRead + Unpin>(stream: &mut T) -> crate::Result<ByteSt
     Ok(ByteStreamResponse::Data(ret))
 }
 
-async fn cobs_query<T: AsyncRead + AsyncWrite + Unpin>(stream: &mut T, data: Vec<u8>) -> crate::Result<ByteStreamResponse> {
+async fn cobs_query<T: AsyncRead + AsyncWrite + Unpin>(
+    stream: &mut T,
+    data: Vec<u8>,
+) -> crate::Result<ByteStreamResponse> {
     let mut garbage = Vec::new();
     let fut = stream.read_buf(&mut garbage);
     match timeout(Duration::from_micros(100), fut).await {
-        Ok(x) => {x?;},
+        Ok(x) => {
+            x?;
+        }
         Err(_) => {}
     };
     let data = cobs_pack(&data);
-    AsyncWriteExt::write_all(stream, &data).await.map_err(Error::io)?;
+    AsyncWriteExt::write_all(stream, &data)
+        .await
+        .map_err(Error::io)?;
     cobs_read(stream).await
 }

@@ -3,15 +3,15 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task;
 use wsrpc::server::{Requested, Server as WsrpcServer};
 
-use crate::{Error, ScpiRequest, ScpiResponse};
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
 use crate::can::{CanError, CanRequest, CanResponse};
-use crate::instrument::{Address, Instrument};
 use crate::instrument::InstrumentOptions;
+use crate::instrument::{Address, Instrument};
 use crate::inventory::Inventory;
 use crate::modbus::{ModBusRequest, ModBusResponse};
 use crate::serial::{Request as SerialRequest, Response as SerialResponse, SerialParams};
 use crate::visa::{VisaError, VisaOptions};
+use crate::{Error, ScpiRequest, ScpiResponse};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
@@ -64,10 +64,7 @@ pub enum RpcError {
     InvalidRequest,
     Timeout,
     Vxi(String),
-    Can {
-        addr: String,
-        err: CanError,
-    },
+    Can { addr: String, err: CanError },
 }
 
 impl From<Error> for RpcError {
@@ -118,7 +115,12 @@ impl App {
         }
     }
 
-    async fn handle_scpi(&self, addr: String, task: ScpiRequest, options: &InstrumentOptions) -> Result<ScpiResponse, RpcError> {
+    async fn handle_scpi(
+        &self,
+        addr: String,
+        task: ScpiRequest,
+        options: &InstrumentOptions,
+    ) -> Result<ScpiResponse, RpcError> {
         let addr = Address::parse(&addr)?;
         match self.inventory.connect(&self.server, &addr) {
             Instrument::Visa(instr) => {
@@ -134,30 +136,28 @@ impl App {
                     }
                 }
             }
-            Instrument::Serial(mut instr) => {
-                match addr {
-                    Address::Prologix { file: _, gpib } => {
-                        let response = instr.request(SerialRequest::Prologix {
+            Instrument::Serial(mut instr) => match addr {
+                Address::Prologix { file: _, gpib } => {
+                    let response = instr
+                        .request(SerialRequest::Prologix {
                             gpib_addr: gpib,
                             req: task,
-                        }).await;
-                        match response {
-                            Ok(SerialResponse::Scpi(resp)) => {
-                                Ok(resp)
-                            }
-                            Ok(_) => {
-                                self.inventory.disconnect(&addr);
-                                Err(RpcError::NotSupported)
-                            }
-                            Err(x) => {
-                                self.inventory.disconnect(&addr);
-                                Err(x.into())
-                            }
+                        })
+                        .await;
+                    match response {
+                        Ok(SerialResponse::Scpi(resp)) => Ok(resp),
+                        Ok(_) => {
+                            self.inventory.disconnect(&addr);
+                            Err(RpcError::NotSupported)
+                        }
+                        Err(x) => {
+                            self.inventory.disconnect(&addr);
+                            Err(x.into())
                         }
                     }
-                    _ => Err(RpcError::NotSupported)
                 }
-            }
+                _ => Err(RpcError::NotSupported),
+            },
             Instrument::Vxi(mut instr) => {
                 let opt = match options {
                     InstrumentOptions::Visa(x) => x.clone(),
@@ -171,85 +171,78 @@ impl App {
                     }
                 }
             }
-            _ => Err(RpcError::NotSupported)
+            _ => Err(RpcError::NotSupported),
         }
     }
 
-    async fn handle_modbus(&self, addr: String, task: ModBusRequest) -> Result<ModBusResponse, RpcError> {
+    async fn handle_modbus(
+        &self,
+        addr: String,
+        task: ModBusRequest,
+    ) -> Result<ModBusResponse, RpcError> {
         let addr = Address::parse(&addr)?;
         match self.inventory.connect(&self.server, &addr) {
-            Instrument::Modbus(mut instr) => {
-                match instr.request(task).await {
-                    Ok(x) => Ok(x),
-                    Err(x) => {
-                        self.inventory.disconnect(&addr);
-                        Err(x.into())
-                    }
+            Instrument::Modbus(mut instr) => match instr.request(task).await {
+                Ok(x) => Ok(x),
+                Err(x) => {
+                    self.inventory.disconnect(&addr);
+                    Err(x.into())
                 }
-            }
-            _ => {
-                Err(RpcError::NotSupported)
-            }
+            },
+            _ => Err(RpcError::NotSupported),
         }
     }
 
-    async fn handle_serial(&self, addr: &Address, params: &SerialParams, task: ByteStreamRequest) -> Result<ByteStreamResponse, RpcError> {
+    async fn handle_serial(
+        &self,
+        addr: &Address,
+        params: &SerialParams,
+        task: ByteStreamRequest,
+    ) -> Result<ByteStreamResponse, RpcError> {
         let params = params.clone();
-        let req = SerialRequest::Serial {
-            params,
-            req: task,
-        };
+        let req = SerialRequest::Serial { params, req: task };
         match self.inventory.connect(&self.server, addr) {
-            Instrument::Serial(mut instr) => {
-                match instr.request(req).await {
-                    Ok(x) => {
-                        match x {
-                            SerialResponse::Bytes(x) => Ok(x),
-                            _ => panic!("Invalid answer. This is a bug"),
-                        }
-                    }
-                    Err(x) => {
-                        self.inventory.disconnect(&addr);
-                        Err(x.into())
-                    }
+            Instrument::Serial(mut instr) => match instr.request(req).await {
+                Ok(x) => match x {
+                    SerialResponse::Bytes(x) => Ok(x),
+                    _ => panic!("Invalid answer. This is a bug"),
+                },
+                Err(x) => {
+                    self.inventory.disconnect(&addr);
+                    Err(x.into())
                 }
-            }
-            _ => {
-                Err(RpcError::NotSupported)
-            }
+            },
+            _ => Err(RpcError::NotSupported),
         }
     }
 
-
-    async fn handle_tcp(&self, addr: &Address, task: ByteStreamRequest) -> Result<ByteStreamResponse, RpcError> {
+    async fn handle_tcp(
+        &self,
+        addr: &Address,
+        task: ByteStreamRequest,
+    ) -> Result<ByteStreamResponse, RpcError> {
         match self.inventory.connect(&self.server, &addr) {
-            Instrument::Tcp(mut instr) => {
-                match instr.request(task).await {
-                    Ok(x) => Ok(x),
-                    Err(x) => {
-                        self.inventory.disconnect(&addr);
-                        Err(x.into())
-                    }
+            Instrument::Tcp(mut instr) => match instr.request(task).await {
+                Ok(x) => Ok(x),
+                Err(x) => {
+                    self.inventory.disconnect(&addr);
+                    Err(x.into())
                 }
-            }
-            _ => {
-                Err(RpcError::NotSupported)
-            }
+            },
+            _ => Err(RpcError::NotSupported),
         }
     }
 
-    async fn handle_bytes(&self, addr: &str, task: ByteStreamRequest) -> Result<ByteStreamResponse, RpcError> {
+    async fn handle_bytes(
+        &self,
+        addr: &str,
+        task: ByteStreamRequest,
+    ) -> Result<ByteStreamResponse, RpcError> {
         let addr = Address::parse(&addr)?;
         match &addr {
-            Address::Serial { path: _, params } => {
-                self.handle_serial(&addr, params, task).await
-            },
-            Address::Tcp { .. } => {
-                self.handle_tcp(&addr, task).await
-            }
-            _ => {
-                Err(RpcError::NotSupported)
-            }
+            Address::Serial { path: _, params } => self.handle_serial(&addr, params, task).await,
+            Address::Tcp { .. } => self.handle_tcp(&addr, task).await,
+            _ => Err(RpcError::NotSupported),
         }
     }
 
@@ -257,7 +250,7 @@ impl App {
         let addr = Address::parse(&addr)?;
         let mut device = match self.inventory.connect(&self.server, &addr) {
             Instrument::Can(device) => device,
-            _ => return Err(RpcError::NotSupported)
+            _ => return Err(RpcError::NotSupported),
         };
         match device.request(task).await {
             Ok(x) => Ok(x),
@@ -272,33 +265,27 @@ impl App {
 
     async fn handle_request(&self, req: Request) -> Response {
         match req {
-            Request::Scpi { addr, task, options } => {
-                match self.handle_scpi(addr, task, &options).await {
-                    Ok(result) => Response::Scpi(result),
-                    Err(err) => Response::Error(err)
-                }
-            }
-            Request::ListInstruments => {
-                Response::Instruments(self.inventory.list())
-            }
-            Request::ModBus { addr, task } => {
-                match self.handle_modbus(addr, task).await {
-                    Ok(result) => Response::ModBus(result),
-                    Err(err) => Response::Error(err)
-                }
-            }
-            Request::Bytes { addr, task } => {
-                match self.handle_bytes(&addr, task).await {
-                    Ok(result) => Response::Bytes(result),
-                    Err(err) => Response::Error(err),
-                }
-            }
-            Request::Can { addr, task } => {
-                match self.handle_can(&addr, task).await {
-                    Ok(result) => Response::Can(result),
-                    Err(err) => Response::Error(err),
-                }
-            }
+            Request::Scpi {
+                addr,
+                task,
+                options,
+            } => match self.handle_scpi(addr, task, &options).await {
+                Ok(result) => Response::Scpi(result),
+                Err(err) => Response::Error(err),
+            },
+            Request::ListInstruments => Response::Instruments(self.inventory.list()),
+            Request::ModBus { addr, task } => match self.handle_modbus(addr, task).await {
+                Ok(result) => Response::ModBus(result),
+                Err(err) => Response::Error(err),
+            },
+            Request::Bytes { addr, task } => match self.handle_bytes(&addr, task).await {
+                Ok(result) => Response::Bytes(result),
+                Err(err) => Response::Error(err),
+            },
+            Request::Can { addr, task } => match self.handle_can(&addr, task).await {
+                Ok(result) => Response::Can(result),
+                Err(err) => Response::Error(err),
+            },
             Request::DropAll => {
                 self.inventory.disconnect_all();
                 Response::Done
@@ -308,15 +295,13 @@ impl App {
                 self.server.shutdown().await;
                 Response::Done
             }
-            Request::Drop(addr) => {
-                match Address::parse(&addr) {
-                    Ok(addr) => {
-                        self.inventory.disconnect(&addr);
-                        Response::Done
-                    },
-                    Err(err) => Response::Error(err.into()),
+            Request::Drop(addr) => match Address::parse(&addr) {
+                Ok(addr) => {
+                    self.inventory.disconnect(&addr);
+                    Response::Done
                 }
-            }
+                Err(err) => Response::Error(err.into()),
+            },
         }
     }
 }
@@ -339,7 +324,6 @@ mod tests {
         server.shutdown().await;
     }
 
-
     #[tokio::test]
     async fn shutdown_two() {
         let (server, _) = Server::new();
@@ -350,7 +334,7 @@ mod tests {
         let rx_msg = client.next().await.unwrap();
         match rx_msg {
             wsrpc::Response::Notify(msg) => assert!(matches!(msg, Response::Done)),
-            _ => panic!()
+            _ => panic!(),
         }
 
         server.shutdown().await;

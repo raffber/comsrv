@@ -12,11 +12,13 @@ fn main() {
         .version("0.1")
         .author("Raphael Bernhard <beraphae@gmail.com>")
         .about("Multiplex communication to instruments over RPC")
-        .arg(Arg::with_name("port")
-            .long("port")
-            .short("p")
-            .default_value("5902")
-            .help("Define the port to listen on."))
+        .arg(
+            Arg::with_name("port")
+                .long("port")
+                .short("p")
+                .default_value("5902")
+                .help("Define the port to listen on."),
+        )
         .get_matches();
 
     let port = matches.value_of("port").unwrap().to_string();
@@ -27,7 +29,6 @@ fn main() {
             exit(1);
         }
     };
-
 
     let mut rt = Runtime::new().unwrap();
     rt.block_on(async move {

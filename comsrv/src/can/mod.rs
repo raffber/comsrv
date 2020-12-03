@@ -1,12 +1,12 @@
 use std::fmt;
 use std::fmt::Display;
 
-use async_can::{Error, Message};
 pub use async_can::Message as CanMessage;
+use async_can::{Error, Message};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task;
 
 use crate::app::{Response, RpcError, Server};
@@ -14,10 +14,10 @@ use crate::can::device::CanDevice;
 use crate::can::gct::{Decoder, GctMessage};
 use crate::iotask::{IoHandler, IoTask};
 
-mod loopback;
+mod crc;
 mod device;
 mod gct;
-mod crc;
+mod loopback;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum CanRequest {
@@ -40,10 +40,7 @@ pub enum CanResponse {
 
 #[derive(Clone, Hash)]
 pub enum CanAddress {
-    PCan {
-        ifname: String,
-        bitrate: u32,
-    },
+    PCan { ifname: String, bitrate: u32 },
     Socket(String),
     Loopback,
 }
@@ -74,7 +71,6 @@ impl Display for CanAddress {
         f.write_str(&x)
     }
 }
-
 
 #[derive(Debug, Error, Clone, Serialize, Deserialize)]
 pub enum CanError {
@@ -127,7 +123,7 @@ impl Instrument {
             server: server.clone(),
             device: None,
             listener: None,
-            loopback: false
+            loopback: false,
         };
         Self {
             io: IoTask::new(handler),
@@ -144,16 +140,15 @@ impl Instrument {
 
     pub fn check_disconnect(&self, err: &crate::Error) -> bool {
         match &err {
-            crate::Error::Io(_) | crate::Error::Disconnected => {
-                true
-            }
-            crate::Error::Can { addr: _, err } => {
-                match err {
-                    CanError::Io(_) | CanError::InvalidInterfaceAddress | CanError::InvalidBitRate | CanError::PCanError(_, _) => true,
-                    _ => false,
-                }
-            }
-            _ => false
+            crate::Error::Io(_) | crate::Error::Disconnected => true,
+            crate::Error::Can { addr: _, err } => match err {
+                CanError::Io(_)
+                | CanError::InvalidInterfaceAddress
+                | CanError::InvalidBitRate
+                | CanError::PCanError(_, _) => true,
+                _ => false,
+            },
+            _ => false,
         }
     }
 }
@@ -230,7 +225,7 @@ impl IoHandler for Handler {
             CanRequest::TxGct(msg) => {
                 let msgs = gct::encode(msg).map_err(|err| crate::Error::Can {
                     addr: self.addr.interface(),
-                    err
+                    err,
                 })?;
                 for msg in msgs {
                     if self.loopback {
@@ -248,14 +243,12 @@ impl IoHandler for Handler {
     }
 }
 
-
 enum ListenerMsg {
     EnableGct(bool),
     EnableRaw(bool),
     Loopback(CanMessage),
     Ping,
 }
-
 
 struct Listener {
     listen_gct: bool,
@@ -278,9 +271,7 @@ impl Listener {
                 self.listen_raw = en;
             }
             ListenerMsg::Ping => {}
-            ListenerMsg::Loopback(msg) => {
-                self.rx(msg).await
-            }
+            ListenerMsg::Loopback(msg) => self.rx(msg).await,
         }
     }
 
@@ -305,12 +296,15 @@ impl Listener {
         self.server.broadcast(Response::Error(send_err)).await;
         // depending on error, continue listening or quit...
         match err {
-            CanError::Io(_) | CanError::InvalidInterfaceAddress | CanError::InvalidBitRate | CanError::PCanError(_, _) => {
+            CanError::Io(_)
+            | CanError::InvalidInterfaceAddress
+            | CanError::InvalidBitRate
+            | CanError::PCanError(_, _) => {
                 let tx = Response::Can(CanResponse::Stopped(self.device.address().interface()));
                 self.server.broadcast(tx).await;
                 false
             }
-            _ => true
+            _ => true,
         }
     }
 }
@@ -337,7 +331,6 @@ async fn listener_task(mut rx: UnboundedReceiver<ListenerMsg>, device: CanDevice
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -358,9 +351,21 @@ mod tests {
         assert!(matches!(sent, Ok(CanResponse::Ok)));
 
         let rx = client.next().await.unwrap();
-        let resp = if let wsrpc::Response::Notify(x) = rx { x } else { panic!() };
-        let msg = if let Response::Can(CanResponse::Raw(msg)) = resp { msg } else { panic!() };
-        let msg = if let Message::Data(msg) = msg { msg } else { panic!() };
+        let resp = if let wsrpc::Response::Notify(x) = rx {
+            x
+        } else {
+            panic!()
+        };
+        let msg = if let Response::Can(CanResponse::Raw(msg)) = resp {
+            msg
+        } else {
+            panic!()
+        };
+        let msg = if let Message::Data(msg) = msg {
+            msg
+        } else {
+            panic!()
+        };
         assert_eq!(msg.dlc(), 4);
         assert_eq!(&msg.data(), &[1, 2, 3, 4]);
         assert!(msg.ext_id());

@@ -3,8 +3,8 @@ use std::thread;
 
 use tokio::sync::oneshot;
 
-use crate::{Error, ScpiRequest, ScpiResponse};
 use crate::visa::{Instrument as BlockingInstrument, VisaOptions};
+use crate::{Error, ScpiRequest, ScpiResponse};
 
 #[derive(Clone)]
 pub struct Instrument {
@@ -28,9 +28,11 @@ impl Instrument {
             let mut oinstr = None;
             while let Ok(msg) = rx.recv() {
                 let (request, options, reply) = match msg {
-                    Msg::Scpi { request, options, reply } => {
-                        (request, options, reply)
-                    }
+                    Msg::Scpi {
+                        request,
+                        options,
+                        reply,
+                    } => (request, options, reply),
                     Msg::Drop => {
                         break;
                     }
@@ -55,7 +57,11 @@ impl Instrument {
         Instrument { tx }
     }
 
-    pub async fn request(self, req: ScpiRequest, options: VisaOptions) -> crate::Result<ScpiResponse> {
+    pub async fn request(
+        self,
+        req: ScpiRequest,
+        options: VisaOptions,
+    ) -> crate::Result<ScpiResponse> {
         let (tx, rx) = oneshot::channel();
         let thmsg = Msg::Scpi {
             request: req,

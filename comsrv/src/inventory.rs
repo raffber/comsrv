@@ -5,9 +5,9 @@ use futures::channel::oneshot;
 use futures::future::Shared;
 use std::sync::Mutex;
 
-use crate::instrument::{Instrument, HandleId, Address};
-use crate::Error;
 use crate::app::Server;
+use crate::instrument::{Address, HandleId, Instrument};
+use crate::Error;
 
 #[derive(Clone)]
 pub struct Connecting {
@@ -37,7 +37,9 @@ impl Inventory {
             return ret.clone();
         }
         let new_instr = Instrument::connect(&server, addr);
-        inner.instruments.insert(addr.handle_id(), new_instr.clone());
+        inner
+            .instruments
+            .insert(addr.handle_id(), new_instr.clone());
         new_instr
     }
 

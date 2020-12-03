@@ -1,4 +1,3 @@
-
 pub fn cobs_pack(data: &[u8]) -> Vec<u8> {
     let mut zero_idx: i32 = -1;
     let mut ret = Vec::new();
@@ -8,15 +7,14 @@ pub fn cobs_pack(data: &[u8]) -> Vec<u8> {
             continue;
         }
         ret.push(((k as i32) - zero_idx) as u8);
-        ret.extend_from_slice(&data[ (zero_idx + 1) as usize .. k as usize]);
+        ret.extend_from_slice(&data[(zero_idx + 1) as usize..k as usize]);
         zero_idx = k as i32;
     }
     ret.push((data.len() as i32 - zero_idx) as u8);
-    ret.extend_from_slice(&data[ (zero_idx+1) as usize ..]);
+    ret.extend_from_slice(&data[(zero_idx + 1) as usize..]);
     ret.push(0);
     ret
 }
-
 
 pub fn cobs_unpack(data: &[u8]) -> Option<Vec<u8>> {
     let mut ret = Vec::new();

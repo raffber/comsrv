@@ -1,9 +1,8 @@
+use crate::can::{CanError, CanMessage};
 use lazy_static;
-use crate::can::{CanMessage, CanError};
 use tokio::sync::broadcast;
 
 const MAX_SIZE: usize = 1000;
-
 
 struct LoopbackAdapter {
     tx: broadcast::Sender<CanMessage>,
@@ -36,12 +35,13 @@ impl LoopbackDevice {
     }
 
     pub async fn recv(&mut self) -> Result<CanMessage, CanError> {
-        self.rx.recv().await.map_err(|_| CanError::BusError(async_can::BusError::Off))
+        self.rx
+            .recv()
+            .await
+            .map_err(|_| CanError::BusError(async_can::BusError::Off))
     }
 
     pub fn send(&self, msg: CanMessage) {
         LOOPBACK_ADAPTER.send(msg)
     }
 }
-
-

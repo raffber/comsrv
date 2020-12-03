@@ -13,23 +13,22 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use visa::VisaError;
 use crate::can::CanError;
+use visa::VisaError;
 
-mod instrument;
-mod modbus;
-mod inventory;
-pub mod visa;
 pub mod app;
-mod serial;
-mod iotask;
-mod cobs;
-mod util;
-mod tcp;
 mod bytestream;
-mod vxi;
 mod can;
-
+mod cobs;
+mod instrument;
+mod inventory;
+mod iotask;
+mod modbus;
+mod serial;
+mod tcp;
+mod util;
+pub mod visa;
+mod vxi;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ScpiRequest {
@@ -43,9 +42,12 @@ pub enum ScpiRequest {
 pub enum ScpiResponse {
     Done,
     String(String),
-    Binary{
-        #[serde(serialize_with = "util::to_base64", deserialize_with = "util::from_base64")]
-        data: Vec<u8>
+    Binary {
+        #[serde(
+            serialize_with = "util::to_base64",
+            deserialize_with = "util::from_base64"
+        )]
+        data: Vec<u8>,
     },
 }
 
@@ -74,10 +76,7 @@ pub enum Error {
     #[error("Vxi11 Error")]
     Vxi(Arc<async_vxi11::Error>),
     #[error("CAN Error from [{addr}]: {err}")]
-    Can {
-        addr: String,
-        err: CanError,
-    },
+    Can { addr: String, err: CanError },
 }
 
 impl Error {
@@ -88,7 +87,7 @@ impl Error {
     pub fn vxi(err: async_vxi11::Error) -> Error {
         match err {
             async_vxi11::Error::Io(x) => Error::io(x),
-            x => Error::Vxi(Arc::new(x))
+            x => Error::Vxi(Arc::new(x)),
         }
     }
 }

@@ -39,18 +39,18 @@ pub fn parse_serial_settings(settings: &str) -> Option<(DataBits, Parity, StopBi
         '7' => DataBits::Seven,
         '6' => DataBits::Six,
         '5' => DataBits::Five,
-        _ => return None
+        _ => return None,
     };
     let parity = match chars[1] as char {
         'n' => Parity::None,
         'o' => Parity::Odd,
         'e' => Parity::Even,
-        _ => return None
+        _ => return None,
     };
     let stop_bits = match chars[2] as char {
         '1' => StopBits::One,
         '2' => StopBits::Two,
-        _ => return None
+        _ => return None,
     };
     Some((data_bits, parity, stop_bits))
 }
@@ -65,24 +65,24 @@ pub struct SerialParams {
 
 impl SerialParams {
     pub fn from_string(addr: &str) -> Option<(String, SerialParams)> {
-        let splits: Vec<_> = addr.split("::")
-            .map(|x| x.to_string())
-            .collect();
+        let splits: Vec<_> = addr.split("::").map(|x| x.to_string()).collect();
         if splits.len() != 4 {
             return None;
         }
         let path = splits[1].clone();
         let baud_rate: u32 = splits[2].parse().ok()?;
         let (bits, parity, stop) = parse_serial_settings(&splits[3])?;
-        Some((path, SerialParams {
-            baud: baud_rate,
-            data_bits: bits,
-            stop_bits: stop,
-            parity,
-        }))
+        Some((
+            path,
+            SerialParams {
+                baud: baud_rate,
+                data_bits: bits,
+                stop_bits: stop,
+                parity,
+            },
+        ))
     }
 }
-
 
 impl Into<SerialPortSettings> for SerialParams {
     fn into(self) -> SerialPortSettings {
@@ -114,7 +114,6 @@ impl Into<tokio_serial::StopBits> for StopBits {
         }
     }
 }
-
 
 impl From<tokio_serial::Parity> for Parity {
     fn from(x: tokio_serial::Parity) -> Self {
