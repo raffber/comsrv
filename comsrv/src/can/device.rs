@@ -1,19 +1,24 @@
-use async_can::Bus as CanBus;
+use async_can::{Sender, Receiver};
 
 /// This module is responsible for mapping CAN functionality a device to different backends
 use crate::can::loopback::LoopbackDevice;
 use crate::can::{CanAddress, CanError, CanMessage};
 
-pub enum CanDevice {
+pub enum CanSender {
     Loopback(LoopbackDevice),
-    Bus { device: CanBus, addr: CanAddress },
+    Bus { device: Sender, addr: CanAddress },
 }
 
-impl CanDevice {
+pub enum CanReceiver {
+    Loopback(LoopbackDevice),
+    Bus { device: Receiver, addr: CanAddress },
+}
+
+impl CanSender {
     pub async fn send(&self, msg: CanMessage) -> crate::Result<()> {
         match self {
-            CanDevice::Loopback(lo) => Ok(lo.send(msg)),
-            CanDevice::Bus { device, addr } => {
+            CanSender::Loopback(lo) => Ok(lo.send(msg)),
+            CanSender::Bus { device, addr } => {
                 let addr = addr.interface();
                 let ret = device.send(msg).await;
                 ret.map_err(|x| crate::Error::Can {
@@ -23,18 +28,20 @@ impl CanDevice {
             }
         }
     }
+}
 
+impl CanReceiver {
     pub async fn recv(&mut self) -> Result<CanMessage, CanError> {
         match self {
-            CanDevice::Loopback(lo) => lo.recv().await,
-            CanDevice::Bus { device, addr: _ } => Ok(device.recv().await?),
+            CanReceiver::Loopback(lo) => lo.recv().await,
+            CanReceiver::Bus { device, addr: _ } => Ok(device.recv().await?),
         }
     }
 
     pub fn address(&self) -> CanAddress {
         match self {
-            CanDevice::Loopback(_) => CanAddress::Loopback,
-            CanDevice::Bus { device: _, addr } => addr.clone(),
+            CanReceiver::Loopback(_) => CanAddress::Loopback,
+            CanReceiver::Bus { device: _, addr } => addr.clone(),
         }
     }
 }
@@ -61,18 +68,35 @@ impl CanDevice {
 }
 
 #[cfg(target_os = "windows")]
-impl CanDevice {
+impl CanSender {
     pub fn new(addr: CanAddress) -> crate::Result<Self> {
         match &addr {
             CanAddress::PCan { ifname, bitrate } => {
-                let device = CanBus::connect(ifname, *bitrate).map_err(|x| crate::Error::Can {
+                let device = Sender::connect(ifname, *bitrate).map_err(|x| crate::Error::Can {
                     addr: addr.interface(),
                     err: x.into(),
                 })?;
-                Ok(CanDevice::Bus { device, addr })
+                Ok(Self::Bus { device, addr })
             }
             CanAddress::Socket(_) => Err(crate::Error::NotSupported),
-            CanAddress::Loopback => Ok(CanDevice::Loopback(LoopbackDevice::new())),
+            CanAddress::Loopback => Ok(Self::Loopback(LoopbackDevice::new())),
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl CanReceiver {
+    pub fn new(addr: CanAddress) -> crate::Result<Self> {
+        match &addr {
+            CanAddress::PCan { ifname, bitrate } => {
+                let device = Receiver::connect(ifname, *bitrate).map_err(|x| crate::Error::Can {
+                    addr: addr.interface(),
+                    err: x.into(),
+                })?;
+                Ok(Self::Bus { device, addr })
+            }
+            CanAddress::Socket(_) => Err(crate::Error::NotSupported),
+            CanAddress::Loopback => Ok(Self::Loopback(LoopbackDevice::new())),
         }
     }
 }

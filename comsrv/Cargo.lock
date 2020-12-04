@@ -42,7 +42,7 @@ dependencies = [
 [[package]]
 name = "async-can"
 version = "0.1.0"
-source = "git+https://github.com/raffber/async-can.git?rev=ef63c908ade6be1ee9f504d69a9325e5c70e9c7b#ef63c908ade6be1ee9f504d69a9325e5c70e9c7b"
+source = "git+https://github.com/raffber/async-can.git?rev=8015e414aa933d414ad1b1b9e147faf6e940fe44#8015e414aa933d414ad1b1b9e147faf6e940fe44"
 dependencies = [
  "bindgen",
  "dlopen",
@@ -50,6 +50,7 @@ dependencies = [
  "futures",
  "lazy_static",
  "libc",
+ "log",
  "mio",
  "serde",
  "tempfile",

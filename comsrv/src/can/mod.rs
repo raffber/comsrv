@@ -10,7 +10,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task;
 
 use crate::app::{Response, RpcError, Server};
-use crate::can::device::CanDevice;
+use crate::can::device::{CanSender, CanReceiver};
 use crate::can::gct::{Decoder, GctMessage};
 use crate::iotask::{IoHandler, IoTask};
 
@@ -156,7 +156,7 @@ impl Instrument {
 struct Handler {
     addr: CanAddress,
     server: Server,
-    device: Option<CanDevice>,
+    device: Option<CanSender>,
     listener: Option<UnboundedSender<ListenerMsg>>,
     loopback: bool,
 }
@@ -188,10 +188,10 @@ impl IoHandler for Handler {
         // TODO: we should support a manual drop in the root API, such that this can be worked around
         self.check_listener();
         if self.device.is_none() {
-            self.device.replace(CanDevice::new(self.addr.clone())?);
+            self.device.replace(CanSender::new(self.addr.clone())?);
         }
         if self.listener.is_none() {
-            let device = CanDevice::new(self.addr.clone())?;
+            let device = CanReceiver::new(self.addr.clone())?;
             let (tx, rx) = mpsc::unbounded_channel();
             let fut = listener_task(rx, device, self.server.clone());
             task::spawn(fut);
@@ -255,7 +255,7 @@ struct Listener {
     listen_raw: bool,
     decoder: Decoder,
     server: Server,
-    device: CanDevice,
+    device: CanReceiver,
 }
 
 impl Listener {
@@ -276,6 +276,7 @@ impl Listener {
     }
 
     async fn rx(&mut self, msg: Message) {
+        log::debug!("Message recevied with id: {:x}", msg.id());
         if self.listen_raw {
             let tx = Response::Can(CanResponse::Raw(msg.clone()));
             self.server.broadcast(tx).await;
@@ -309,7 +310,7 @@ impl Listener {
     }
 }
 
-async fn listener_task(mut rx: UnboundedReceiver<ListenerMsg>, device: CanDevice, server: Server) {
+async fn listener_task(mut rx: UnboundedReceiver<ListenerMsg>, device: CanReceiver, server: Server) {
     let mut listener = Listener {
         listen_gct: false,
         listen_raw: false,
