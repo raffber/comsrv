@@ -47,22 +47,44 @@ impl CanReceiver {
 }
 
 #[cfg(target_os = "linux")]
-impl CanDevice {
+impl CanSender {
     pub fn new(addr: CanAddress) -> crate::Result<Self> {
         let addr2 = addr.clone();
         match addr {
             CanAddress::PCan { .. } => Err(crate::Error::NotSupported),
             CanAddress::Socket(ifname) => {
-                let device = CanBus::connect(ifname).map_err(|x| crate::Error::Can {
+                let device = Sender::connect(ifname).map_err(|x| crate::Error::Can {
                     addr: addr2.interface(),
                     err: x.into(),
                 })?;
-                Ok(CanDevice::Bus {
+                Ok(CanSender::Bus {
                     device,
                     addr: addr2,
                 })
             }
-            CanAddress::Loopback => Ok(CanDevice::Loopback(LoopbackDevice::new())),
+            CanAddress::Loopback => Ok(CanSender::Loopback(LoopbackDevice::new())),
+        }
+    }
+}
+
+
+#[cfg(target_os = "linux")]
+impl CanReceiver {
+    pub fn new(addr: CanAddress) -> crate::Result<Self> {
+        let addr2 = addr.clone();
+        match addr {
+            CanAddress::PCan { .. } => Err(crate::Error::NotSupported),
+            CanAddress::Socket(ifname) => {
+                let device = Receiver::connect(ifname).map_err(|x| crate::Error::Can {
+                    addr: addr2.interface(),
+                    err: x.into(),
+                })?;
+                Ok(CanReceiver::Bus {
+                    device,
+                    addr: addr2,
+                })
+            }
+            CanAddress::Loopback => Ok(CanReceiver::Loopback(LoopbackDevice::new())),
         }
     }
 }
