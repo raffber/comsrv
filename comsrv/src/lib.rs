@@ -13,8 +13,9 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::can::CanError;
 use visa::VisaError;
+
+use crate::can::CanError;
 
 pub mod app;
 mod bytestream;
@@ -88,6 +89,18 @@ impl Error {
         match err {
             async_vxi11::Error::Io(x) => Error::io(x),
             x => Error::Vxi(Arc::new(x)),
+        }
+    }
+
+    pub fn should_retry(&self) -> bool {
+        match self {
+            Error::Io(err) => {
+                err.kind() == io::ErrorKind::ConnectionReset
+                    || err.kind() == io::ErrorKind::ConnectionAborted
+                    || err.kind() == io::ErrorKind::BrokenPipe
+                    || err.kind() == io::ErrorKind::TimedOut
+            }
+            _ => false,
         }
     }
 }

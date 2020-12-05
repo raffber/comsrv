@@ -217,4 +217,46 @@ impl Instrument {
             Instrument::Can(x) => x.disconnect(),
         }
     }
+
+    pub fn into_visa(self) -> Option<VisaInstrument> {
+        match self {
+            Instrument::Visa(instr) => Some(instr),
+            _ => None
+        }
+    }
+
+    pub fn into_modbus(self) -> Option<ModBusInstrument> {
+        match self {
+            Instrument::Modbus(instr) => Some(instr),
+            _ => None
+        }
+    }
+
+    pub fn into_serial(self) -> Option<SerialInstrument> {
+        match self {
+            Instrument::Serial(instr) => Some(instr),
+            _ => None
+        }
+    }
+
+    pub fn into_tcp(self) -> Option<TcpInstrument> {
+        match self {
+            Instrument::Tcp(instr) => Some(instr),
+            _ => None
+        }
+    }
+
+    pub fn into_vxi(self) -> Option<VxiInstrument> {
+        match self {
+            Instrument::Vxi(instr) => Some(instr),
+            _ => None
+        }
+    }
+
+    pub fn into_can(self) -> Option<CanInstrument> {
+        match self {
+            Instrument::Can(instr) => Some(instr),
+            _ => None
+        }
+    }
 }

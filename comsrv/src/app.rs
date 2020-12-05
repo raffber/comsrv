@@ -199,21 +199,23 @@ impl App {
         addr: &Address,
         params: &SerialParams,
         task: ByteStreamRequest,
-    ) -> Result<ByteStreamResponse, RpcError> {
+    ) -> Result<ByteStreamResponse, Error> {
         let params = params.clone();
         let req = SerialRequest::Serial { params, req: task };
-        match self.inventory.connect(&self.server, addr) {
-            Instrument::Serial(mut instr) => match instr.request(req).await {
-                Ok(x) => match x {
-                    SerialResponse::Bytes(x) => Ok(x),
-                    _ => panic!("Invalid answer. This is a bug"),
-                },
-                Err(x) => {
-                    self.inventory.disconnect(&addr);
-                    Err(x.into())
-                }
+        let mut instr = self
+            .inventory
+            .connect(&self.server, &addr)
+            .into_serial()
+            .ok_or(Error::NotSupported)?;
+        match instr.request(req).await {
+            Ok(x) => match x {
+                SerialResponse::Bytes(x) => Ok(x),
+                _ => panic!("Invalid answer. This is a bug"),
             },
-            _ => Err(RpcError::NotSupported),
+            Err(x) => {
+                self.inventory.disconnect(&addr);
+                Err(x)
+            }
         }
     }
 
@@ -221,16 +223,33 @@ impl App {
         &self,
         addr: &Address,
         task: ByteStreamRequest,
-    ) -> Result<ByteStreamResponse, RpcError> {
-        match self.inventory.connect(&self.server, &addr) {
-            Instrument::Tcp(mut instr) => match instr.request(task).await {
-                Ok(x) => Ok(x),
-                Err(x) => {
-                    self.inventory.disconnect(&addr);
-                    Err(x.into())
+    ) -> Result<ByteStreamResponse, Error> {
+        let mut instr = self
+            .inventory
+            .connect(&self.server, &addr)
+            .into_tcp()
+            .ok_or(Error::NotSupported)?;
+        match instr.request(task.clone()).await {
+            Ok(x) => Ok(x),
+            Err(x) => {
+                self.inventory.disconnect(&addr);
+                if x.should_retry() {
+                    let mut instr = self
+                        .inventory
+                        .connect(&self.server, &addr)
+                        .into_tcp()
+                        .unwrap();
+                    match instr.request(task).await {
+                        Ok(res) => Ok(res),
+                        Err(err) => {
+                            self.inventory.disconnect(&addr);
+                            Err(err)
+                        }
+                    }
+                } else {
+                    Err(x)
                 }
-            },
-            _ => Err(RpcError::NotSupported),
+            }
         }
     }
 
@@ -238,12 +257,12 @@ impl App {
         &self,
         addr: &str,
         task: ByteStreamRequest,
-    ) -> Result<ByteStreamResponse, RpcError> {
+    ) -> Result<ByteStreamResponse, Error> {
         let addr = Address::parse(&addr)?;
         match &addr {
             Address::Serial { path: _, params } => self.handle_serial(&addr, params, task).await,
             Address::Tcp { .. } => self.handle_tcp(&addr, task).await,
-            _ => Err(RpcError::NotSupported),
+            _ => Err(Error::NotSupported),
         }
     }
 
@@ -281,7 +300,7 @@ impl App {
             },
             Request::Bytes { addr, task } => match self.handle_bytes(&addr, task).await {
                 Ok(result) => Response::Bytes(result),
-                Err(err) => Response::Error(err),
+                Err(err) => Response::Error(err.into()),
             },
             Request::Can { addr, task } => match self.handle_can(&addr, task).await {
                 Ok(result) => Response::Can(result),
@@ -306,4 +325,3 @@ impl App {
         }
     }
 }
-
