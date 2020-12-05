@@ -112,6 +112,7 @@ impl App {
                 let response = app.handle_request(req).await;
                 rep.answer(response);
             });
+            log::debug!("Leaving request handler.");
         }
     }
 

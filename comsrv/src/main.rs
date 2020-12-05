@@ -36,7 +36,8 @@ fn main() {
 
         let url = format!("0.0.0.0:{}", port);
         let http_addr: SocketAddr = format!("0.0.0.0:{}", port + 1).parse().unwrap();
-        app.server.listen(url, http_addr).await;
+        app.server.listen_ws(url).await;
+        app.server.listen_http(http_addr).await;
         app.run(rx).await;
     });
 }
