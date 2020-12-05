@@ -1,11 +1,11 @@
 use async_std::net::IpAddr;
 use async_trait::async_trait;
 use async_vxi11::CoreClient;
+use tokio::time::{Duration, delay_for};
 
 use crate::iotask::{IoHandler, IoTask};
 use crate::visa::VisaOptions;
 use crate::{util, Error, ScpiRequest, ScpiResponse};
-use tokio::time::Duration;
 
 const DEFAULT_TERMINATION: &'static str = "\n";
 
@@ -16,6 +16,7 @@ pub struct Instrument {
     inner: IoTask<Handler>,
 }
 
+#[derive(Clone)]
 struct Request {
     req: ScpiRequest,
     options: VisaOptions,
@@ -60,13 +61,40 @@ impl IoHandler for Handler {
                 .await
                 .map_err(Error::vxi)?
         };
-        let fut = handle_request(&mut client, req.req, req.options);
-        let ret = tokio::time::timeout(DEFAULT_TIMEOUT, fut)
-            .await
-            .map_err(|_| crate::Error::Timeout)?;
-        self.client.replace(client);
-        ret
+        let ret = handle_request_timeout(&mut client, req.clone()).await;
+        match ret {
+            Ok(ret) => {
+                self.client.replace(client);
+                Ok(ret)
+            }
+            Err(err) => {
+                drop(client);
+                if err.should_retry() {
+                    delay_for(Duration::from_millis(100)).await;
+                    let mut client = CoreClient::connect(self.addr.clone())
+                        .await
+                        .map_err(Error::vxi)?;
+                    let ret = handle_request_timeout(&mut client, req).await;
+                    if ret.is_ok() {
+                        self.client.replace(client);
+                    }
+                    ret
+                } else {
+                    Err(err)
+                }
+            }
+        }
     }
+}
+
+async fn handle_request_timeout(
+    client: &mut CoreClient,
+    req: Request,
+) -> crate::Result<ScpiResponse> {
+    let fut = handle_request(client, req.req, req.options);
+    tokio::time::timeout(DEFAULT_TIMEOUT, fut)
+        .await
+        .map_err(|_| crate::Error::Timeout)?
 }
 
 async fn handle_request(

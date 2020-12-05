@@ -180,17 +180,20 @@ impl App {
         &self,
         addr: String,
         task: ModBusRequest,
-    ) -> Result<ModBusResponse, RpcError> {
+    ) -> Result<ModBusResponse, Error> {
         let addr = Address::parse(&addr)?;
-        match self.inventory.connect(&self.server, &addr) {
-            Instrument::Modbus(mut instr) => match instr.request(task).await {
-                Ok(x) => Ok(x),
-                Err(x) => {
-                    self.inventory.disconnect(&addr);
-                    Err(x.into())
-                }
-            },
-            _ => Err(RpcError::NotSupported),
+        let mut instr = self
+            .inventory
+            .connect(&self.server, &addr)
+            .into_modbus()
+            .ok_or(Error::NotSupported)?;
+
+        match instr.request(task).await {
+            Ok(x) => Ok(x),
+            Err(x) => {
+                self.inventory.disconnect(&addr);
+                Err(x)
+            }
         }
     }
 
@@ -233,22 +236,7 @@ impl App {
             Ok(x) => Ok(x),
             Err(x) => {
                 self.inventory.disconnect(&addr);
-                if x.should_retry() {
-                    let mut instr = self
-                        .inventory
-                        .connect(&self.server, &addr)
-                        .into_tcp()
-                        .unwrap();
-                    match instr.request(task).await {
-                        Ok(res) => Ok(res),
-                        Err(err) => {
-                            self.inventory.disconnect(&addr);
-                            Err(err)
-                        }
-                    }
-                } else {
-                    Err(x)
-                }
+                Err(x)
             }
         }
     }
@@ -296,7 +284,7 @@ impl App {
             Request::ListInstruments => Response::Instruments(self.inventory.list()),
             Request::ModBus { addr, task } => match self.handle_modbus(addr, task).await {
                 Ok(result) => Response::ModBus(result),
-                Err(err) => Response::Error(err),
+                Err(err) => Response::Error(err.into()),
             },
             Request::Bytes { addr, task } => match self.handle_bytes(&addr, task).await {
                 Ok(result) => Response::Bytes(result),

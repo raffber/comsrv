@@ -4,6 +4,7 @@ use crate::Error;
 use async_std::net::SocketAddr;
 use async_trait::async_trait;
 use tokio::net::TcpStream;
+use tokio::time::{delay_for, Duration};
 
 #[derive(Clone)]
 pub struct Instrument {
@@ -28,9 +29,31 @@ impl IoHandler for Handler {
                 .await
                 .map_err(Error::io)?
         };
-        let ret = crate::bytestream::handle(&mut stream, req).await;
-        self.stream.replace(stream);
-        ret
+        let ret = crate::bytestream::handle(&mut stream, req.clone()).await;
+        match ret {
+            Ok(ret) => {
+                // stream was ok, reinsert back
+                self.stream.replace(stream);
+                Ok(ret)
+            }
+            Err(err) => {
+                drop(stream);
+                if err.should_retry() {
+                    delay_for(Duration::from_millis(100)).await;
+                    let mut stream = TcpStream::connect(&self.addr.clone())
+                        .await
+                        .map_err(Error::io)?;
+                    let ret = crate::bytestream::handle(&mut stream, req).await;
+                    if ret.is_ok() {
+                        // this time we succeeded, reinsert stream
+                        self.stream.replace(stream);
+                    }
+                    ret
+                } else {
+                    Err(err)
+                }
+            }
+        }
     }
 }
 

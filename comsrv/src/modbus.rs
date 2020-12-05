@@ -6,6 +6,7 @@ use tokio_modbus::client::{tcp, Context, Reader, Writer};
 
 use crate::iotask::{IoHandler, IoTask};
 use crate::Error;
+use tokio::time::{delay_for, Duration};
 
 fn is_one(x: &u16) -> bool {
     *x == 1
@@ -64,9 +65,28 @@ impl IoHandler for Handler {
         } else {
             tcp::connect(self.addr.clone()).await.map_err(Error::io)?
         };
-        let ret = handle_request(&mut ctx, req).await;
-        self.ctx.replace(ctx);
-        ret
+        let ret = handle_request(&mut ctx, req.clone()).await;
+        match ret {
+            Ok(ret) => {
+                self.ctx.replace(ctx);
+                Ok(ret)
+            }
+            Err(err) => {
+                drop(ctx);
+                if err.should_retry() {
+                    delay_for(Duration::from_millis(100)).await;
+                    let mut ctx = tcp::connect(self.addr.clone()).await.map_err(Error::io)?;
+                    let ret = handle_request(&mut ctx, req).await;
+                    if ret.is_ok() {
+                        // this time we succeeded, reinsert ctx
+                        self.ctx.replace(ctx);
+                    }
+                    ret
+                } else {
+                    Err(err)
+                }
+            }
+        }
     }
 }
 
