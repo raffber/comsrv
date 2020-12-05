@@ -57,9 +57,7 @@ impl IoHandler for Handler {
         let mut client = if let Some(client) = self.client.take() {
             client
         } else {
-            CoreClient::connect(self.addr.clone())
-                .await
-                .map_err(Error::vxi)?
+            connect(self.addr.clone()).await?
         };
         let ret = handle_request_timeout(&mut client, req.clone()).await;
         match ret {
@@ -71,9 +69,7 @@ impl IoHandler for Handler {
                 drop(client);
                 if err.should_retry() {
                     delay_for(Duration::from_millis(100)).await;
-                    let mut client = CoreClient::connect(self.addr.clone())
-                        .await
-                        .map_err(Error::vxi)?;
+                    let mut client = connect(self.addr.clone()).await?;
                     let ret = handle_request_timeout(&mut client, req).await;
                     if ret.is_ok() {
                         self.client.replace(client);
@@ -85,6 +81,12 @@ impl IoHandler for Handler {
             }
         }
     }
+}
+
+async fn connect(addr: IpAddr) -> crate::Result<CoreClient> {
+    let fut = CoreClient::connect(addr);
+    let ret = tokio::time::timeout(DEFAULT_TIMEOUT, fut).await.map_err(|_| crate::Error::Timeout)?;
+    ret.map_err(Error::vxi)
 }
 
 async fn handle_request_timeout(
