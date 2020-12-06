@@ -99,4 +99,4 @@ class ComSrv(object):
 from .modbus import ModBusDevice
 from .serial import SerialPipe
 from .can import CanBus
-from .scpi import ScpiPipe
+from .scpi import ScpiPipe, SerialScpiPipe
