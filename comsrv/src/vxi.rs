@@ -1,4 +1,4 @@
-use async_std::net::IpAddr;
+use std::net::IpAddr;
 use async_trait::async_trait;
 use async_vxi11::CoreClient;
 use tokio::time::{Duration, delay_for};

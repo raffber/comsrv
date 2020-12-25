@@ -13,9 +13,9 @@ dlopen = "0.1.8"
 dlopen_derive = "0.1.4"
 lazy_static = "1.4.0"
 thiserror = "1.0.20"
-serde = {version = "1.0", features = ["derive"]}
-tokio = {version = "0.2.22", features = ["sync", "time", "rt-core", "blocking", "macros"]}
-wsrpc = {path = "../wsrpc"}
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "0.2.22", features = ["sync", "time", "rt-core", "blocking", "macros"] }
+wsrpc = { path = "../wsrpc" }
 clap = "2.33.3"
 env_logger = "0.7.1"
 log = "0.4.11"
@@ -23,9 +23,8 @@ url = "2.1.1"
 tokio-modbus = "0.4.0"
 tokio-serial = "4.3.3"
 async-trait = "0.1.40"
-async-std="1.6"
-futures="0.3.7"
+futures = "0.3.7"
 base64 = "0.13.0"
-async-vxi11 = {git = "https://github.com/raffber/async-vxi11.git", rev = "453cb1c"}
-async-can = {git = "https://github.com/raffber/async-can.git", rev = "50182a7dc3c71e0341e9523a7b963de95f06a84e"}
+async-vxi11 = { git = "https://github.com/raffber/async-vxi11.git", rev = "453cb1c" }
+async-can = { git = "https://github.com/raffber/async-can.git", rev = "50182a7dc3c71e0341e9523a7b963de95f06a84e" }
 byteorder = "1.3"
