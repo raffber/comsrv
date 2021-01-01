@@ -99,16 +99,16 @@ fn do_list() -> crate::Result<SigrokResponse> {
             continue;
         }
         let mut parts = line.split("-").map(|x| x.trim());
-        let device = Device {
-            addr: parts
-                .next()
-                .ok_or(crate::Error::Sigrok(SigrokError::InvalidOutput))?
-                .to_string(),
-            desc: parts
-                .next()
-                .ok_or(crate::Error::Sigrok(SigrokError::InvalidOutput))?
-                .to_string(),
-        };
+        let addr = parts
+            .next()
+            .ok_or(crate::Error::Sigrok(SigrokError::InvalidOutput))?
+            .to_string();
+        let addr = format!("sigrok::{}", addr);
+        let desc = parts
+            .next()
+            .ok_or(crate::Error::Sigrok(SigrokError::InvalidOutput))?
+            .to_string();
+        let device = Device { addr, desc };
         ret.push(device)
     }
     Ok(SigrokResponse::Devices(ret))
