@@ -4,15 +4,15 @@ use tokio::task;
 use wsrpc::server::{Requested, Server as WsrpcServer};
 
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
-use crate::can::{CanError, CanRequest, CanResponse};
+use crate::can::{CanRequest, CanResponse};
 use crate::instrument::InstrumentOptions;
 use crate::instrument::{Address, Instrument};
 use crate::inventory::Inventory;
 use crate::modbus::{ModBusRequest, ModBusResponse};
 use crate::serial::{Request as SerialRequest, Response as SerialResponse, SerialParams};
-use crate::visa::{VisaError, VisaOptions};
+use crate::visa::VisaOptions;
 use crate::{Error, ScpiRequest, ScpiResponse, sigrok};
-use crate::sigrok::{SigrokRequest, SigrokResponse, SigrokError};
+use crate::sigrok::{SigrokRequest, SigrokResponse};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
@@ -48,7 +48,7 @@ pub enum Request {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Response {
-    Error(RpcError),
+    Error(crate::Error),
     Instruments(Vec<String>),
     Scpi(ScpiResponse),
     Bytes(ByteStreamResponse),
@@ -56,43 +56,6 @@ pub enum Response {
     Can(CanResponse),
     Sigrok(SigrokResponse),
     Done,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum RpcError {
-    Io(String),
-    Visa(VisaError),
-    Disconnected,
-    NotSupported,
-    DecodeError(String),
-    InvalidBinaryHeader,
-    NotTerminated,
-    InvalidAddress,
-    InvalidRequest,
-    Timeout,
-    Vxi(String),
-    Can { addr: String, err: CanError },
-    Sigrok(SigrokError),
-}
-
-impl From<Error> for RpcError {
-    fn from(x: Error) -> Self {
-        match x {
-            Error::Visa(x) => RpcError::Visa(x),
-            Error::Io(x) => RpcError::Io(format!("{}", x)),
-            Error::Disconnected => RpcError::Disconnected,
-            Error::NotSupported => RpcError::NotSupported,
-            Error::DecodeError(x) => RpcError::DecodeError(format!("{}", x)),
-            Error::InvalidBinaryHeader => RpcError::InvalidBinaryHeader,
-            Error::NotTerminated => RpcError::NotTerminated,
-            Error::InvalidAddress => RpcError::InvalidAddress,
-            Error::Timeout => RpcError::Timeout,
-            Error::Vxi(x) => RpcError::Vxi(format!("{}", x)),
-            Error::Can { addr, err } => RpcError::Can { addr, err },
-            Error::InvalidRequest => RpcError::InvalidRequest,
-            Error::Sigrok(x) => RpcError::Sigrok(x),
-        }
-    }
 }
 
 pub type Server = WsrpcServer<Request, Response>;
@@ -130,7 +93,7 @@ impl App {
         addr: String,
         task: ScpiRequest,
         options: &InstrumentOptions,
-    ) -> Result<ScpiResponse, RpcError> {
+    ) -> Result<ScpiResponse, Error> {
         let addr = Address::parse(&addr)?;
         match self.inventory.connect(&self.server, &addr) {
             Instrument::Visa(instr) => {
@@ -158,7 +121,7 @@ impl App {
                         Ok(SerialResponse::Scpi(resp)) => Ok(resp),
                         Ok(_) => {
                             self.inventory.disconnect(&addr);
-                            Err(RpcError::NotSupported)
+                            Err(Error::NotSupported)
                         }
                         Err(x) => {
                             self.inventory.disconnect(&addr);
@@ -166,7 +129,7 @@ impl App {
                         }
                     }
                 }
-                _ => Err(RpcError::NotSupported),
+                _ => Err(Error::NotSupported),
             },
             Instrument::Vxi(mut instr) => {
                 let opt = match options {
@@ -181,7 +144,7 @@ impl App {
                     }
                 }
             }
-            _ => Err(RpcError::NotSupported),
+            _ => Err(Error::NotSupported),
         }
     }
 
@@ -263,11 +226,11 @@ impl App {
         }
     }
 
-    async fn handle_can(&self, addr: &str, task: CanRequest) -> Result<CanResponse, RpcError> {
+    async fn handle_can(&self, addr: &str, task: CanRequest) -> Result<CanResponse, Error> {
         let addr = Address::parse(&addr)?;
         let mut device = match self.inventory.connect(&self.server, &addr) {
             Instrument::Can(device) => device,
-            _ => return Err(RpcError::NotSupported),
+            _ => return Err(Error::NotSupported),
         };
         match device.request(task).await {
             Ok(x) => Ok(x),
@@ -293,11 +256,11 @@ impl App {
             Request::ListInstruments => Response::Instruments(self.inventory.list()),
             Request::ModBus { addr, task } => match self.handle_modbus(addr, task).await {
                 Ok(result) => Response::ModBus(result),
-                Err(err) => Response::Error(err.into()),
+                Err(err) => Response::Error(err),
             },
             Request::Bytes { addr, task } => match self.handle_bytes(&addr, task).await {
                 Ok(result) => Response::Bytes(result),
-                Err(err) => Response::Error(err.into()),
+                Err(err) => Response::Error(err),
             },
             Request::Can { addr, task } => match self.handle_can(&addr, task).await {
                 Ok(result) => Response::Can(result),
@@ -317,7 +280,7 @@ impl App {
                     self.inventory.disconnect(&addr);
                     Response::Done
                 }
-                Err(err) => Response::Error(err.into()),
+                Err(err) => Response::Error(err),
             },
             Request::Sigrok { addr, task } => {
                 let addr = match Address::parse(&addr) {
@@ -326,7 +289,7 @@ impl App {
                 };
                 let device = match addr {
                     Address::Sigrok { device } => device,
-                    _ => return Response::Error(RpcError::NotSupported)
+                    _ => return Response::Error(Error::NotSupported)
                 };
                 match sigrok::read(device, task).await {
                     Ok(resp) => Response::Sigrok(resp),

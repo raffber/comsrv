@@ -9,7 +9,7 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task;
 
-use crate::app::{Response, RpcError, Server};
+use crate::app::{Response, Server};
 use crate::can::device::{CanSender, CanReceiver};
 use crate::can::gct::{Decoder, GctMessage};
 use crate::iotask::{IoHandler, IoTask};
@@ -290,7 +290,7 @@ impl Listener {
     }
 
     async fn err(&mut self, err: CanError) -> bool {
-        let send_err = RpcError::Can {
+        let send_err = crate::Error::Can {
             addr: self.device.address().into(),
             err: err.clone(),
         };

@@ -27,11 +27,11 @@ mod inventory;
 mod iotask;
 mod modbus;
 mod serial;
+mod sigrok;
 mod tcp;
 mod util;
 pub mod visa;
 mod vxi;
-mod sigrok;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ScpiRequest {
@@ -54,17 +54,25 @@ pub enum ScpiResponse {
     },
 }
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug, Clone, Serialize, Deserialize)]
 pub enum Error {
     #[error("Error while communicating with device: {0}")]
     Visa(VisaError),
     #[error("IO Error occurred: {0}")]
+    #[serde(
+        serialize_with = "serialize::io_error",
+        deserialize_with = "deserialize::io_error"
+    )]
     Io(Arc<io::Error>),
     #[error("Instrument is disconnected")]
     Disconnected,
     #[error("Operation not supported")]
     NotSupported,
     #[error("Cannot decode: {0}")]
+    #[serde(
+        serialize_with = "serialize::utf8_error",
+        deserialize_with = "deserialize::utf8_error"
+    )]
     DecodeError(FromUtf8Error),
     #[error("Invalid binary header")]
     InvalidBinaryHeader,
@@ -77,6 +85,10 @@ pub enum Error {
     #[error("Timeout Occured")]
     Timeout,
     #[error("Vxi11 Error")]
+    #[serde(
+        serialize_with = "serialize::vxi_error",
+        deserialize_with = "deserialize::vxi_error"
+    )]
     Vxi(Arc<async_vxi11::Error>),
     #[error("CAN Error from [{addr}]: {err}")]
     Can { addr: String, err: CanError },
@@ -116,3 +128,62 @@ impl From<io::Error> for Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+mod serialize {
+    use serde::Serializer;
+    use std::string::FromUtf8Error;
+    use std::sync::Arc;
+    use crate::io;
+
+    pub fn io_error<S>(data: &Arc<io::Error>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&data.to_string())
+    }
+
+
+    pub fn utf8_error<S>(data: &FromUtf8Error, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+    {
+        serializer.serialize_str(&data.to_string())
+    }
+
+
+    pub fn vxi_error<S>(data: &Arc<async_vxi11::Error>, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+    {
+        serializer.serialize_str(&format!("{}", &*data))
+    }
+}
+
+mod deserialize {
+    use std::io;
+
+    use serde::Deserializer;
+    use std::string::FromUtf8Error;
+    use std::sync::Arc;
+
+    pub fn io_error<'a, D>(_: D) -> Result<Arc<io::Error>, D::Error>
+    where
+        D: Deserializer<'a>,
+    {
+        panic!()
+    }
+
+    pub fn utf8_error<'a, D>(_: D) -> Result<FromUtf8Error, D::Error>
+        where
+            D: Deserializer<'a>,
+    {
+        panic!()
+    }
+
+    pub fn vxi_error<'a, D>(_: D) -> Result<Arc<async_vxi11::Error>, D::Error>
+        where
+            D: Deserializer<'a>,
+    {
+        panic!()
+    }
+}
