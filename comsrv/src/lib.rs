@@ -30,6 +30,7 @@ mod tcp;
 mod util;
 pub mod visa;
 mod vxi;
+mod sigrok;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ScpiRequest {
@@ -78,6 +79,10 @@ pub enum Error {
     Vxi(Arc<async_vxi11::Error>),
     #[error("CAN Error from [{addr}]: {err}")]
     Can { addr: String, err: CanError },
+    #[error("Child process failed: {0}")]
+    ProcessFailed(String),
+    #[error("Unexpected process output")]
+    UnexpectedProcessOutput,
 }
 
 impl Error {

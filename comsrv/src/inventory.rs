@@ -36,7 +36,7 @@ impl Inventory {
         if let Some(ret) = inner.instruments.get(&addr.handle_id()) {
             return ret.clone();
         }
-        let new_instr = Instrument::connect(&server, addr);
+        let new_instr = Instrument::connect(&server, addr).unwrap();
         inner
             .instruments
             .insert(addr.handle_id(), new_instr.clone());
