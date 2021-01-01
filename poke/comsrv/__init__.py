@@ -19,7 +19,7 @@ _default_http_port = 5903
 _default_host = '127.0.0.1'
 
 
-def setup_default_comsrv(host=None, http_port=None, ws_port=None):
+def setup_default(host=None, http_port=None, ws_port=None):
     global _default_host
     global _default_http_port
     global _default_ws_port
