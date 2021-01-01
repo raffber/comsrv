@@ -12,7 +12,7 @@ use crate::modbus::{ModBusRequest, ModBusResponse};
 use crate::serial::{Request as SerialRequest, Response as SerialResponse, SerialParams};
 use crate::visa::{VisaError, VisaOptions};
 use crate::{Error, ScpiRequest, ScpiResponse, sigrok};
-use crate::sigrok::{SigrokRequest, SigrokResponse};
+use crate::sigrok::{SigrokRequest, SigrokResponse, SigrokError};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
@@ -72,8 +72,7 @@ pub enum RpcError {
     Timeout,
     Vxi(String),
     Can { addr: String, err: CanError },
-    ProcessFailed(String),
-    UnexpectedProcessOutput,
+    Sigrok(SigrokError),
 }
 
 impl From<Error> for RpcError {
@@ -91,8 +90,7 @@ impl From<Error> for RpcError {
             Error::Vxi(x) => RpcError::Vxi(format!("{}", x)),
             Error::Can { addr, err } => RpcError::Can { addr, err },
             Error::InvalidRequest => RpcError::InvalidRequest,
-            Error::ProcessFailed(x) => RpcError::ProcessFailed(x),
-            Error::UnexpectedProcessOutput => RpcError::UnexpectedProcessOutput,
+            Error::Sigrok(x) => RpcError::Sigrok(x),
         }
     }
 }

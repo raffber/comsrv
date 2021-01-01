@@ -1,9 +1,25 @@
+use std::collections::HashMap;
 use std::io::Read;
 use std::process::{Command, Stdio};
 
+use bitvec::order::Lsb0;
+use bitvec::vec::BitVec;
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
+use thiserror::Error;
 use tokio::task;
+
+#[derive(Error, Debug, Clone, Serialize, Deserialize)]
+pub enum SigrokError {
+    #[error("Unexpected output: {code}")]
+    UnexpectedOutput {
+        code: i32,
+        stdout: String,
+        stderr: String,
+    },
+    #[error("Invalid Output")]
+    InvalidOutput,
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Acquire {
@@ -20,15 +36,10 @@ pub struct SigrokRequest {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Channel {
-    name: String,
-    data: Vec<u8>,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
 pub struct Data {
     tsample: f64,
-    channels: Vec<Channel>,
+    length: usize,
+    channels: HashMap<String, Vec<u8>>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -59,10 +70,15 @@ fn run_command(args: &[&str]) -> crate::Result<String> {
     let child = cmd.spawn().map_err(crate::Error::io)?;
     let output = child.wait_with_output().map_err(crate::Error::io)?;
     let stdout = String::from_utf8(output.stdout).map_err(crate::Error::DecodeError)?;
+    let stderr = String::from_utf8(output.stderr).map_err(crate::Error::DecodeError)?;
     let code = output.status.code().unwrap_or(-1);
     if code != 0 {
-        let msg = format!("Return Code: {}", code);
-        return Err(crate::Error::ProcessFailed(msg));
+        let se = SigrokError::UnexpectedOutput {
+            code,
+            stdout,
+            stderr,
+        };
+        return Err(crate::Error::Sigrok(se));
     }
     Ok(stdout)
 }
@@ -86,11 +102,11 @@ fn do_list() -> crate::Result<SigrokResponse> {
         let device = Device {
             addr: parts
                 .next()
-                .ok_or(crate::Error::UnexpectedProcessOutput)?
+                .ok_or(crate::Error::Sigrok(SigrokError::InvalidOutput))?
                 .to_string(),
             desc: parts
                 .next()
-                .ok_or(crate::Error::UnexpectedProcessOutput)?
+                .ok_or(crate::Error::Sigrok(SigrokError::InvalidOutput))?
                 .to_string(),
         };
         ret.push(device)
@@ -123,16 +139,58 @@ fn do_read(device: String, req: SigrokRequest) -> crate::Result<Data> {
     let mut tempfile = NamedTempFile::new()?;
     let fpath = tempfile.path().to_str().unwrap();
     args.push("--output-format");
-    args.push("vcd");
+    args.push("csv:label=channel:header=false");
     args.push("--output-file");
     args.push(fpath);
     run_command(&args)?;
 
-    let mut vcd = String::new();
-    tempfile.read_to_string(&mut vcd)?;
-    log::debug!("{}", vcd);
+    let mut csv = String::new();
+    tempfile.read_to_string(&mut csv)?;
+    let (channels, length) = parse_csv(csv)?;
     Ok(Data {
-        tsample: 0.0,
-        channels: vec![],
+        tsample: 1.0 / (req.sample_rate as f64),
+        length,
+        channels,
     })
+}
+
+pub fn parse_csv(data: String) -> crate::Result<(HashMap<String, Vec<u8>>, usize)> {
+    let mut ret = HashMap::new();
+    let mut cols = Vec::new();
+    let mut line_iter = data.split("\n");
+    let head = line_iter.next();
+    if head.is_none() {
+        return Err(crate::Error::Sigrok(SigrokError::InvalidOutput));
+    }
+    let head = head.unwrap();
+    let mut channels: Vec<_> = head.split(",").map(|x| x.to_string()).collect();
+    for _ in &channels {
+        let vec: BitVec<Lsb0, u8> = BitVec::new();
+        cols.push(vec);
+    }
+
+    let mut len = 0;
+    for line in line_iter {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        for (k, v) in line.split(",").enumerate() {
+            if k >= channels.len() {
+                return Err(crate::Error::Sigrok(SigrokError::InvalidOutput));
+            }
+            let v = match v {
+                "0" => false,
+                "1" => true,
+                _ => return Err(crate::Error::Sigrok(SigrokError::InvalidOutput)),
+            };
+            cols[k].push(v)
+        }
+        len += 1;
+    }
+    for (k, ch) in channels.drain(..).enumerate() {
+        let data = cols[k].as_bitslice().as_slice().to_vec();
+        ret.insert(ch, data);
+    }
+    Ok((ret, len))
 }

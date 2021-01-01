@@ -16,6 +16,7 @@ use thiserror::Error;
 use visa::VisaError;
 
 use crate::can::CanError;
+use crate::sigrok::SigrokError;
 
 pub mod app;
 mod bytestream;
@@ -79,10 +80,8 @@ pub enum Error {
     Vxi(Arc<async_vxi11::Error>),
     #[error("CAN Error from [{addr}]: {err}")]
     Can { addr: String, err: CanError },
-    #[error("Child process failed: {0}")]
-    ProcessFailed(String),
-    #[error("Unexpected process output")]
-    UnexpectedProcessOutput,
+    #[error("Sigrok error: {0}")]
+    Sigrok(SigrokError),
 }
 
 impl Error {
