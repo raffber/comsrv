@@ -1,11 +1,9 @@
 use std::collections::HashMap;
-use std::io::Read;
 use std::process::{Command, Stdio};
 
 use bitvec::order::Lsb0;
 use bitvec::vec::BitVec;
 use serde::{Deserialize, Serialize};
-use tempfile::NamedTempFile;
 use thiserror::Error;
 use tokio::task;
 
@@ -135,17 +133,10 @@ fn do_read(device: String, req: SigrokRequest) -> crate::Result<Data> {
         }
     };
     args.push(&acq);
-
-    let mut tempfile = NamedTempFile::new()?;
-    let fpath = tempfile.path().to_str().unwrap();
     args.push("--output-format");
     args.push("csv:label=channel:header=false");
-    args.push("--output-file");
-    args.push(fpath);
-    run_command(&args)?;
+    let csv = run_command(&args)?;
 
-    let mut csv = String::new();
-    tempfile.read_to_string(&mut csv)?;
     let (channels, length) = parse_csv(csv)?;
     Ok(Data {
         tsample: 1.0 / (req.sample_rate as f64),
