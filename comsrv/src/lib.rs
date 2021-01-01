@@ -16,6 +16,7 @@ use thiserror::Error;
 use visa::VisaError;
 
 use crate::can::CanError;
+use crate::sigrok::SigrokError;
 
 pub mod app;
 mod bytestream;
@@ -30,6 +31,7 @@ mod tcp;
 mod util;
 pub mod visa;
 mod vxi;
+mod sigrok;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ScpiRequest {
@@ -78,6 +80,8 @@ pub enum Error {
     Vxi(Arc<async_vxi11::Error>),
     #[error("CAN Error from [{addr}]: {err}")]
     Can { addr: String, err: CanError },
+    #[error("Sigrok error: {0}")]
+    Sigrok(SigrokError),
 }
 
 impl Error {

@@ -11,7 +11,8 @@ use crate::inventory::Inventory;
 use crate::modbus::{ModBusRequest, ModBusResponse};
 use crate::serial::{Request as SerialRequest, Response as SerialResponse, SerialParams};
 use crate::visa::{VisaError, VisaOptions};
-use crate::{Error, ScpiRequest, ScpiResponse};
+use crate::{Error, ScpiRequest, ScpiResponse, sigrok};
+use crate::sigrok::{SigrokRequest, SigrokResponse, SigrokError};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
@@ -34,6 +35,11 @@ pub enum Request {
         addr: String,
         task: CanRequest,
     },
+    Sigrok {
+        addr: String,
+        task: SigrokRequest,
+    },
+    ListSigrokDevices,
     ListInstruments,
     DropAll,
     Drop(String),
@@ -48,6 +54,7 @@ pub enum Response {
     Bytes(ByteStreamResponse),
     ModBus(ModBusResponse),
     Can(CanResponse),
+    Sigrok(SigrokResponse),
     Done,
 }
 
@@ -65,6 +72,7 @@ pub enum RpcError {
     Timeout,
     Vxi(String),
     Can { addr: String, err: CanError },
+    Sigrok(SigrokError),
 }
 
 impl From<Error> for RpcError {
@@ -82,6 +90,7 @@ impl From<Error> for RpcError {
             Error::Vxi(x) => RpcError::Vxi(format!("{}", x)),
             Error::Can { addr, err } => RpcError::Can { addr, err },
             Error::InvalidRequest => RpcError::InvalidRequest,
+            Error::Sigrok(x) => RpcError::Sigrok(x),
         }
     }
 }
@@ -310,6 +319,26 @@ impl App {
                 }
                 Err(err) => Response::Error(err.into()),
             },
+            Request::Sigrok { addr, task } => {
+                let addr = match Address::parse(&addr) {
+                    Ok(addr) => addr,
+                    Err(err) => return Response::Error(err.into())
+                };
+                let device = match addr {
+                    Address::Sigrok { device } => device,
+                    _ => return Response::Error(RpcError::NotSupported)
+                };
+                match sigrok::read(device, task).await {
+                    Ok(resp) => Response::Sigrok(resp),
+                    Err(err) => Response::Error(err.into())
+                }
+            }
+            Request::ListSigrokDevices => {
+                match sigrok::list().await {
+                    Ok(resp) => Response::Sigrok(resp),
+                    Err(err) => Response::Error(err.into())
+                }
+            }
         }
     }
 }

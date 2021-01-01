@@ -71,6 +71,7 @@ pub enum Address {
     Vxi { addr: IpAddr },
     Tcp { addr: SocketAddr },
     Can { addr: CanAddress },
+    Sigrok { device: String },
 }
 
 impl Address {
@@ -135,6 +136,11 @@ impl Address {
                 return Err(Error::InvalidAddress);
             };
             Ok(Address::Can { addr: can_addr })
+        } else if splits[0].to_lowercase() == "sigrok" {
+            if splits.len() > 2 {
+                return Err(Error::InvalidAddress);
+            }
+            Ok(Address::Sigrok { device: splits[1].clone() })
         } else {
             let splits: Vec<_> = splits
                 .iter()
@@ -156,6 +162,7 @@ impl Address {
             Address::Vxi { addr } => HandleId::new(addr.to_string()),
             Address::Tcp { addr } => HandleId::new(addr.to_string()),
             Address::Can { addr } => HandleId::new(addr.interface()),
+            Address::Sigrok { device } => {HandleId::new(device.to_string())}
         }
     }
 }
@@ -173,6 +180,7 @@ impl Into<String> for Address {
             Address::Tcp { addr } => format!("tcp::{}", addr),
             Address::Vxi { addr } => format!("vxi::{}", addr),
             Address::Can { addr } => format!("can::{}", addr),
+            Address::Sigrok { device } => format!("sigrok::{}", device),
         }
     }
 }
@@ -185,8 +193,8 @@ impl Display for Address {
 }
 
 impl Instrument {
-    pub fn connect(server: &Server, addr: &Address) -> Instrument {
-        match addr {
+    pub fn connect(server: &Server, addr: &Address) -> Option<Instrument> {
+        let ret = match addr {
             Address::Visa { splits } => {
                 let addr = splits.join("::");
                 let instr = VisaInstrument::connect(addr);
@@ -204,7 +212,9 @@ impl Instrument {
             Address::Tcp { addr } => Instrument::Tcp(TcpInstrument::new(addr.clone())),
             Address::Vxi { addr } => Instrument::Vxi(VxiInstrument::new(addr.clone())),
             Address::Can { addr } => Instrument::Can(CanInstrument::new(server, addr.clone())),
-        }
+            Address::Sigrok { .. } => { return None; },
+        };
+        Some(ret)
     }
 
     pub fn disconnect(self) {

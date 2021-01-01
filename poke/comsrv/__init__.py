@@ -42,10 +42,10 @@ def get_default_ws_url():
     return 'ws://{}:{}'.format(_default_host, _default_ws_port)
 
 
-async def get(addr, data):
+async def get(url, data):
     data = json.dumps(data).encode()
     async with ClientSession() as session:
-        async with session.get(addr, data=data) as resp:
+        async with session.get(url, data=data) as resp:
             data = json.loads(await resp.text())
             if resp.status != 200:
                 raise ComSrvException(data)
@@ -100,3 +100,4 @@ from .modbus import ModBusDevice
 from .serial import SerialPipe
 from .can import CanBus
 from .scpi import ScpiPipe, SerialScpiPipe
+from .sigrok import SigrokDevice
