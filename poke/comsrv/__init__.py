@@ -75,7 +75,7 @@ class ComSrv(object):
 
     async def drop_all(self):
         result = await get(self._url, {
-            'Drop': None
+            'DropAll': None
         })
         if 'Error' in result:
             raise ComSrvException(result['Error'])

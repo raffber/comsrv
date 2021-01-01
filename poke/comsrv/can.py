@@ -1,7 +1,8 @@
+from typing import Optional
+
 from poke.can import CanException, CanMessage, GctMessage
 from poke.comsrv import get_default_ws_url, ComSrvException
-from pywsrpc.client import Client, Receiver
-from typing import Optional
+from pywsrpc.client import Client
 
 
 def gct_filter(msg):
@@ -36,14 +37,15 @@ class CanBus(object):
         self._device = device
 
     async def connect(self, url=None):
+        if not self._client.connected:
+            return self
         if url is None:
             url = get_default_ws_url()
         await self._client.connect(url)
         return self
 
     async def rpc(self, task):
-        if not self._client.connected:
-            await self._client.connect(get_default_ws_url())
+        await self.connect()
         resp = await self._client.query({'Can': {'addr': self._device, 'task': task}})
         if 'Error' in resp:
             if 'Can' in resp['Error']:
@@ -76,9 +78,6 @@ class CanBus(object):
     async def gct(self):
         await self.rpc({'ListenGct': True})
         return self._client.listen(gct_filter)
-
-    def unregister(self, rx: Receiver):
-        self._client.unregister(rx)
 
     @property
     def client(self):
