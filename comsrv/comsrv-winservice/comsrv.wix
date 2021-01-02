@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Product Id="*"
+            Name="comsrv"
+            Language="1033"
+            Version="0.0.2.0"
+            Manufacturer="raffber"
+            UpgradeCode="59e274f2-3c63-4993-8cf8-0c337912a7f9">
+
+        <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
+
+        <MajorUpgrade DowngradeErrorMessage="A newer version of comsrv is already installed." />
+        <MediaTemplate EmbedCab="yes"/>
+
+        <Feature Id="ProductFeature"
+                Title="comsrv"
+                Level="1">
+            <ComponentGroupRef Id="ProductComponents" />
+        </Feature>
+    </Product>
+
+    <Fragment>
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFilesFolder">
+                <Directory Id="INSTALLFOLDER" Name="comsrv" />
+            </Directory>
+        </Directory>
+    </Fragment>
+
+    <Fragment>
+        <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+            <Component Id="ProductComponent"> 
+                <File  Id="WindowsServiceEXE" 
+                        Name="comsrv-winservice.exe"
+                        DiskId="1"
+                        Source="target\release\comsrv-winservice.exe" 
+                        Vital="yes"
+                        KeyPath="yes" />
+                
+                <ServiceInstall Id="ServiceInstaller"
+                        Type="ownProcess"
+                        Vital="yes"
+                        Name="comsrv"
+                        DisplayName="comsrv"
+                        Description="Communication Server "
+                        Start="auto"
+                        Account="LocalSystem"
+                        ErrorControl="normal"
+                        Interactive="no" />
+        
+                <ServiceControl Id="StartService" 
+                        Stop="both"
+                        Start="install"
+                        Remove="uninstall"
+                        Name="comsrv"
+                        Wait="yes" />
+            </Component>
+        </ComponentGroup>
+    </Fragment>
+</Wix>
