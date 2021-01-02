@@ -9,25 +9,29 @@ use comsrv::app::App;
 use tokio::runtime::Runtime;
 use std::time::Duration;
 use tokio::task;
+use std::net::SocketAddr;
 
-define_windows_service!(ffi_service_main, my_service_main);
+define_windows_service!(ffi_service_main, service_main);
 
 const SERVICE_NAME: &'static str = "comsrv";
 
 
-fn my_service_main(arguments: Vec<OsString>) {
+fn service_main(arguments: Vec<OsString>) {
     if let Err(_e) = run_service(arguments) {
         // Handle error in some way.
     }
 }
 
-fn run_service(arguments: Vec<OsString>) -> windows_service::Result<()> {
+fn run_service(_: Vec<OsString>) -> windows_service::Result<()> {
     let (app, rx) = App::new();
     let app2 = app.clone();
     let event_handler = move |control_event| -> ServiceControlHandlerResult {
         match control_event {
             ServiceControl::Stop => {
-                task::spawn(app2.clone().shutdown());
+                let app3 = app2.clone();
+                task::spawn(async move {
+                    app3.shutdown().await;
+                });
                 ServiceControlHandlerResult::NoError
             }
             // All services must accept Interrogate even if it's a no-op.
@@ -37,28 +41,27 @@ fn run_service(arguments: Vec<OsString>) -> windows_service::Result<()> {
     };
     let status_handle = service_control_handler::register(SERVICE_NAME, event_handler)?;
     let next_status = ServiceStatus {
-        // Should match the one from system service registry
         service_type: ServiceType::OWN_PROCESS,
-        // The new state
         current_state: ServiceState::Running,
-        // Accept stop events when running
         controls_accepted: ServiceControlAccept::STOP,
-        // Used to report an error when starting or stopping only, otherwise must be zero
         exit_code: ServiceExitCode::Win32(0),
-        // Only used for pending states, otherwise must be zero
         checkpoint: 0,
-        // Only used for pending states, otherwise must be zero
         wait_hint: Duration::default(),
-        // Unused for setting status
         process_id: None,
     };
-
-    // Tell the system that the service is running now
     status_handle.set_service_status(next_status)?;
 
     let mut rt = Runtime::new().unwrap();
-    rt.block_on(app.run(rx));
-    // Register system service event handler
+    rt.block_on(async move {
+        let port = 5902_u16;
+        let url = format!("0.0.0.0:{}", port);
+        let http_addr: SocketAddr = format!("0.0.0.0:{}", port + 1).parse().unwrap();
+        app.server.enable_broadcast_reqrep(true);
+        app.server.listen_ws(url).await;
+        app.server.listen_http(http_addr).await;
+        app.run(rx).await;
+    });
+
     Ok(())
 }
 
