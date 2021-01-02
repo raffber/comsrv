@@ -243,6 +243,11 @@ impl App {
         }
     }
 
+    pub async fn shutdown(&self) {
+        self.inventory.disconnect_all();
+        self.server.shutdown().await;
+    }
+
     async fn handle_request(&self, req: Request) -> Response {
         match req {
             Request::Scpi {
@@ -271,8 +276,7 @@ impl App {
                 Response::Done
             }
             Request::Shutdown => {
-                self.inventory.disconnect_all();
-                self.server.shutdown().await;
+                self.shutdown().await;
                 Response::Done
             }
             Request::Drop(addr) => match Address::parse(&addr) {

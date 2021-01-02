@@ -1,0 +1,11 @@
+[package]
+authors = ["Raphael Bernhard <beraphae@gmail.com>"]
+edition = "2018"
+name = "comsrv-winservice"
+version = "0.1.0"
+
+[dependencies]
+windows-service = "0.3"
+comsrv = {path = ".."}
+tokio = { version = "0.2.22", features = ["rt-core"] }
+
