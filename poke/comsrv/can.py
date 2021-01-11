@@ -37,7 +37,7 @@ class CanBus(object):
         self._device = device
 
     async def connect(self, url=None):
-        if not self._client.connected:
+        if self._client.connected:
             return self
         if url is None:
             url = get_default_ws_url()
