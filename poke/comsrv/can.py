@@ -46,7 +46,7 @@ class CanBus(object):
 
     async def rpc(self, task):
         await self.connect()
-        resp = await self._client.query({'Can': {'addr': self._device, 'task': task}})
+        resp = await self._client.request({'Can': {'addr': self._device, 'task': task}})
         if 'Error' in resp:
             if 'Can' in resp['Error']:
                 raise CanException(resp['Error']['Can'])
