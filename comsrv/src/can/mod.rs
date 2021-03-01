@@ -259,7 +259,7 @@ struct Listener {
 }
 
 impl Listener {
-    async fn rx_control(&mut self, msg: ListenerMsg) {
+    fn rx_control(&mut self, msg: ListenerMsg) {
         match msg {
             ListenerMsg::EnableGct(en) => {
                 if !self.listen_gct {
@@ -271,20 +271,20 @@ impl Listener {
                 self.listen_raw = en;
             }
             ListenerMsg::Ping => {}
-            ListenerMsg::Loopback(msg) => self.rx(msg).await,
+            ListenerMsg::Loopback(msg) => self.rx(msg),
         }
     }
 
-    async fn rx(&mut self, msg: Message) {
+    fn rx(&mut self, msg: Message) {
         log::debug!("Message recevied with id: {:x}", msg.id());
         if self.listen_raw {
             let tx = Response::Can(CanResponse::Raw(msg.clone()));
-            self.server.broadcast(tx).await;
+            self.server.broadcast(tx);
         }
         if self.listen_gct {
             if let Some(msg) = self.decoder.decode(msg) {
                 let msg = Response::Can(CanResponse::Gct(msg));
-                self.server.broadcast(msg).await;
+                self.server.broadcast(msg);
             }
         }
     }
@@ -294,7 +294,7 @@ impl Listener {
             addr: self.device.address().into(),
             err: err.clone(),
         };
-        self.server.broadcast(Response::Error(send_err)).await;
+        self.server.broadcast(Response::Error(send_err));
         // depending on error, continue listening or quit...
         match err {
             CanError::Io(_)
@@ -302,7 +302,7 @@ impl Listener {
             | CanError::InvalidBitRate
             | CanError::PCanError(_, _) => {
                 let tx = Response::Can(CanResponse::Stopped(self.device.address().interface()));
-                self.server.broadcast(tx).await;
+                self.server.broadcast(tx);
                 false
             }
             _ => true,
@@ -321,11 +321,11 @@ async fn listener_task(mut rx: UnboundedReceiver<ListenerMsg>, device: CanReceiv
     loop {
         tokio::select! {
             msg = rx.recv() => match msg {
-                Some(msg) => listener.rx_control(msg).await,
+                Some(msg) => listener.rx_control(msg),
                 None => break
             },
             msg = listener.device.recv() => match msg {
-                Ok(msg) => listener.rx(msg).await,
+                Ok(msg) => listener.rx(msg),
                 Err(err) => if !listener.err(err).await { break; }
             }
         }
