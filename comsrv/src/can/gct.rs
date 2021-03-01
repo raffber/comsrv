@@ -16,7 +16,7 @@ const MSGTYPE_MONITORING_REQUEST: u8 = 8;
 const MSGTYPE_DDP: u8 = 12;
 const MSGTYPE_HEARTBEAT: u8 = 14;
 
-const MAX_DDP_DATA_LEN: usize = 62; // 8 message * 8bytes - crc - cmd
+const MAX_DDP_DATA_LEN: usize = 61; // 8 message * 8bytes - crc - cmd
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum SysCtrlType {
