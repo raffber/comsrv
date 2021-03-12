@@ -8,6 +8,10 @@ use crate::Error;
 #[derive(Clone, Serialize, Deserialize)]
 pub enum ByteStreamRequest {
     Write(Vec<u8>),
+    ReadToTerm {
+        term: u8,
+        timeout_ms: u32,
+    },
     ReadExact {
         count: u32,
         timeout_ms: u32,
@@ -115,6 +119,7 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
         ByteStreamRequest::ReadLine { timeout_ms, term } => {
             check_term(term)?;
             let ret = read_to_term_timeout(stream, term, timeout_ms).await?;
+            let ret = String::from_utf8(ret).map_err(crate::Error::DecodeError)?;
             Ok(ByteStreamResponse::String(ret))
         }
         ByteStreamRequest::QueryLine {
@@ -126,7 +131,12 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             line.push(term as char);
             AsyncWriteExt::write_all(stream, line.as_bytes()).await?;
             let ret = read_to_term_timeout(stream, term, timeout_ms).await?;
+            let ret = String::from_utf8(ret).map_err(crate::Error::DecodeError)?;
             Ok(ByteStreamResponse::String(ret))
+        }
+        ByteStreamRequest::ReadToTerm { term, timeout_ms } => {
+            let ret = read_to_term_timeout(stream, term, timeout_ms).await?;
+            Ok(ByteStreamResponse::Data(ret))
         }
     }
 }
@@ -139,7 +149,7 @@ async fn read_to_term_timeout<T: AsyncReadExt + Unpin>(
     stream: &mut T,
     term: u8,
     timeout_ms: u32,
-) -> crate::Result<String> {
+) -> crate::Result<Vec<u8>> {
     let duration = Duration::from_millis(timeout_ms as u64);
     let fut = read_to_term(stream, term);
     match timeout(duration, fut).await {
@@ -148,7 +158,7 @@ async fn read_to_term_timeout<T: AsyncReadExt + Unpin>(
     }
 }
 
-async fn read_to_term<T: AsyncReadExt + Unpin>(stream: &mut T, term: u8) -> crate::Result<String> {
+async fn read_to_term<T: AsyncReadExt + Unpin>(stream: &mut T, term: u8) -> crate::Result<Vec<u8>> {
     let mut ret = Vec::new();
     loop {
         let x = pop(stream).await?;
@@ -157,7 +167,7 @@ async fn read_to_term<T: AsyncReadExt + Unpin>(stream: &mut T, term: u8) -> crat
         }
         ret.push(x);
     }
-    String::from_utf8(ret).map_err(crate::Error::DecodeError)
+    Ok(ret)
 }
 
 fn check_term(term: u8) -> crate::Result<()> {
