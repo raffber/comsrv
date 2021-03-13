@@ -3,7 +3,7 @@ from typing import Union
 from poke.comsrv import get_default_http_url, get, ComSrvException
 
 
-class SerialPipe(object):
+class ByteStreamPipe(object):
     def __init__(self, addr, url=None):
         if url is None:
             url = get_default_http_url()
@@ -26,6 +26,19 @@ class SerialPipe(object):
         result = await get(self._url, {'Bytes': {
             'addr': self._addr,
             'task': 'ReadAll'
+        }})
+        if 'Error' in result:
+            raise ComSrvException(result['Error'])
+        data = bytes(result['Bytes']['Data'])
+        return data
+
+    async def read_to_term(self, term: int, timeout: float) -> bytes:
+        result = await get(self._url, {'Bytes': {
+            'addr': self._addr,
+            'task': {'ReadToTerm': {
+                'term': term,
+                'timeout_ms': int(timeout * 1e3)
+            }}
         }})
         if 'Error' in result:
             raise ComSrvException(result['Error'])

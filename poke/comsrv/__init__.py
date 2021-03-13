@@ -97,7 +97,7 @@ class ComSrv(object):
 
 
 from .modbus import ModBusDevice
-from .serial import SerialPipe
+from .bytestream import ByteStreamPipe
 from .can import CanBus
 from .scpi import ScpiPipe, SerialScpiPipe
 from .sigrok import SigrokDevice

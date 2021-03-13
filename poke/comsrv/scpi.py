@@ -1,6 +1,6 @@
 import base64
 
-from poke.comsrv import get_default_http_url, get, ComSrvException, SerialPipe
+from poke.comsrv import get_default_http_url, get, ComSrvException, ByteStreamPipe
 from poke.scpi import Pipe as ScpiPipeBase
 
 
@@ -64,7 +64,7 @@ class ScpiPipe(ScpiPipeBase):
 class SerialScpiPipe(ScpiPipeBase):
     def __init__(self, addr, url=None, term='\n', timeout=1.0):
         super().__init__()
-        self._inner = SerialPipe(addr, url=url)
+        self._inner = ByteStreamPipe(addr, url=url)
         self._timeout = timeout
         self._term = term
 
