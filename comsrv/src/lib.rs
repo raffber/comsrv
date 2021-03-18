@@ -115,6 +115,7 @@ impl Error {
                     || err.kind() == io::ErrorKind::ConnectionAborted
                     || err.kind() == io::ErrorKind::BrokenPipe
                     || err.kind() == io::ErrorKind::TimedOut
+                    || err.kind() == io::ErrorKind::UnexpectedEof
             }
             _ => false,
         }
