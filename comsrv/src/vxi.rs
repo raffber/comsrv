@@ -1,11 +1,12 @@
-use std::net::IpAddr;
 use async_trait::async_trait;
 use async_vxi11::CoreClient;
-use tokio::time::{Duration, delay_for};
+use std::net::IpAddr;
+use tokio::time::{delay_for, Duration};
 
 use crate::iotask::{IoHandler, IoTask};
+use crate::scpi::{ScpiRequest, ScpiResponse};
 use crate::visa::VisaOptions;
-use crate::{util, Error, ScpiRequest, ScpiResponse};
+use crate::{scpi, Error};
 
 const DEFAULT_TERMINATION: &'static str = "\n";
 
@@ -85,7 +86,9 @@ impl IoHandler for Handler {
 
 async fn connect(addr: IpAddr) -> crate::Result<CoreClient> {
     let fut = CoreClient::connect(addr);
-    let ret = tokio::time::timeout(DEFAULT_TIMEOUT, fut).await.map_err(|_| crate::Error::Timeout)?;
+    let ret = tokio::time::timeout(DEFAULT_TIMEOUT, fut)
+        .await
+        .map_err(|_| crate::Error::Timeout)?;
     ret.map_err(Error::vxi)
 }
 
@@ -134,7 +137,7 @@ async fn handle_request(
                 .await
                 .map_err(Error::vxi)?;
             let rx = client.device_read().await.map_err(Error::vxi)?;
-            let (offset, length) = util::parse_binary_header(&rx)?;
+            let (offset, length) = scpi::parse_binary_header(&rx)?;
             let ret = rx[offset..offset + length].iter().cloned().collect();
             Ok(ScpiResponse::Binary { data: ret })
         }

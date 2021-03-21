@@ -3,8 +3,8 @@ use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::net::SocketAddr;
 
-use std::net::IpAddr;
 use serde::{Deserialize, Serialize};
+use std::net::IpAddr;
 
 use crate::app::Server;
 use crate::can::{CanAddress, Instrument as CanInstrument};
@@ -140,7 +140,9 @@ impl Address {
             if splits.len() > 2 {
                 return Err(Error::InvalidAddress);
             }
-            Ok(Address::Sigrok { device: splits[1].clone() })
+            Ok(Address::Sigrok {
+                device: splits[1].clone(),
+            })
         } else {
             let splits: Vec<_> = splits
                 .iter()
@@ -162,7 +164,7 @@ impl Address {
             Address::Vxi { addr } => HandleId::new(addr.to_string()),
             Address::Tcp { addr } => HandleId::new(addr.to_string()),
             Address::Can { addr } => HandleId::new(addr.interface()),
-            Address::Sigrok { device } => {HandleId::new(device.to_string())}
+            Address::Sigrok { device } => HandleId::new(device.to_string()),
         }
     }
 }
@@ -212,7 +214,9 @@ impl Instrument {
             Address::Tcp { addr } => Instrument::Tcp(TcpInstrument::new(addr.clone())),
             Address::Vxi { addr } => Instrument::Vxi(VxiInstrument::new(addr.clone())),
             Address::Can { addr } => Instrument::Can(CanInstrument::new(server, addr.clone())),
-            Address::Sigrok { .. } => { return None; },
+            Address::Sigrok { .. } => {
+                return None;
+            }
         };
         Some(ret)
     }
@@ -231,42 +235,42 @@ impl Instrument {
     pub fn into_visa(self) -> Option<VisaInstrument> {
         match self {
             Instrument::Visa(instr) => Some(instr),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn into_modbus(self) -> Option<ModBusInstrument> {
         match self {
             Instrument::Modbus(instr) => Some(instr),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn into_serial(self) -> Option<SerialInstrument> {
         match self {
             Instrument::Serial(instr) => Some(instr),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn into_tcp(self) -> Option<TcpInstrument> {
         match self {
             Instrument::Tcp(instr) => Some(instr),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn into_vxi(self) -> Option<VxiInstrument> {
         match self {
             Instrument::Vxi(instr) => Some(instr),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn into_can(self) -> Option<CanInstrument> {
         match self {
             Instrument::Can(instr) => Some(instr),
-            _ => None
+            _ => None,
         }
     }
 }

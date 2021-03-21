@@ -1,8 +1,8 @@
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
 use crate::iotask::{IoHandler, IoTask};
 use crate::Error;
-use std::net::SocketAddr;
 use async_trait::async_trait;
+use std::net::SocketAddr;
 use tokio::net::TcpStream;
 use tokio::time::{delay_for, Duration};
 

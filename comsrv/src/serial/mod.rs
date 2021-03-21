@@ -8,9 +8,10 @@ pub use params::SerialParams;
 
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
 use crate::iotask::{IoHandler, IoTask};
+use crate::scpi::{ScpiRequest, ScpiResponse};
 use crate::serial::params::{DataBits, Parity, StopBits};
 use crate::serial::prologix::{handle_prologix_request, init_prologix};
-use crate::{Error, ScpiRequest, ScpiResponse};
+use crate::Error;
 
 pub mod params;
 

@@ -1,4 +1,4 @@
-use async_can::{Sender, Receiver};
+use async_can::{Receiver, Sender};
 
 /// This module is responsible for mapping CAN functionality a device to different backends
 use crate::can::loopback::LoopbackDevice;
@@ -67,7 +67,6 @@ impl CanSender {
     }
 }
 
-
 #[cfg(target_os = "linux")]
 impl CanReceiver {
     pub fn new(addr: CanAddress) -> crate::Result<Self> {
@@ -111,10 +110,11 @@ impl CanReceiver {
     pub fn new(addr: CanAddress) -> crate::Result<Self> {
         match &addr {
             CanAddress::PCan { ifname, bitrate } => {
-                let device = Receiver::connect(ifname, *bitrate).map_err(|x| crate::Error::Can {
-                    addr: addr.interface(),
-                    err: x.into(),
-                })?;
+                let device =
+                    Receiver::connect(ifname, *bitrate).map_err(|x| crate::Error::Can {
+                        addr: addr.interface(),
+                        err: x.into(),
+                    })?;
                 Ok(Self::Bus { device, addr })
             }
             CanAddress::Socket(_) => Err(crate::Error::NotSupported),

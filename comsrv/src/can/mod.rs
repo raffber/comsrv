@@ -10,7 +10,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task;
 
 use crate::app::{Response, Server};
-use crate::can::device::{CanSender, CanReceiver};
+use crate::can::device::{CanReceiver, CanSender};
 use crate::can::gct::{Decoder, GctMessage};
 use crate::iotask::{IoHandler, IoTask};
 
@@ -310,7 +310,11 @@ impl Listener {
     }
 }
 
-async fn listener_task(mut rx: UnboundedReceiver<ListenerMsg>, device: CanReceiver, server: Server) {
+async fn listener_task(
+    mut rx: UnboundedReceiver<ListenerMsg>,
+    device: CanReceiver,
+    server: Server,
+) {
     let mut listener = Listener {
         listen_gct: false,
         listen_raw: false,

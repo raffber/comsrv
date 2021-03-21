@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use visa_sys::Instrument as VisaInstrument;
 pub use visa_sys::{VisaError, VisaResult};
 
-use crate::Error;
-use crate::{util, ScpiRequest, ScpiResponse};
+use crate::scpi::{ScpiRequest, ScpiResponse};
+use crate::{scpi, Error};
 
 mod consts;
 
@@ -88,7 +88,7 @@ impl Instrument {
         log::debug!("QueryBinary[{}]: `{}`", self.instr.addr(), msg.as_ref());
         self.write(msg, option).map_err(Error::Visa)?;
         let rx = self.read().map_err(Error::Visa)?;
-        let (offset, length) = util::parse_binary_header(&rx)?;
+        let (offset, length) = scpi::parse_binary_header(&rx)?;
         Ok(rx[offset..offset + length].iter().cloned().collect())
     }
 

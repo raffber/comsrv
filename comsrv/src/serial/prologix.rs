@@ -1,4 +1,5 @@
-use crate::{Error, ScpiRequest, ScpiResponse};
+use crate::scpi::{ScpiRequest, ScpiResponse};
+use crate::Error;
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::{delay_for, timeout};

@@ -1,18 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-
-use futures::channel::oneshot;
-use futures::future::Shared;
 use std::sync::Mutex;
 
 use crate::app::Server;
 use crate::instrument::{Address, HandleId, Instrument};
-use crate::Error;
-
-#[derive(Clone)]
-pub struct Connecting {
-    inner: Shared<oneshot::Receiver<Option<Error>>>,
-}
 
 struct InventoryShared {
     instruments: HashMap<HandleId, Instrument>,

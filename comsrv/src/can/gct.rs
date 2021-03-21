@@ -415,17 +415,25 @@ mod tests {
                 Message::Data(x) => {
                     result = decoder.decode(x);
                 }
-                Message::Remote(_) => { panic!() }
+                Message::Remote(_) => {
+                    panic!()
+                }
             }
         }
         let msg = result.unwrap();
         match msg {
-            GctMessage::Ddp { src, dst, data: rx_data } => {
+            GctMessage::Ddp {
+                src,
+                dst,
+                data: rx_data,
+            } => {
                 assert_eq!(data, rx_data);
                 assert_eq!(src, 12);
                 assert_eq!(dst, 34);
             }
-            _ => { panic!() }
+            _ => {
+                panic!()
+            }
         }
     }
 
@@ -439,14 +447,19 @@ mod tests {
 
     #[test]
     fn heartbeat() {
-        let hb = GctMessage::Heartbeat { src: 12, product_id: 0xABCD };
+        let hb = GctMessage::Heartbeat {
+            src: 12,
+            product_id: 0xABCD,
+        };
         let result = encode_decode_one(hb);
         match result {
             GctMessage::Heartbeat { src, product_id } => {
                 assert_eq!(src, 12);
                 assert_eq!(0xABCD, product_id);
             }
-            _ => { panic!() }
+            _ => {
+                panic!()
+            }
         }
     }
 
@@ -461,13 +474,20 @@ mod tests {
         let result = encode_decode_one(request);
 
         match result {
-            GctMessage::MonitoringRequest { src, dst, group_idx, readings } => {
+            GctMessage::MonitoringRequest {
+                src,
+                dst,
+                group_idx,
+                readings,
+            } => {
                 assert_eq!(src, 12);
                 assert_eq!(dst, 34);
                 assert_eq!(group_idx, 3);
                 assert_eq!(readings, 43);
             }
-            _ => { panic!() }
+            _ => {
+                panic!()
+            }
         }
     }
 
@@ -481,13 +501,18 @@ mod tests {
         };
         let result = encode_decode_one(msg);
         match result {
-            GctMessage::MonitoringData { src, group_idx, reading_idx, data } => {
+            GctMessage::MonitoringData {
+                src,
+                group_idx,
+                reading_idx,
+                data,
+            } => {
                 assert_eq!(src, 12);
                 assert_eq!(group_idx, 23);
                 assert_eq!(reading_idx, 53);
                 assert_eq!(data, vec![1, 2, 3, 4]);
             }
-            _ => panic!()
+            _ => panic!(),
         }
     }
 
@@ -498,18 +523,24 @@ mod tests {
             dst: 34,
             cmd: 452,
             tp: SysCtrlType::Value,
-            data: vec![1,2,3,4]
+            data: vec![1, 2, 3, 4],
         };
         let result = encode_decode_one(msg);
         match result {
-            GctMessage::SysCtrl { src, dst, cmd, tp, data } => {
+            GctMessage::SysCtrl {
+                src,
+                dst,
+                cmd,
+                tp,
+                data,
+            } => {
                 assert_eq!(src, 12);
                 assert_eq!(dst, 34);
                 assert_eq!(cmd, 452);
                 assert!(matches!(tp, SysCtrlType::Value));
-                assert_eq!(data, vec![1,2,3,4]);
+                assert_eq!(data, vec![1, 2, 3, 4]);
             }
-            _ => panic!()
+            _ => panic!(),
         }
     }
 }

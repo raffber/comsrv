@@ -9,10 +9,11 @@ use crate::instrument::InstrumentOptions;
 use crate::instrument::{Address, Instrument};
 use crate::inventory::Inventory;
 use crate::modbus::{ModBusRequest, ModBusResponse};
+use crate::scpi::{ScpiRequest, ScpiResponse};
 use crate::serial::{Request as SerialRequest, Response as SerialResponse, SerialParams};
-use crate::visa::VisaOptions;
-use crate::{Error, ScpiRequest, ScpiResponse, sigrok};
 use crate::sigrok::{SigrokRequest, SigrokResponse};
+use crate::visa::VisaOptions;
+use crate::{sigrok, Error};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
@@ -289,23 +290,21 @@ impl App {
             Request::Sigrok { addr, task } => {
                 let addr = match Address::parse(&addr) {
                     Ok(addr) => addr,
-                    Err(err) => return Response::Error(err.into())
+                    Err(err) => return Response::Error(err.into()),
                 };
                 let device = match addr {
                     Address::Sigrok { device } => device,
-                    _ => return Response::Error(Error::NotSupported)
+                    _ => return Response::Error(Error::NotSupported),
                 };
                 match sigrok::read(device, task).await {
                     Ok(resp) => Response::Sigrok(resp),
-                    Err(err) => Response::Error(err.into())
+                    Err(err) => Response::Error(err.into()),
                 }
             }
-            Request::ListSigrokDevices => {
-                match sigrok::list().await {
-                    Ok(resp) => Response::Sigrok(resp),
-                    Err(err) => Response::Error(err.into())
-                }
-            }
+            Request::ListSigrokDevices => match sigrok::list().await {
+                Ok(resp) => Response::Sigrok(resp),
+                Err(err) => Response::Error(err.into()),
+            },
         }
     }
 }

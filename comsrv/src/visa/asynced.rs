@@ -3,8 +3,9 @@ use std::thread;
 
 use tokio::sync::oneshot;
 
+use crate::scpi::{ScpiRequest, ScpiResponse};
 use crate::visa::{Instrument as BlockingInstrument, VisaOptions};
-use crate::{Error, ScpiRequest, ScpiResponse};
+use crate::Error;
 
 #[derive(Clone)]
 pub struct Instrument {

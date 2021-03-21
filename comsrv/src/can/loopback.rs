@@ -45,4 +45,3 @@ impl LoopbackDevice {
         LOOPBACK_ADAPTER.send(msg)
     }
 }
-
