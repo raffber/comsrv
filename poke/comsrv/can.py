@@ -44,6 +44,9 @@ class CanBus(object):
         await self._client.connect(url)
         return self
 
+    async def disconnect(self):
+        await self.client.disconnect()
+
     async def rpc(self, task):
         await self.connect()
         resp = await self._client.request({'Can': {'addr': self._device, 'task': task}})
