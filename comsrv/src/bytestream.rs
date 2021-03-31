@@ -127,6 +127,7 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             timeout_ms,
             term,
         } => {
+            empty_buf(stream).await;
             check_term(term)?;
             line.push(term as char);
             AsyncWriteExt::write_all(stream, line.as_bytes()).await?;
@@ -139,6 +140,12 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             Ok(ByteStreamResponse::Data(ret))
         }
     }
+}
+
+async fn empty_buf<T: AsyncRead + Unpin>(stream: &mut T) {
+    let mut ret = Vec::new();
+    let fut = AsyncReadExt::read_buf(stream, &mut ret);
+    let _ = timeout(Duration::from_micros(100), fut).await;
 }
 
 async fn pop<T: AsyncRead + Unpin>(stream: &mut T) -> crate::Result<u8> {
