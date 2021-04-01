@@ -4,9 +4,13 @@ use std::sync::Mutex;
 
 use crate::app::Server;
 use crate::instrument::{Address, HandleId, Instrument};
+use uuid::Uuid;
+use std::time::Duration;
 
 struct InventoryShared {
     instruments: HashMap<HandleId, Instrument>,
+    locks: HashMap<HandleId, tokio::sync::Mutex<()>>,
+    lock_ids: HashMap<Uuid, HandleId>,
 }
 
 #[derive(Clone)]
@@ -16,6 +20,8 @@ impl Inventory {
     pub fn new() -> Self {
         let inner = InventoryShared {
             instruments: Default::default(),
+            locks: Default::default(),
+            lock_ids: Default::default(),
         };
         let inner = Arc::new(Mutex::new(inner));
         let ret = Self(inner);
@@ -51,5 +57,17 @@ impl Inventory {
     pub fn list(&self) -> Vec<String> {
         let inner = self.0.lock().unwrap();
         inner.instruments.keys().map(|x| x.to_string()).collect()
+    }
+
+    pub async fn wait_for_lock(&self, addr: &Address, lock: &Option<Uuid>) {
+        todo!()
+    }
+
+    pub async fn lock(&self, addr: &Address, timeout: &Duration) -> Uuid {
+        todo!()
+    }
+
+    pub async fn unlock(&self, id: Uuid) {
+        todo!()
     }
 }
