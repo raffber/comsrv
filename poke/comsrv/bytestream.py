@@ -1,19 +1,9 @@
 from typing import Union
 
-from poke.comsrv import get_default_http_url, get, ComSrvException
+from poke.comsrv import get, ComSrvException, BasePipe
 
 
-class ByteStreamPipe(object):
-    def __init__(self, addr, url=None):
-        if url is None:
-            url = get_default_http_url()
-        self._url = url
-        self._addr = addr
-
-    @property
-    def url(self):
-        return self._url
-
+class ByteStreamPipe(BasePipe):
     async def write(self, data: bytes):
         result = await get(self._url, {'Bytes': {
             'addr': self._addr,

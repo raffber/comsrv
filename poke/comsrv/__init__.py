@@ -4,6 +4,7 @@ to instruments.
 """
 
 import json
+from typing import Union
 
 from aiohttp import ClientSession
 
@@ -50,6 +51,54 @@ async def get(url, data):
             if resp.status != 200:
                 raise ComSrvException(data)
             return data
+
+
+class BasePipe(object):
+    def __init__(self, addr, url=None):
+        if url is None:
+            url = get_default_http_url()
+        self._url = url
+        self._addr = addr
+        self._lock_time = 1.0
+        self._lock = None
+
+    @property
+    def url(self):
+        return self._url
+
+    @property
+    def lock_time(self):
+        return self._lock_time
+
+    @lock_time.setter
+    def lock_time(self, value: float):
+        self._lock_time = value
+
+    @property
+    def locked(self):
+        return self._lock is not None
+
+    async def lock(self, timeout: Union[float, None] = None):
+        await self.unlock()
+        lock_time = timeout or self._lock_time
+        reply = await get(self._url, {'Lock': {
+            'addr': self._addr,
+            'timeout_ms': int(lock_time * 1000),
+        }})
+        self._lock = reply['Locked']['lock_id']
+        return self
+
+    async def __aenter__(self):
+        return await self.lock()
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.unlock()
+
+    async def unlock(self):
+        if self._lock is None:
+            return
+        await get(self._url, {'Unlock': self._lock})
+        self._lock = None
 
 
 async def connect_client(url=None):

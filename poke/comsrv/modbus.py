@@ -1,15 +1,9 @@
 from typing import List
 
-from . import get_default_http_url, get, ComSrvException
+from . import get, ComSrvException, BasePipe
 
 
-class ModBusDevice(object):
-    def __init__(self, addr, url=None):
-        if url is None:
-            url = get_default_http_url()
-        self._url = url
-        self._addr = addr
-
+class ModBusDevice(BasePipe):
     async def write_registers(self, addr: int, data: List[int]):
         result = await get(self._url, {
             'ModBus': {

@@ -1,16 +1,10 @@
 import base64
 
-from poke.comsrv import get_default_http_url, get, ComSrvException, ByteStreamPipe
+from poke.comsrv import get, ComSrvException, ByteStreamPipe, BasePipe
 from poke.scpi import Pipe as ScpiPipeBase
 
 
-class ScpiPipe(ScpiPipeBase):
-    def __init__(self, addr: str, url=None):
-        if url is None:
-            url = get_default_http_url()
-        self._url = url
-        self._addr = addr
-
+class ScpiPipe(ScpiPipeBase, BasePipe):
     @property
     def url(self):
         return self._url
