@@ -45,7 +45,7 @@ pub enum Instrument {
     Can(CanInstrument),
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, Clone, PartialEq, Eq)]
 pub struct HandleId {
     inner: String,
 }

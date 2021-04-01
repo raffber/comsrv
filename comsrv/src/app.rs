@@ -14,8 +14,8 @@ use crate::serial::{Request as SerialRequest, Response as SerialResponse, Serial
 use crate::sigrok::{SigrokRequest, SigrokResponse};
 use crate::visa::VisaOptions;
 use crate::{sigrok, Error};
-use uuid::Uuid;
 use std::time::Duration;
+use uuid::Uuid;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
@@ -70,10 +70,7 @@ pub enum Response {
     ModBus(ModBusResponse),
     Can(CanResponse),
     Sigrok(SigrokResponse),
-    Locked {
-        addr: String,
-        lock_id: Uuid,
-    },
+    Locked { addr: String, lock_id: Uuid },
     Done,
 }
 
@@ -115,7 +112,7 @@ impl App {
         options: InstrumentOptions,
     ) -> Result<ScpiResponse, Error> {
         let addr = Address::parse(&addr)?;
-        self.inventory.wait_for_lock(&addr, &lock).await;
+        self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
         match self.inventory.connect(&self.server, &addr) {
             Instrument::Visa(instr) => {
                 let opt = match options {
@@ -176,7 +173,7 @@ impl App {
         lock: Option<Uuid>,
     ) -> Result<ModBusResponse, Error> {
         let addr = Address::parse(&addr)?;
-        self.inventory.wait_for_lock(&addr, &lock).await;
+        self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
         let mut instr = self
             .inventory
             .connect(&self.server, &addr)
@@ -242,7 +239,7 @@ impl App {
         lock: Option<Uuid>,
     ) -> Result<ByteStreamResponse, Error> {
         let addr = Address::parse(&addr)?;
-        self.inventory.wait_for_lock(&addr, &lock).await;
+        self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
         match &addr {
             Address::Serial { path: _, params } => self.handle_serial(&addr, params, task).await,
             Address::Tcp { .. } => self.handle_tcp(&addr, task).await,
@@ -250,13 +247,18 @@ impl App {
         }
     }
 
-    async fn handle_can(&self, addr: &str, task: CanRequest, lock: Option<Uuid>) -> Result<CanResponse, Error> {
+    async fn handle_can(
+        &self,
+        addr: &str,
+        task: CanRequest,
+        lock: Option<Uuid>,
+    ) -> Result<CanResponse, Error> {
         let addr = Address::parse(&addr)?;
         let mut device = match self.inventory.connect(&self.server, &addr) {
             Instrument::Can(device) => device,
             _ => return Err(Error::NotSupported),
         };
-        self.inventory.wait_for_lock(&addr, &lock).await;
+        self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
         match device.request(task).await {
             Ok(x) => Ok(x),
             Err(x) => {
@@ -279,21 +281,24 @@ impl App {
                 addr,
                 task,
                 lock,
-                options
+                options,
             } => match self.handle_scpi(addr, task, lock, options).await {
                 Ok(result) => Response::Scpi(result),
                 Err(err) => Response::Error(err),
             },
             Request::ListInstruments => Response::Instruments(self.inventory.list()),
-            Request::ModBus { addr, task , lock} => match self.handle_modbus(addr, task, lock).await {
-                Ok(result) => Response::ModBus(result),
-                Err(err) => Response::Error(err),
-            },
-            Request::Bytes { addr, task , lock} => match self.handle_bytes(&addr, task, lock).await {
+            Request::ModBus { addr, task, lock } => {
+                match self.handle_modbus(addr, task, lock).await {
+                    Ok(result) => Response::ModBus(result),
+                    Err(err) => Response::Error(err),
+                }
+            }
+            Request::Bytes { addr, task, lock } => match self.handle_bytes(&addr, task, lock).await
+            {
                 Ok(result) => Response::Bytes(result),
                 Err(err) => Response::Error(err),
             },
-            Request::Can { addr, task , lock} => match self.handle_can(&addr, task, lock).await {
+            Request::Can { addr, task, lock } => match self.handle_can(&addr, task, lock).await {
                 Ok(result) => Response::Can(result),
                 Err(err) => Response::Error(err),
             },
@@ -336,8 +341,11 @@ impl App {
                     Err(err) => return Response::Error(err.into()),
                 };
                 let timeout = Duration::from_millis(timeout_ms as u64);
-                let ret = self.inventory.lock(&addr, &timeout).await;
-                Response::Locked { addr: addr.to_string(), lock_id: ret }
+                let ret = self.inventory.lock(&self.server, &addr, timeout).await;
+                Response::Locked {
+                    addr: addr.to_string(),
+                    lock_id: ret,
+                }
             }
             Request::Unlock(id) => {
                 self.inventory.unlock(id).await;
