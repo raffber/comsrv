@@ -341,6 +341,7 @@ impl App {
                     Err(err) => return Response::Error(err.into()),
                 };
                 let timeout = Duration::from_millis(timeout_ms as u64);
+                self.inventory.wait_for_lock(&addr, None).await;
                 let ret = self.inventory.lock(&self.server, &addr, timeout).await;
                 Response::Locked {
                     addr: addr.to_string(),

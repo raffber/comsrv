@@ -112,7 +112,9 @@ impl Inventory {
                 _ => return,
             }
         };
+        log::debug!("Waiting for lock...");
         mutex.lock().await;
+        log::debug!("Lock acquired, proceeding.");
     }
 
     pub async fn lock(&self, server: &Server, addr: &Address, timeout: Duration) -> Uuid {
@@ -125,6 +127,7 @@ impl Inventory {
                 Some(mut instr) => {
                     if let Some(old_lock) = instr.lock.take() {
                         tokio::task::spawn(async move {
+                            log::debug!("Unlocking: {}", old_lock.id);
                             old_lock.release().await;
                         });
                     }
@@ -149,6 +152,7 @@ impl Inventory {
         let lock_id = ret.clone();
         let inv = self.clone();
         tokio::task::spawn(async move {
+            log::debug!("Locking: {}", lock_id);
             let locked = lock.mutex.lock().await;
             let _ = tx.send(());
 
@@ -183,6 +187,7 @@ impl Inventory {
             }
         };
         if let Some(lock) = lock {
+            log::debug!("Unlocking: {}", id);
             lock.release().await;
         }
     }
