@@ -13,7 +13,8 @@ class ScpiPipe(ScpiPipeBase, BasePipe):
         result = await get(self._url, {'Scpi': {
             'addr': self._addr,
             'task': {'QueryString': msg},
-            'options': {'Default': None}
+            'options': {'Default': None},
+            'lock': self._lock,
         }})
         if 'Error' in result:
             raise ComSrvException(result['Error'])
@@ -23,7 +24,8 @@ class ScpiPipe(ScpiPipeBase, BasePipe):
         result = await get(self._url, {'Scpi': {
             'addr': self._addr,
             'task': {'Write': msg},
-            'options': {'Default': None}
+            'options': {'Default': None},
+            'lock': self._lock,
         }})
         if 'Error' in result:
             raise ComSrvException(result['Error'])
@@ -33,7 +35,8 @@ class ScpiPipe(ScpiPipeBase, BasePipe):
             'Scpi': {
                 'addr': self._addr,
                 'task': {'QueryBinary': msg},
-                'options': {'Default': None}
+                'options': {'Default': None},
+                'lock': self._lock,
             }
         })
         if 'Error' in result:
@@ -46,7 +49,8 @@ class ScpiPipe(ScpiPipeBase, BasePipe):
             'Scpi': {
                 'addr': self._addr,
                 'task': 'ReadRaw',
-                'options': {'Default': None}
+                'options': {'Default': None},
+                'lock': self._lock,
             }
         })
         if 'Error' in result:

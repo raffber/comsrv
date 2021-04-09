@@ -12,6 +12,7 @@ class ModBusDevice(BasePipe):
                     'addr': addr,
                     'data': data
                 }},
+                'lock': self._lock,
             }
         })
         if 'Error' in result:
@@ -25,6 +26,7 @@ class ModBusDevice(BasePipe):
                     'addr': addr,
                     'data': data
                 }},
+                'lock': self._lock,
             }
         })
         if 'Error' in result:
@@ -39,6 +41,7 @@ class ModBusDevice(BasePipe):
                     'addr': addr,
                     'cnt': count
                 }},
+                'lock': self._lock,
             }
         })
         if 'Error' in result:
@@ -54,6 +57,7 @@ class ModBusDevice(BasePipe):
                     'addr': addr,
                     'cnt': count
                 }},
+                'lock': self._lock,
             }
         })
         if 'Error' in result:
@@ -69,6 +73,7 @@ class ModBusDevice(BasePipe):
                     'addr': addr,
                     'cnt': count
                 }},
+                'lock': self._lock,
             }
         })
         if 'Error' in result:
@@ -84,6 +89,7 @@ class ModBusDevice(BasePipe):
                     'addr': addr,
                     'cnt': count
                 }},
+                'lock': self._lock,
             }
         })
         if 'Error' in result:

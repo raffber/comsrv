@@ -7,7 +7,8 @@ class ByteStreamPipe(BasePipe):
     async def write(self, data: bytes):
         result = await get(self._url, {'Bytes': {
             'addr': self._addr,
-            'task': {'Write': list(data)}
+            'task': {'Write': list(data)},
+            'lock': self._lock
         }})
         if 'Error' in result:
             raise ComSrvException(result['Error'])
@@ -15,7 +16,8 @@ class ByteStreamPipe(BasePipe):
     async def read_all(self) -> bytes:
         result = await get(self._url, {'Bytes': {
             'addr': self._addr,
-            'task': 'ReadAll'
+            'task': 'ReadAll',
+            'lock': self._lock
         }})
         if 'Error' in result:
             raise ComSrvException(result['Error'])
@@ -28,7 +30,8 @@ class ByteStreamPipe(BasePipe):
             'task': {'ReadToTerm': {
                 'term': term,
                 'timeout_ms': int(timeout * 1e3)
-            }}
+            }},
+            'lock': self._lock,
         }})
         if 'Error' in result:
             raise ComSrvException(result['Error'])
@@ -41,7 +44,8 @@ class ByteStreamPipe(BasePipe):
             'task': {'ReadExact': {
                 'count': count,
                 'timeout_ms': int(timeout * 1e3)
-            }}
+            }},
+            'lock': self._lock
         }})
         if 'Error' in result:
             raise ComSrvException(result['Error'])
@@ -51,7 +55,8 @@ class ByteStreamPipe(BasePipe):
     async def read_upto(self, count: int) -> bytes:
         result = await get(self._url, {'Bytes': {
             'addr': self._addr,
-            'task': {'ReadUpTo': count}
+            'task': {'ReadUpTo': count},
+            'lock': self._lock
         }})
         if 'Error' in result:
             raise ComSrvException(result['Error'])
@@ -61,7 +66,8 @@ class ByteStreamPipe(BasePipe):
     async def cobs_write(self, data):
         result = await get(self._url, {'Bytes': {
             'addr': self._addr,
-            'task': {'CobsWrite': list(data)}
+            'task': {'CobsWrite': list(data)},
+            'lock': self._lock
         }})
         if 'Error' in result:
             raise ComSrvException(result['Error'])
@@ -70,8 +76,9 @@ class ByteStreamPipe(BasePipe):
         result = await get(self._url, {'Bytes': {
             'addr': self._addr,
             'task': {
-                'CobsQuery': int(timeout * 1e3)
-            }
+                'CobsQuery': int(timeout * 1e3),
+            },
+            'lock': self._lock,
         }})
         if 'Error' in result:
             raise ComSrvException(result['Error'])
@@ -86,7 +93,8 @@ class ByteStreamPipe(BasePipe):
                     'data': list(data),
                     'timeout_ms': int(timeout * 1e3)
                 }
-            }
+            },
+            'lock': self._lock,
         }})
         if 'Error' in result:
             raise ComSrvException(result['Error'])
@@ -104,7 +112,8 @@ class ByteStreamPipe(BasePipe):
                     'line': line,
                     'term': term
                 }
-            }
+            },
+            'lock': self._lock,
         }})
         if 'Error' in result:
             raise ComSrvException(result['Error'])
@@ -120,7 +129,8 @@ class ByteStreamPipe(BasePipe):
                     'term': term,
                     'timeout_ms': int(timeout * 1e3)
                 }
-            }
+            },
+            'lock': self._lock,
         }})
         if 'Error' in result:
             raise ComSrvException(result['Error'])
@@ -138,7 +148,8 @@ class ByteStreamPipe(BasePipe):
                     'term': term,
                     'timeout_ms': int(timeout * 1e3)
                 }
-            }
+            },
+            'lock': self._lock,
         }})
         if 'Error' in result:
             raise ComSrvException(result['Error'])
