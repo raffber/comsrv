@@ -68,17 +68,36 @@ class BasePipe(object):
 
     @property
     def lock_time(self):
+        """
+        Return the default lock time for an instrument.
+        This lock time is used when using the pipe as an async context manager.
+        :return:
+        """
         return self._lock_time
 
     @lock_time.setter
     def lock_time(self, value: float):
+        """
+        Setup the default lock time for an instrument.
+        This lock time is used when using the pipe as an async context manager.
+        """
         self._lock_time = value
 
     @property
     def locked(self):
+        """
+        Return True if a lock has been acquired
+        """
         return self._lock is not None
 
     async def lock(self, timeout: Union[float, None] = None):
+        """
+        Lock the instrument for a certain time. If the timeout is specified as `None`,
+        the value of `self.lock_time` is used.
+
+        :param timeout: The time to lock the instrument in seconds
+        :return: self
+        """
         await self.unlock()
         lock_time = timeout or self._lock_time
         reply = await get(self._url, {'Lock': {
@@ -89,16 +108,28 @@ class BasePipe(object):
         return self
 
     async def __aenter__(self):
+        """
+        Lock the instrument
+        :return: self
+        """
         return await self.lock()
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """
+        Unlock the instrument
+        """
         await self.unlock()
 
     async def unlock(self):
+        """
+        Unlock the instrument
+        :return: self
+        """
         if self._lock is None:
             return
         await get(self._url, {'Unlock': self._lock})
         self._lock = None
+        return self
 
 
 async def connect_client(url=None):
