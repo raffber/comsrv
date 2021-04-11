@@ -96,8 +96,10 @@ impl App {
         while let Some(msg) = rx.recv().await {
             let (req, rep) = msg.split();
             let app = self.clone();
+            log::debug!("Incoming Request: {}", serde_json::to_string(&req).unwrap());
             task::spawn(async move {
                 let response = app.handle_request(req).await;
+                log::debug!("Answering: {}", serde_json::to_string(&response).unwrap());
                 rep.answer(response);
             });
             log::debug!("Leaving request handler.");
