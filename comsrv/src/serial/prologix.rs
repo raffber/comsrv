@@ -12,8 +12,7 @@ pub async fn init_prologix(serial: &mut Serial) -> crate::Result<()> {
     write(serial, "++savecfg 0\n").await?;
     write(serial, "++auto 0\n").await?;
     // we manually append termination chars
-    write(serial, "++eos 3\n").await?;
-    write(serial, "++ifc 0\n").await
+    write(serial, "++eos 3\n").await
 }
 
 pub async fn handle_prologix_request(
@@ -24,7 +23,7 @@ pub async fn handle_prologix_request(
     log::debug!("handling prologix request for address {}", addr);
     let mut ret = Vec::with_capacity(128);
     let fut = AsyncReadExt::read(serial, &mut ret);
-    match timeout(Duration::from_micros(100), fut).await {
+    match timeout(Duration::from_millis(2), fut).await {
         Ok(x) => {
             x.map_err(Error::io)?;
         }
