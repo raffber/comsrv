@@ -42,6 +42,8 @@ class CanBus(object):
         if url is None:
             url = get_default_ws_url()
         await self._client.connect(url)
+        await self.listen_gct()
+        await self.listen_raw()
         return self
 
     async def disconnect(self):
@@ -74,12 +76,10 @@ class CanBus(object):
     async def listen_gct(self):
         await self.rpc({'ListenGct': True})
 
-    async def raw(self):
-        await self.rpc({'ListenRaw': True})
+    def raw(self):
         return self._client.listen(raw_filter)
 
-    async def gct(self):
-        await self.rpc({'ListenGct': True})
+    def gct(self):
         return self._client.listen(gct_filter)
 
     @property
