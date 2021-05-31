@@ -60,6 +60,8 @@ pub enum Error {
     NotTerminated,
     #[error("Invalid request data")]
     InvalidRequest,
+    #[error("Invalid response data was received from client device")]
+    InvalidResponse,
     #[error("Invalid Address")]
     InvalidAddress,
     #[error("Timeout Occured")]

@@ -2,11 +2,12 @@ use std::net::SocketAddr;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use tokio_modbus::client::{tcp, Context, Reader, Writer};
+use tokio_modbus::client::{tcp, Context, Reader, Writer, Client};
 
 use crate::iotask::{IoHandler, IoTask};
 use crate::Error;
 use tokio::time::{delay_for, Duration};
+use tokio_modbus::prelude::Response;
 
 fn is_one(x: &u16) -> bool {
     *x == 1
@@ -20,6 +21,7 @@ pub enum ModBusRequest {
     ReadHolding { addr: u16, cnt: u16 },
     WriteCoil { addr: u16, values: Vec<bool> },
     WriteRegister { addr: u16, data: Vec<u16> },
+    CustomCommand { code: u8, data: Vec<u8> },
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -27,6 +29,7 @@ pub enum ModBusResponse {
     Done,
     Number(Vec<u16>),
     Bool(Vec<bool>),
+    Custom(u8, Vec<u8>),
 }
 
 #[derive(Clone)]
@@ -122,5 +125,19 @@ async fn handle_request(ctx: &mut Context, req: ModBusRequest) -> crate::Result<
             .await
             .map_err(Error::io)
             .map(|_| ModBusResponse::Done),
+        ModBusRequest::CustomCommand { code, data } => {
+            use tokio_modbus::prelude::Request;
+            let resp = ctx.call(Request::Custom(code, data)).await
+                .map_err(Error::io)?;
+            match resp {
+                Response::Custom(code, data) => {
+                    Ok(ModBusResponse::Custom(code, data))
+                }
+                _ => {
+                    Err(Error::InvalidResponse)
+                }
+            }
+
+        }
     }
 }
