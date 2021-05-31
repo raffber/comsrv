@@ -95,3 +95,28 @@ class ModBusDevice(BasePipe):
         if 'Error' in result:
             raise ComSrvException(result['Error'])
         return result['ModBus']['Number']
+
+    async def send_custom_command(self, code: int, data: bytes):
+        """
+        Send a custom command with the given function code
+
+        :param code: The function code, typically 0x44
+        :param data: The data to be sent
+        :return: A tuple of (return function code, data)
+        """
+        assert 0 < code < 255
+
+        result = await get(self._url, {
+            'ModBus': {
+                'addr': self._addr,
+                'task': {'CustomCommand': {
+                    'code': code,
+                    'data': list(data)
+                }},
+                'lock': self._lock,
+            }
+        })
+        if 'Error' in result:
+            raise ComSrvException(result['Error'])
+        ret = result['ModBus']['Custom']
+        return ret['code'], ret['data']
