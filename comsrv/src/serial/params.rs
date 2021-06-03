@@ -64,14 +64,13 @@ pub struct SerialParams {
 }
 
 impl SerialParams {
-    pub fn from_string(addr: &str) -> Option<(String, SerialParams)> {
-        let splits: Vec<_> = addr.split("::").map(|x| x.to_string()).collect();
-        if splits.len() != 4 {
+    pub fn from_address(addr_parts: &[&str]) -> Option<(String, SerialParams)> {
+        if addr_parts.len() != 3 {
             return None;
         }
-        let path = splits[1].clone();
-        let baud_rate: u32 = splits[2].parse().ok()?;
-        let (bits, parity, stop) = parse_serial_settings(&splits[3])?;
+        let path = addr_parts[0].into();
+        let baud_rate: u32 = addr_parts[1].parse().ok()?;
+        let (bits, parity, stop) = parse_serial_settings(&splits[2])?;
         Some((
             path,
             SerialParams {
@@ -83,6 +82,19 @@ impl SerialParams {
         ))
     }
 }
+
+impl ToString for SerialParams {
+    fn to_string(&self) -> String {
+        format!("{}::{}{}{}", baud, data_bits, parity, stop_bits)
+    }
+}
+
+impl Display for SerialParams {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.to_string())
+    }
+}
+
 
 impl Into<SerialPortSettings> for SerialParams {
     fn into(self) -> SerialPortSettings {

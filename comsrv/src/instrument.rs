@@ -100,7 +100,12 @@ impl Address {
             })
         } else if splits[0].to_lowercase() == "serial" {
             // serial::/dev/ttyUSB0::9600::8N1
-            let (path, params) = SerialParams::from_string(&addr).ok_or(Error::InvalidAddress)?;
+            if len(splits) < 4 {
+                return Err(Error::InvalidAddress);
+            }
+            let new_splits: Vec<&str> = splits.iter().map(|x| x.as_ref()).collect();
+            let (path, params) = SerialParams::from_address(&new_splits[1..4])
+                .ok_or(Error::InvalidAddress)?;
             Ok(Address::Serial { path, params })
         } else if splits[0].to_lowercase() == "tcp" {
             // tcp::192.168.0.1:1234
@@ -173,10 +178,8 @@ impl Into<String> for Address {
     fn into(self) -> String {
         match self {
             Address::Visa { splits } => splits.join("::"),
-            Address::Serial { path, params } => format!(
-                "serial::{}::{}::{}{}{}",
-                path, params.baud, params.data_bits, params.parity, params.stop_bits
-            ),
+            Address::Serial { path, params } =>
+                format!("serial::{}::{}", path, params),
             Address::Prologix { file, gpib } => format!("prologix::{}::{}", file, gpib),
             Address::Modbus { addr } => format!("modbus::{}", addr),
             Address::Tcp { addr } => format!("tcp::{}", addr),
