@@ -12,6 +12,9 @@ use crate::scpi::{ScpiRequest, ScpiResponse};
 use crate::serial::params::{DataBits, Parity, StopBits};
 use crate::serial::prologix::{handle_prologix_request, init_prologix};
 use crate::Error;
+use crate::modbus::{ModBusRequest, handle_modbus_request, ModBusResponse};
+use crate::clonable_channel::ClonableChannel;
+use tokio_modbus::prelude::Slave;
 
 pub mod params;
 
@@ -26,6 +29,11 @@ pub enum Request {
         params: SerialParams,
         req: ByteStreamRequest,
     },
+    ModBus {
+        params: SerialParams,
+        req: ModBusRequest,
+        slave_addr: u8,
+    }
 }
 
 impl Request {
@@ -37,7 +45,8 @@ impl Request {
                 stop_bits: StopBits::One,
                 parity: Parity::None,
             },
-            Request::Serial { params, req: _ } => params.clone(),
+            Request::Serial { params, .. } => params.clone(),
+            Request::ModBus { params, .. } => params.clone()
         }
     }
 }
@@ -46,6 +55,7 @@ impl Request {
 pub enum Response {
     Bytes(ByteStreamResponse),
     Scpi(ScpiResponse),
+    ModBus(ModBusResponse),
 }
 
 pub struct Handler {
@@ -101,6 +111,13 @@ impl IoHandler for Handler {
             Request::Serial { params: _, req } => crate::bytestream::handle(&mut serial, req)
                 .await
                 .map(Response::Bytes),
+            Request::ModBus { params: _, req, slave_addr } => {
+                let channel = ClonableChannel::new(serial);
+                let mut ctx = tokio_modbus::client::rtu::connect_slave(channel.clone(), Slave(slave_addr)).await?;
+                let ret = handle_modbus_request(&mut ctx, req).await.map(Response::ModBus);
+                serial = channel.take().unwrap();
+                ret
+            }
         };
         self.serial.replace((serial, new_params));
         ret
