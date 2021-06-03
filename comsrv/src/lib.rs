@@ -33,6 +33,7 @@ mod tcp;
 mod util;
 pub mod visa;
 mod vxi;
+mod clonable_channel;
 
 #[derive(Error, Debug, Clone, Serialize, Deserialize)]
 pub enum Error {
