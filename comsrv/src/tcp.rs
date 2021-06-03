@@ -7,7 +7,6 @@ use async_trait::async_trait;
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
 use tokio::time::{delay_for, Duration};
-use tokio_modbus::client::Context;
 use tokio_modbus::prelude::Slave;
 
 #[derive(Clone)]
@@ -65,7 +64,7 @@ impl IoHandler for Handler {
     type Response = TcpResponse;
 
     async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
-        let mut stream = if let Some(stream) = self.stream.take() {
+        let stream = if let Some(stream) = self.stream.take() {
             stream
         } else {
             TcpStream::connect(&self.addr.clone())
@@ -83,7 +82,7 @@ impl IoHandler for Handler {
                 drop(stream);
                 if err.should_retry() {
                     delay_for(Duration::from_millis(100)).await;
-                    let mut stream = TcpStream::connect(&self.addr.clone())
+                    let stream = TcpStream::connect(&self.addr.clone())
                         .await
                         .map_err(Error::io)?;
                     let (ret, stream) = self.handle_request(stream, req).await;

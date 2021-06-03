@@ -8,7 +8,7 @@ use std::net::IpAddr;
 
 use crate::app::Server;
 use crate::can::{CanAddress, Instrument as CanInstrument};
-use crate::modbus::{Instrument as ModBusInstrument, ModBusAddress, ModBusTransport};
+use crate::modbus::{ModBusAddress, ModBusTcpInstrument, ModBusTransport};
 use crate::serial::Instrument as SerialInstrument;
 use crate::serial::SerialParams;
 use crate::tcp::Instrument as TcpInstrument;
@@ -38,7 +38,7 @@ impl InstrumentOptions {
 #[derive(Clone)]
 pub enum Instrument {
     Visa(VisaInstrument),
-    Modbus(ModBusInstrument),
+    ModBusTcp(ModBusTcpInstrument),
     Serial(SerialInstrument),
     Tcp(TcpInstrument),
     Vxi(VxiInstrument),
@@ -312,7 +312,9 @@ impl Instrument {
                 }
                 ModBusAddress::Tcp { addr } => match transport {
                     ModBusTransport::Rtu => Instrument::Tcp(TcpInstrument::new(addr.clone())),
-                    ModBusTransport::Tcp => Instrument::Modbus(ModBusInstrument::new(addr.clone())),
+                    ModBusTransport::Tcp => {
+                        Instrument::ModBusTcp(ModBusTcpInstrument::new(addr.clone()))
+                    }
                 },
             },
             Address::Tcp { addr } => Instrument::Tcp(TcpInstrument::new(addr.clone())),
@@ -328,7 +330,7 @@ impl Instrument {
     pub fn disconnect(self) {
         match self {
             Instrument::Visa(x) => x.disconnect(),
-            Instrument::Modbus(x) => x.disconnect(),
+            Instrument::ModBusTcp(x) => x.disconnect(),
             Instrument::Serial(x) => x.disconnect(),
             Instrument::Tcp(x) => x.disconnect(),
             Instrument::Vxi(x) => x.disconnect(),
@@ -343,9 +345,9 @@ impl Instrument {
         }
     }
 
-    pub fn into_modbus(self) -> Option<ModBusInstrument> {
+    pub fn into_modbus_tcp(self) -> Option<ModBusTcpInstrument> {
         match self {
-            Instrument::Modbus(instr) => Some(instr),
+            Instrument::ModBusTcp(instr) => Some(instr),
             _ => None,
         }
     }

@@ -9,13 +9,13 @@ use crate::serial::SerialParams;
 use crate::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use tokio::time::{delay_for, Duration};
-use tokio_modbus::prelude::{Response, Slave};
+use tokio_modbus::prelude::{Response, Slave, SlaveContext};
 
 fn is_one(x: &u16) -> bool {
     *x == 1
 }
 
-#[derive(Clone, Hash)]
+#[derive(Clone, Hash, Copy)]
 pub enum ModBusTransport {
     Rtu,
     Tcp,
@@ -67,17 +67,31 @@ pub enum ModBusResponse {
 }
 
 #[derive(Clone)]
-pub struct Instrument {
+struct HandlerRequest {
+    inner: ModBusRequest,
+    slave_id: u8,
+}
+
+#[derive(Clone)]
+pub struct ModBusTcpInstrument {
     inner: IoTask<Handler>,
 }
 
-impl Instrument {
+impl ModBusTcpInstrument {
     pub fn new(addr: SocketAddr) -> Self {
         Self {
             inner: IoTask::new(Handler { addr, ctx: None }),
         }
     }
-    pub async fn request(&mut self, req: ModBusRequest) -> crate::Result<ModBusResponse> {
+    pub async fn request(
+        &mut self,
+        req: ModBusRequest,
+        slave_id: u8,
+    ) -> crate::Result<ModBusResponse> {
+        let req = HandlerRequest {
+            inner: req,
+            slave_id,
+        };
         self.inner.request(req).await
     }
 
@@ -93,7 +107,7 @@ struct Handler {
 
 #[async_trait]
 impl IoHandler for Handler {
-    type Request = ModBusRequest;
+    type Request = HandlerRequest;
     type Response = ModBusResponse;
 
     async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
@@ -102,7 +116,8 @@ impl IoHandler for Handler {
         } else {
             tcp::connect(self.addr.clone()).await.map_err(Error::io)?
         };
-        let ret = handle_modbus_request(&mut ctx, req.clone()).await;
+        ctx.set_slave(Slave(req.slave_id));
+        let ret = handle_modbus_request(&mut ctx, req.inner.clone()).await;
         match ret {
             Ok(ret) => {
                 self.ctx.replace(ctx);
@@ -113,7 +128,8 @@ impl IoHandler for Handler {
                 if err.should_retry() {
                     delay_for(Duration::from_millis(100)).await;
                     let mut ctx = tcp::connect(self.addr.clone()).await.map_err(Error::io)?;
-                    let ret = handle_modbus_request(&mut ctx, req).await;
+                    ctx.set_slave(Slave(req.slave_id));
+                    let ret = handle_modbus_request(&mut ctx, req.inner.clone()).await;
                     if ret.is_ok() {
                         // this time we succeeded, reinsert ctx
                         self.ctx.replace(ctx);

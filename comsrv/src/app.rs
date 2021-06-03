@@ -8,7 +8,7 @@ use crate::can::{CanRequest, CanResponse};
 use crate::instrument::InstrumentOptions;
 use crate::instrument::{Address, Instrument};
 use crate::inventory::Inventory;
-use crate::modbus::{ModBusRequest, ModBusResponse};
+use crate::modbus::{ModBusAddress, ModBusRequest, ModBusResponse, ModBusTransport};
 use crate::scpi::{ScpiRequest, ScpiResponse};
 use crate::serial::{Request as SerialRequest, Response as SerialResponse, SerialParams};
 use crate::sigrok::{SigrokRequest, SigrokResponse};
@@ -177,12 +177,63 @@ impl App {
     ) -> Result<ModBusResponse, Error> {
         let addr = Address::parse(&addr)?;
         self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
-        let mut instr = self
-            .inventory
-            .connect(&self.server, &addr)
-            .into_modbus()
-            .ok_or(Error::NotSupported)?;
-        match instr.request(task).await {
+        let instr = self.inventory.connect(&self.server, &addr);
+        let (modbus_addr, transport, slave_id) = match addr.clone() {
+            Address::Modbus {
+                addr,
+                transport,
+                slave_id,
+            } => (addr, transport, slave_id),
+            _ => return Err(Error::InvalidAddress),
+        };
+
+        let ret = match modbus_addr {
+            ModBusAddress::Serial { path: _, params } => match transport {
+                ModBusTransport::Tcp => return Err(Error::NotSupported),
+                ModBusTransport::Rtu => {
+                    let req = SerialRequest::ModBus {
+                        params,
+                        req: task,
+                        slave_addr: slave_id,
+                    };
+                    let mut instr = instr.into_serial().ok_or(Error::NotSupported)?;
+                    let ret = instr.request(req).await;
+                    match ret {
+                        Ok(SerialResponse::ModBus(ret)) => Ok(ret),
+                        Err(x) => Err(x),
+                        _ => {
+                            log::error!("SerialResponse was not ModBus but request was");
+                            return Err(Error::NotSupported);
+                        }
+                    }
+                }
+            },
+            ModBusAddress::Tcp { .. } => match transport {
+                ModBusTransport::Rtu => {
+                    let mut instr = instr.into_tcp().ok_or(Error::NotSupported)?;
+                    let ret = instr
+                        .request(TcpRequest::ModBus {
+                            slave_id,
+                            req: task,
+                        })
+                        .await;
+                    match ret {
+                        Ok(TcpResponse::ModBus(ret)) => Ok(ret),
+                        Err(x) => Err(x),
+                        _ => {
+                            log::error!("TcpResponse was not ModBus but request was");
+                            return Err(Error::NotSupported);
+                        }
+                    }
+                }
+                ModBusTransport::Tcp => {
+                    let mut instr = instr.into_modbus_tcp().ok_or(Error::NotSupported)?;
+                    instr.request(task, slave_id).await
+                }
+            },
+        };
+
+        match ret {
             Ok(x) => Ok(x),
             Err(x) => {
                 self.inventory.disconnect(&addr);
