@@ -16,6 +16,7 @@ use crate::visa::VisaOptions;
 use crate::{sigrok, Error};
 use std::time::Duration;
 use uuid::Uuid;
+use crate::tcp::{TcpResponse, TcpRequest};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
@@ -225,12 +226,13 @@ impl App {
             .connect(&self.server, &addr)
             .into_tcp()
             .ok_or(Error::NotSupported)?;
-        match instr.request(task.clone()).await {
-            Ok(x) => Ok(x),
+        match instr.request(TcpRequest::Bytes(task.clone())).await {
+            Ok(TcpResponse::Bytes(x)) => Ok(x),
             Err(x) => {
                 self.inventory.disconnect(&addr);
                 Err(x)
             }
+            _ => panic!(),
         }
     }
 

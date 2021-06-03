@@ -5,6 +5,10 @@ use async_trait::async_trait;
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
 use tokio::time::{delay_for, Duration};
+use crate::modbus::{ModBusRequest, ModBusResponse, handle_modbus_request};
+use crate::clonable_channel::ClonableChannel;
+use tokio_modbus::client::Context;
+use tokio_modbus::prelude::Slave;
 
 #[derive(Clone)]
 pub struct Instrument {
@@ -16,10 +20,47 @@ struct Handler {
     stream: Option<TcpStream>,
 }
 
+#[derive(Clone)]
+pub enum TcpRequest {
+    Bytes(ByteStreamRequest),
+    ModBus{
+        slave_id: u8,
+        req: ModBusRequest,
+    },
+}
+
+pub enum TcpResponse {
+    Bytes(ByteStreamResponse),
+    ModBus(ModBusResponse),
+}
+
+impl Handler {
+    async fn handle_request(&mut self, mut stream: TcpStream, req: TcpRequest) -> (crate::Result<TcpResponse>, TcpStream) {
+        match req {
+            TcpRequest::Bytes(req) => {
+                let ret = crate::bytestream::handle(&mut stream, req).await;
+                (ret.map(TcpResponse::Bytes), stream)
+            }
+            TcpRequest::ModBus { slave_id, req } => {
+                let cloned = ClonableChannel::new(stream);
+                let ret = tokio_modbus::client::rtu::connect_slave(cloned.clone(), Slave(slave_id)).await.map_err(Error::io);
+                match ret {
+                    Ok(mut ctx) => {
+                        let ret = handle_modbus_request(&mut ctx, req).await;
+                        (ret.map(TcpResponse::ModBus), cloned.take().unwrap())
+                    }
+                    Err(err) => (Err(err), cloned.take().unwrap())
+                }
+            }
+        }
+
+    }
+}
+
 #[async_trait]
 impl IoHandler for Handler {
-    type Request = ByteStreamRequest;
-    type Response = ByteStreamResponse;
+    type Request = TcpRequest;
+    type Response = TcpResponse;
 
     async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
         let mut stream = if let Some(stream) = self.stream.take() {
@@ -29,7 +70,7 @@ impl IoHandler for Handler {
                 .await
                 .map_err(Error::io)?
         };
-        let ret = crate::bytestream::handle(&mut stream, req.clone()).await;
+        let (ret, stream) = self.handle_request(stream, req.clone()).await;
         match ret {
             Ok(ret) => {
                 // stream was ok, reinsert back
@@ -43,7 +84,7 @@ impl IoHandler for Handler {
                     let mut stream = TcpStream::connect(&self.addr.clone())
                         .await
                         .map_err(Error::io)?;
-                    let ret = crate::bytestream::handle(&mut stream, req).await;
+                    let (ret, stream) = self.handle_request(stream, req).await;
                     if ret.is_ok() {
                         // this time we succeeded, reinsert stream
                         self.stream.replace(stream);
@@ -65,7 +106,7 @@ impl Instrument {
         }
     }
 
-    pub async fn request(&mut self, req: ByteStreamRequest) -> crate::Result<ByteStreamResponse> {
+    pub async fn request(&mut self, req: TcpRequest) -> crate::Result<TcpResponse> {
         self.inner.request(req).await
     }
 
