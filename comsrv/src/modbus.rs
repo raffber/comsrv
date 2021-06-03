@@ -9,16 +9,28 @@ use crate::Error;
 use tokio::time::{delay_for, Duration};
 use tokio_modbus::prelude::{Response, Slave};
 use crate::serial::SerialParams;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 fn is_one(x: &u16) -> bool {
     *x == 1
 }
 
+#[derive(Clone, Hash)]
 pub enum ModBusTransport {
     Rtu,
     Tcp
 }
 
+impl Display for ModBusTransport {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            ModBusTransport::Rtu => f.write_str("rtu"),
+            ModBusTransport::Tcp => f.write_str("tcp")
+        }
+    }
+}
+
+#[derive(Clone, Hash)]
 pub enum ModBusAddress {
     Serial {
         path: String,
@@ -26,6 +38,15 @@ pub enum ModBusAddress {
     },
     Tcp {
         addr: SocketAddr,
+    }
+}
+
+impl Display for ModBusAddress {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            ModBusAddress::Serial { path, params } => f.write_fmt(format_args!("{}::{}", path, params)),
+            ModBusAddress::Tcp { addr } => f.write_fmt(format_args!("{}", addr)),
+        }
     }
 }
 
@@ -57,9 +78,9 @@ pub struct Instrument {
 }
 
 impl Instrument {
-    pub fn new(addr: SocketAddr, slave_id: u8) -> Self {
+    pub fn new(addr: SocketAddr) -> Self {
         Self {
-            inner: IoTask::new(Handler { addr, ctx: None, slave_id }),
+            inner: IoTask::new(Handler { addr, ctx: None }),
         }
     }
     pub async fn request(&mut self, req: ModBusRequest) -> crate::Result<ModBusResponse> {
@@ -74,7 +95,6 @@ impl Instrument {
 struct Handler {
     addr: SocketAddr,
     ctx: Option<Context>,
-    slave_id: u8,
 }
 
 #[async_trait]
@@ -86,7 +106,7 @@ impl IoHandler for Handler {
         let mut ctx = if let Some(ctx) = self.ctx.take() {
             ctx
         } else {
-            tcp::connect_slave(self.addr.clone(), Slave(self.slave_id)).await.map_err(Error::io)?
+            tcp::connect(self.addr.clone()).await.map_err(Error::io)?
         };
         let ret = handle_modbus_request(&mut ctx, req.clone()).await;
         match ret {

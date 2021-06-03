@@ -28,31 +28,31 @@ pub enum DataBits {
     Eight,
 }
 
-pub fn parse_serial_settings(settings: &str) -> Option<(DataBits, Parity, StopBits)> {
+pub fn parse_serial_settings(settings: &str) -> crate::Result<(DataBits, Parity, StopBits)> {
     let settings = settings.to_lowercase();
     let chars = settings.as_bytes();
     if chars.len() != 3 {
-        return None;
+        return Err(crate::Error::InvalidAddress);
     }
     let data_bits = match chars[0] as char {
         '8' => DataBits::Eight,
         '7' => DataBits::Seven,
         '6' => DataBits::Six,
         '5' => DataBits::Five,
-        _ => return None,
+        _ => return Err(crate::Error::InvalidAddress),
     };
     let parity = match chars[1] as char {
         'n' => Parity::None,
         'o' => Parity::Odd,
         'e' => Parity::Even,
-        _ => return None,
+        _ => return Err(crate::Error::InvalidAddress),
     };
     let stop_bits = match chars[2] as char {
         '1' => StopBits::One,
         '2' => StopBits::Two,
-        _ => return None,
+        _ => return Err(crate::Error::InvalidAddress),
     };
-    Some((data_bits, parity, stop_bits))
+    Ok((data_bits, parity, stop_bits))
 }
 
 #[derive(PartialEq, Clone, Serialize, Deserialize, Hash)]
@@ -64,14 +64,14 @@ pub struct SerialParams {
 }
 
 impl SerialParams {
-    pub fn from_address(addr_parts: &[&str]) -> Option<(String, SerialParams)> {
+    pub fn from_address(addr_parts: &[&str]) -> crate::Result<(String, SerialParams)> {
         if addr_parts.len() != 3 {
-            return None;
+            return Err(crate::Error::InvalidAddress);
         }
         let path = addr_parts[0].into();
-        let baud_rate: u32 = addr_parts[1].parse().ok()?;
+        let baud_rate: u32 = addr_parts[1].parse().map_err(|_| crate::Error::InvalidAddress)?;
         let (bits, parity, stop) = parse_serial_settings(&addr_parts[2])?;
-        Some((
+        Ok((
             path,
             SerialParams {
                 baud: baud_rate,

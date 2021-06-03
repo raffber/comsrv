@@ -75,6 +75,68 @@ pub enum Address {
 }
 
 impl Address {
+    fn parse_modbus(splits: &[&str]) -> crate::Result<Self> {
+        if splits.len() < 3 {
+            return Err(Error::InvalidAddress);
+        }
+        let kind = &splits[1].to_lowercase();
+        let addr = &splits[2].to_lowercase();
+        if kind == "tcp" {
+            // modbus::tcp::192.168.0.1:1234
+            if splits.len() != 3 || splits.len() != 4 {
+                return Err(Error::InvalidAddress);
+            }
+            let addr: SocketAddr = addr.parse().map_err(|_| Error::InvalidAddress)?;
+            let slave_id: u8 = if splits.len() == 4 {
+                splits[3].parse().map_err(|_| Error::InvalidAddress)?
+            } else {
+                255
+            };
+            Ok(Address::Modbus {
+                addr: ModBusAddress::Tcp { addr },
+                transport: ModBusTransport::Tcp,
+                slave_id
+            })
+        } else if kind == "rtu" {
+            if let Ok(addr) = addr.parse() {
+                // rtu over tcp
+                // modbus::rtu::192.168.1.123{::56}
+                if splits.len() != 3 || splits.len() != 4 {
+                    return Err(Error::InvalidAddress);
+                }
+                let slave_id: u8 = if splits.len() == 4 {
+                    splits[3].parse().map_err(|_| Error::InvalidAddress)?
+                } else {
+                    255
+                };
+                Ok(Address::Modbus {
+                    addr: ModBusAddress::Tcp { addr },
+                    transport: ModBusTransport::Rtu,
+                    slave_id
+                })
+            } else {
+                // rtu over serial
+                // modbus::rtu::/dev/ttyUSB0::115200::8N1{::123}
+                if splits.len() != 5 || splits.len() != 6 {
+                    return Err(Error::InvalidAddress);
+                }
+                let (path, params) = SerialParams::from_address(&splits[2..5])?;
+                let slave_id: u8 = if splits.len() == 6 {
+                    splits[6].parse().map_err(|_| Error::InvalidAddress)?
+                } else {
+                    255
+                };
+                Ok(Address::Modbus {
+                    addr: ModBusAddress::Serial { path, params },
+                    transport: ModBusTransport::Rtu,
+                    slave_id
+                })
+            }
+        } else {
+            Err(Error::InvalidAddress)
+        }
+    }
+
     pub fn parse(addr: &str) -> crate::Result<Self> {
         let splits: Vec<_> = addr.split("::").map(|x| x.to_string()).collect();
         if splits.len() < 2 {
@@ -82,17 +144,8 @@ impl Address {
         }
 
         if splits[0].to_lowercase() == "modbus" {
-            // modbus::192.168.0.1:1234
-            // TODO: move to URL?
-            let addr = &splits[1].to_lowercase();
-            let addr: SocketAddr = addr.parse().map_err(|_| Error::InvalidAddress)?;
-            let slave_id: u8 = if splits.len() == 3 {
-                // slave id was also provided
-                splits[2].parse().map_err(|_| Error::InvalidAddress)?
-            } else {
-                255
-            };
-            Ok(Address::Modbus { addr, slave_id })
+            let new_splits: Vec<&str> = splits.iter().map(|x| x.as_ref()).collect();
+            Self::parse_modbus(&new_splits)
         } else if splits[0].to_lowercase() == "prologix" {
             // prologix::/dev/ttyUSB0::12
             if splits.len() != 3 {
@@ -110,8 +163,7 @@ impl Address {
                 return Err(Error::InvalidAddress);
             }
             let new_splits: Vec<&str> = splits.iter().map(|x| x.as_ref()).collect();
-            let (path, params) = SerialParams::from_address(&new_splits[1..4])
-                .ok_or(Error::InvalidAddress)?;
+            let (path, params) = SerialParams::from_address(&new_splits[1..4])?;
             Ok(Address::Serial { path, params })
         } else if splits[0].to_lowercase() == "tcp" {
             // tcp::192.168.0.1:1234
@@ -171,7 +223,12 @@ impl Address {
             }
             Address::Serial { path, .. } => HandleId::new(path.clone()),
             Address::Prologix { file, .. } => HandleId::new(file.clone()),
-            Address::Modbus { addr, .. } => HandleId::new(addr.to_string()),
+            Address::Modbus { addr, .. } => {
+                match addr {
+                    ModBusAddress::Serial { path, .. } => HandleId::new(path.to_string()),
+                    ModBusAddress::Tcp { addr } => HandleId::new(addr.to_string())
+                }
+            },
             Address::Vxi { addr } => HandleId::new(addr.to_string()),
             Address::Tcp { addr } => HandleId::new(addr.to_string()),
             Address::Can { addr } => HandleId::new(addr.interface()),
@@ -187,11 +244,11 @@ impl Into<String> for Address {
             Address::Serial { path, params } =>
                 format!("serial::{}::{}", path, params),
             Address::Prologix { file, gpib } => format!("prologix::{}::{}", file, gpib),
-            Address::Modbus { addr, slave_id } => {
+            Address::Modbus { addr, transport, slave_id } => {
                 if slave_id != 255 {
-                    format!("modbus::{}::{}", addr, slave_id)
+                    format!("modbus::{}::{}::{}", transport, addr, slave_id)
                 } else {
-                    format!("modbus::{}", addr)
+                    format!("modbus::{}::{}", transport, addr)
                 }
             },
             Address::Tcp { addr } => format!("tcp::{}", addr),
@@ -225,7 +282,20 @@ impl Instrument {
                 let instr = SerialInstrument::new(file.clone());
                 Instrument::Serial(instr)
             }
-            Address::Modbus { addr, slave_id } => Instrument::Modbus(ModBusInstrument::new(addr.clone(), *slave_id)),
+            Address::Modbus { addr, transport, .. } => {
+                match addr {
+                    ModBusAddress::Serial { path, .. } => {
+                        let instr = SerialInstrument::new(path.clone());
+                        Instrument::Serial(instr)
+                    }
+                    ModBusAddress::Tcp { addr } => {
+                        match transport {
+                            ModBusTransport::Rtu => Instrument::Tcp(TcpInstrument::new(addr.clone())),
+                            ModBusTransport::Tcp => Instrument::Modbus(ModBusInstrument::new(addr.clone())),
+                        }
+                    }
+                }
+            },
             Address::Tcp { addr } => Instrument::Tcp(TcpInstrument::new(addr.clone())),
             Address::Vxi { addr } => Instrument::Vxi(VxiInstrument::new(addr.clone())),
             Address::Can { addr } => Instrument::Can(CanInstrument::new(server, addr.clone())),
