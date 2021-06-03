@@ -69,7 +69,9 @@ impl SerialParams {
             return Err(crate::Error::InvalidAddress);
         }
         let path = addr_parts[0].into();
-        let baud_rate: u32 = addr_parts[1].parse().map_err(|_| crate::Error::InvalidAddress)?;
+        let baud_rate: u32 = addr_parts[1]
+            .parse()
+            .map_err(|_| crate::Error::InvalidAddress)?;
         let (bits, parity, stop) = parse_serial_settings(&addr_parts[2])?;
         Ok((
             path,
@@ -85,11 +87,13 @@ impl SerialParams {
 
 impl Display for SerialParams {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let x = format!("{}::{}{}{}", self.baud, self.data_bits, self.parity, self.stop_bits);
+        let x = format!(
+            "{}::{}{}{}",
+            self.baud, self.data_bits, self.parity, self.stop_bits
+        );
         f.write_str(&x)
     }
 }
-
 
 impl Into<SerialPortSettings> for SerialParams {
     fn into(self) -> SerialPortSettings {

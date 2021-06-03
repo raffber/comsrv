@@ -21,6 +21,7 @@ use crate::sigrok::SigrokError;
 pub mod app;
 mod bytestream;
 mod can;
+mod clonable_channel;
 mod cobs;
 mod instrument;
 mod inventory;
@@ -33,7 +34,6 @@ mod tcp;
 mod util;
 pub mod visa;
 mod vxi;
-mod clonable_channel;
 
 #[derive(Error, Debug, Clone, Serialize, Deserialize)]
 pub enum Error {

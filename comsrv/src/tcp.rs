@@ -1,12 +1,12 @@
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
+use crate::clonable_channel::ClonableChannel;
 use crate::iotask::{IoHandler, IoTask};
+use crate::modbus::{handle_modbus_request, ModBusRequest, ModBusResponse};
 use crate::Error;
 use async_trait::async_trait;
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
 use tokio::time::{delay_for, Duration};
-use crate::modbus::{ModBusRequest, ModBusResponse, handle_modbus_request};
-use crate::clonable_channel::ClonableChannel;
 use tokio_modbus::client::Context;
 use tokio_modbus::prelude::Slave;
 
@@ -23,10 +23,7 @@ struct Handler {
 #[derive(Clone)]
 pub enum TcpRequest {
     Bytes(ByteStreamRequest),
-    ModBus{
-        slave_id: u8,
-        req: ModBusRequest,
-    },
+    ModBus { slave_id: u8, req: ModBusRequest },
 }
 
 pub enum TcpResponse {
@@ -35,7 +32,11 @@ pub enum TcpResponse {
 }
 
 impl Handler {
-    async fn handle_request(&mut self, mut stream: TcpStream, req: TcpRequest) -> (crate::Result<TcpResponse>, TcpStream) {
+    async fn handle_request(
+        &mut self,
+        mut stream: TcpStream,
+        req: TcpRequest,
+    ) -> (crate::Result<TcpResponse>, TcpStream) {
         match req {
             TcpRequest::Bytes(req) => {
                 let ret = crate::bytestream::handle(&mut stream, req).await;
@@ -43,17 +44,18 @@ impl Handler {
             }
             TcpRequest::ModBus { slave_id, req } => {
                 let cloned = ClonableChannel::new(stream);
-                let ret = tokio_modbus::client::rtu::connect_slave(cloned.clone(), Slave(slave_id)).await.map_err(Error::io);
+                let ret = tokio_modbus::client::rtu::connect_slave(cloned.clone(), Slave(slave_id))
+                    .await
+                    .map_err(Error::io);
                 match ret {
                     Ok(mut ctx) => {
                         let ret = handle_modbus_request(&mut ctx, req).await;
                         (ret.map(TcpResponse::ModBus), cloned.take().unwrap())
                     }
-                    Err(err) => (Err(err), cloned.take().unwrap())
+                    Err(err) => (Err(err), cloned.take().unwrap()),
                 }
             }
         }
-
     }
 }
 

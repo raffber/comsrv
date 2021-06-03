@@ -12,11 +12,11 @@ use crate::modbus::{ModBusRequest, ModBusResponse};
 use crate::scpi::{ScpiRequest, ScpiResponse};
 use crate::serial::{Request as SerialRequest, Response as SerialResponse, SerialParams};
 use crate::sigrok::{SigrokRequest, SigrokResponse};
+use crate::tcp::{TcpRequest, TcpResponse};
 use crate::visa::VisaOptions;
 use crate::{sigrok, Error};
 use std::time::Duration;
 use uuid::Uuid;
-use crate::tcp::{TcpResponse, TcpRequest};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {

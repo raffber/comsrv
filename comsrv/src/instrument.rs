@@ -64,14 +64,34 @@ impl ToString for HandleId {
 
 #[derive(Clone, Hash)]
 pub enum Address {
-    Visa { splits: Vec<String> },
-    Serial { path: String, params: SerialParams },
-    Prologix { file: String, gpib: u8 },
-    Modbus { addr: ModBusAddress, transport: ModBusTransport, slave_id: u8 },
-    Vxi { addr: IpAddr },
-    Tcp { addr: SocketAddr },
-    Can { addr: CanAddress },
-    Sigrok { device: String },
+    Visa {
+        splits: Vec<String>,
+    },
+    Serial {
+        path: String,
+        params: SerialParams,
+    },
+    Prologix {
+        file: String,
+        gpib: u8,
+    },
+    Modbus {
+        addr: ModBusAddress,
+        transport: ModBusTransport,
+        slave_id: u8,
+    },
+    Vxi {
+        addr: IpAddr,
+    },
+    Tcp {
+        addr: SocketAddr,
+    },
+    Can {
+        addr: CanAddress,
+    },
+    Sigrok {
+        device: String,
+    },
 }
 
 impl Address {
@@ -95,7 +115,7 @@ impl Address {
             Ok(Address::Modbus {
                 addr: ModBusAddress::Tcp { addr },
                 transport: ModBusTransport::Tcp,
-                slave_id
+                slave_id,
             })
         } else if kind == "rtu" {
             if let Ok(addr) = addr.parse() {
@@ -112,7 +132,7 @@ impl Address {
                 Ok(Address::Modbus {
                     addr: ModBusAddress::Tcp { addr },
                     transport: ModBusTransport::Rtu,
-                    slave_id
+                    slave_id,
                 })
             } else {
                 // rtu over serial
@@ -129,7 +149,7 @@ impl Address {
                 Ok(Address::Modbus {
                     addr: ModBusAddress::Serial { path, params },
                     transport: ModBusTransport::Rtu,
-                    slave_id
+                    slave_id,
                 })
             }
         } else {
@@ -223,11 +243,9 @@ impl Address {
             }
             Address::Serial { path, .. } => HandleId::new(path.clone()),
             Address::Prologix { file, .. } => HandleId::new(file.clone()),
-            Address::Modbus { addr, .. } => {
-                match addr {
-                    ModBusAddress::Serial { path, .. } => HandleId::new(path.to_string()),
-                    ModBusAddress::Tcp { addr } => HandleId::new(addr.to_string())
-                }
+            Address::Modbus { addr, .. } => match addr {
+                ModBusAddress::Serial { path, .. } => HandleId::new(path.to_string()),
+                ModBusAddress::Tcp { addr } => HandleId::new(addr.to_string()),
             },
             Address::Vxi { addr } => HandleId::new(addr.to_string()),
             Address::Tcp { addr } => HandleId::new(addr.to_string()),
@@ -241,16 +259,19 @@ impl Into<String> for Address {
     fn into(self) -> String {
         match self {
             Address::Visa { splits } => splits.join("::"),
-            Address::Serial { path, params } =>
-                format!("serial::{}::{}", path, params),
+            Address::Serial { path, params } => format!("serial::{}::{}", path, params),
             Address::Prologix { file, gpib } => format!("prologix::{}::{}", file, gpib),
-            Address::Modbus { addr, transport, slave_id } => {
+            Address::Modbus {
+                addr,
+                transport,
+                slave_id,
+            } => {
                 if slave_id != 255 {
                     format!("modbus::{}::{}::{}", transport, addr, slave_id)
                 } else {
                     format!("modbus::{}::{}", transport, addr)
                 }
-            },
+            }
             Address::Tcp { addr } => format!("tcp::{}", addr),
             Address::Vxi { addr } => format!("vxi::{}", addr),
             Address::Can { addr } => format!("can::{}", addr),
@@ -282,19 +303,17 @@ impl Instrument {
                 let instr = SerialInstrument::new(file.clone());
                 Instrument::Serial(instr)
             }
-            Address::Modbus { addr, transport, .. } => {
-                match addr {
-                    ModBusAddress::Serial { path, .. } => {
-                        let instr = SerialInstrument::new(path.clone());
-                        Instrument::Serial(instr)
-                    }
-                    ModBusAddress::Tcp { addr } => {
-                        match transport {
-                            ModBusTransport::Rtu => Instrument::Tcp(TcpInstrument::new(addr.clone())),
-                            ModBusTransport::Tcp => Instrument::Modbus(ModBusInstrument::new(addr.clone())),
-                        }
-                    }
+            Address::Modbus {
+                addr, transport, ..
+            } => match addr {
+                ModBusAddress::Serial { path, .. } => {
+                    let instr = SerialInstrument::new(path.clone());
+                    Instrument::Serial(instr)
                 }
+                ModBusAddress::Tcp { addr } => match transport {
+                    ModBusTransport::Rtu => Instrument::Tcp(TcpInstrument::new(addr.clone())),
+                    ModBusTransport::Tcp => Instrument::Modbus(ModBusInstrument::new(addr.clone())),
+                },
             },
             Address::Tcp { addr } => Instrument::Tcp(TcpInstrument::new(addr.clone())),
             Address::Vxi { addr } => Instrument::Vxi(VxiInstrument::new(addr.clone())),

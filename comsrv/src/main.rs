@@ -23,7 +23,7 @@ fn main() {
             Arg::with_name("verbose")
                 .long("verbose")
                 .short("v")
-                .help("Log verbose output")
+                .help("Log verbose output"),
         )
         .get_matches();
 

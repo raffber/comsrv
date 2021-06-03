@@ -2,14 +2,14 @@ use std::net::SocketAddr;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use tokio_modbus::client::{tcp, Context, Reader, Writer, Client};
+use tokio_modbus::client::{tcp, Client, Context, Reader, Writer};
 
 use crate::iotask::{IoHandler, IoTask};
+use crate::serial::SerialParams;
 use crate::Error;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use tokio::time::{delay_for, Duration};
 use tokio_modbus::prelude::{Response, Slave};
-use crate::serial::SerialParams;
-use std::fmt::{Display, Formatter, Result as FmtResult};
 
 fn is_one(x: &u16) -> bool {
     *x == 1
@@ -18,33 +18,30 @@ fn is_one(x: &u16) -> bool {
 #[derive(Clone, Hash)]
 pub enum ModBusTransport {
     Rtu,
-    Tcp
+    Tcp,
 }
 
 impl Display for ModBusTransport {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             ModBusTransport::Rtu => f.write_str("rtu"),
-            ModBusTransport::Tcp => f.write_str("tcp")
+            ModBusTransport::Tcp => f.write_str("tcp"),
         }
     }
 }
 
 #[derive(Clone, Hash)]
 pub enum ModBusAddress {
-    Serial {
-        path: String,
-        params: SerialParams,
-    },
-    Tcp {
-        addr: SocketAddr,
-    }
+    Serial { path: String, params: SerialParams },
+    Tcp { addr: SocketAddr },
 }
 
 impl Display for ModBusAddress {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            ModBusAddress::Serial { path, params } => f.write_fmt(format_args!("{}::{}", path, params)),
+            ModBusAddress::Serial { path, params } => {
+                f.write_fmt(format_args!("{}::{}", path, params))
+            }
             ModBusAddress::Tcp { addr } => f.write_fmt(format_args!("{}", addr)),
         }
     }
@@ -66,10 +63,7 @@ pub enum ModBusResponse {
     Done,
     Number(Vec<u16>),
     Bool(Vec<bool>),
-    Custom {
-        code: u8,
-        data: Vec<u8>,
-    },
+    Custom { code: u8, data: Vec<u8> },
 }
 
 #[derive(Clone)]
@@ -133,7 +127,10 @@ impl IoHandler for Handler {
     }
 }
 
-pub async fn handle_modbus_request(ctx: &mut Context, req: ModBusRequest) -> crate::Result<ModBusResponse> {
+pub async fn handle_modbus_request(
+    ctx: &mut Context,
+    req: ModBusRequest,
+) -> crate::Result<ModBusResponse> {
     match req {
         ModBusRequest::ReadCoil { addr, cnt } => ctx
             .read_coils(addr, cnt)
@@ -167,15 +164,13 @@ pub async fn handle_modbus_request(ctx: &mut Context, req: ModBusRequest) -> cra
             .map(|_| ModBusResponse::Done),
         ModBusRequest::CustomCommand { code, data } => {
             use tokio_modbus::prelude::Request;
-            let resp = ctx.call(Request::Custom(code, data)).await
+            let resp = ctx
+                .call(Request::Custom(code, data))
+                .await
                 .map_err(Error::io)?;
             match resp {
-                Response::Custom(code, data) => {
-                    Ok(ModBusResponse::Custom { code, data })
-                }
-                _ => {
-                    Err(Error::InvalidResponse)
-                }
+                Response::Custom(code, data) => Ok(ModBusResponse::Custom { code, data }),
+                _ => Err(Error::InvalidResponse),
             }
         }
     }
