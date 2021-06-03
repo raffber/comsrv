@@ -8,9 +8,25 @@ use crate::iotask::{IoHandler, IoTask};
 use crate::Error;
 use tokio::time::{delay_for, Duration};
 use tokio_modbus::prelude::{Response, Slave};
+use crate::serial::SerialParams;
 
 fn is_one(x: &u16) -> bool {
     *x == 1
+}
+
+pub enum ModBusTransport {
+    Rtu,
+    Tcp
+}
+
+pub enum ModBusAddress {
+    Serial {
+        path: String,
+        params: SerialParams,
+    },
+    Tcp {
+        addr: SocketAddr,
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]

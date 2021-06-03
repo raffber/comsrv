@@ -8,7 +8,7 @@ use std::net::IpAddr;
 
 use crate::app::Server;
 use crate::can::{CanAddress, Instrument as CanInstrument};
-use crate::modbus::Instrument as ModBusInstrument;
+use crate::modbus::{Instrument as ModBusInstrument, ModBusAddress, ModBusTransport};
 use crate::serial::Instrument as SerialInstrument;
 use crate::serial::SerialParams;
 use crate::tcp::Instrument as TcpInstrument;
@@ -67,7 +67,7 @@ pub enum Address {
     Visa { splits: Vec<String> },
     Serial { path: String, params: SerialParams },
     Prologix { file: String, gpib: u8 },
-    Modbus { addr: SocketAddr, slave_id: u8 },
+    Modbus { addr: ModBusAddress, transport: ModBusTransport, slave_id: u8 },
     Vxi { addr: IpAddr },
     Tcp { addr: SocketAddr },
     Can { addr: CanAddress },
