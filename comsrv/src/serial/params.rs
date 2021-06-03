@@ -70,7 +70,7 @@ impl SerialParams {
         }
         let path = addr_parts[0].into();
         let baud_rate: u32 = addr_parts[1].parse().ok()?;
-        let (bits, parity, stop) = parse_serial_settings(&splits[2])?;
+        let (bits, parity, stop) = parse_serial_settings(&addr_parts[2])?;
         Some((
             path,
             SerialParams {
@@ -83,15 +83,10 @@ impl SerialParams {
     }
 }
 
-impl ToString for SerialParams {
-    fn to_string(&self) -> String {
-        format!("{}::{}{}{}", baud, data_bits, parity, stop_bits)
-    }
-}
-
 impl Display for SerialParams {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.to_string())
+        let x = format!("{}::{}{}{}", self.baud, self.data_bits, self.parity, self.stop_bits);
+        f.write_str(&x)
     }
 }
 

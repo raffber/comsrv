@@ -67,7 +67,7 @@ pub enum Address {
     Visa { splits: Vec<String> },
     Serial { path: String, params: SerialParams },
     Prologix { file: String, gpib: u8 },
-    Modbus { addr: SocketAddr },
+    Modbus { addr: SocketAddr, slave_id: u8 },
     Vxi { addr: IpAddr },
     Tcp { addr: SocketAddr },
     Can { addr: CanAddress },
@@ -86,7 +86,13 @@ impl Address {
             // TODO: move to URL?
             let addr = &splits[1].to_lowercase();
             let addr: SocketAddr = addr.parse().map_err(|_| Error::InvalidAddress)?;
-            Ok(Address::Modbus { addr })
+            let slave_id: u8 = if splits.len() == 3 {
+                // slave id was also provided
+                splits[2].parse().map_err(|_| Error::InvalidAddress)?
+            } else {
+                255
+            };
+            Ok(Address::Modbus { addr, slave_id })
         } else if splits[0].to_lowercase() == "prologix" {
             // prologix::/dev/ttyUSB0::12
             if splits.len() != 3 {
@@ -100,7 +106,7 @@ impl Address {
             })
         } else if splits[0].to_lowercase() == "serial" {
             // serial::/dev/ttyUSB0::9600::8N1
-            if len(splits) < 4 {
+            if splits.len() < 4 {
                 return Err(Error::InvalidAddress);
             }
             let new_splits: Vec<&str> = splits.iter().map(|x| x.as_ref()).collect();
@@ -165,7 +171,7 @@ impl Address {
             }
             Address::Serial { path, .. } => HandleId::new(path.clone()),
             Address::Prologix { file, .. } => HandleId::new(file.clone()),
-            Address::Modbus { addr } => HandleId::new(addr.to_string()),
+            Address::Modbus { addr, .. } => HandleId::new(addr.to_string()),
             Address::Vxi { addr } => HandleId::new(addr.to_string()),
             Address::Tcp { addr } => HandleId::new(addr.to_string()),
             Address::Can { addr } => HandleId::new(addr.interface()),
@@ -181,7 +187,13 @@ impl Into<String> for Address {
             Address::Serial { path, params } =>
                 format!("serial::{}::{}", path, params),
             Address::Prologix { file, gpib } => format!("prologix::{}::{}", file, gpib),
-            Address::Modbus { addr } => format!("modbus::{}", addr),
+            Address::Modbus { addr, slave_id } => {
+                if slave_id != 255 {
+                    format!("modbus::{}::{}", addr, slave_id)
+                } else {
+                    format!("modbus::{}", addr)
+                }
+            },
             Address::Tcp { addr } => format!("tcp::{}", addr),
             Address::Vxi { addr } => format!("vxi::{}", addr),
             Address::Can { addr } => format!("can::{}", addr),
@@ -213,7 +225,7 @@ impl Instrument {
                 let instr = SerialInstrument::new(file.clone());
                 Instrument::Serial(instr)
             }
-            Address::Modbus { addr } => Instrument::Modbus(ModBusInstrument::new(addr.clone())),
+            Address::Modbus { addr, slave_id } => Instrument::Modbus(ModBusInstrument::new(addr.clone(), *slave_id)),
             Address::Tcp { addr } => Instrument::Tcp(TcpInstrument::new(addr.clone())),
             Address::Vxi { addr } => Instrument::Vxi(VxiInstrument::new(addr.clone())),
             Address::Can { addr } => Instrument::Can(CanInstrument::new(server, addr.clone())),

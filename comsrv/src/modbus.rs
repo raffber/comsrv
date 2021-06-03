@@ -7,7 +7,7 @@ use tokio_modbus::client::{tcp, Context, Reader, Writer, Client};
 use crate::iotask::{IoHandler, IoTask};
 use crate::Error;
 use tokio::time::{delay_for, Duration};
-use tokio_modbus::prelude::Response;
+use tokio_modbus::prelude::{Response, Slave};
 
 fn is_one(x: &u16) -> bool {
     *x == 1
@@ -29,7 +29,10 @@ pub enum ModBusResponse {
     Done,
     Number(Vec<u16>),
     Bool(Vec<bool>),
-    Custom(u8, Vec<u8>),
+    Custom {
+        code: u8,
+        data: Vec<u8>,
+    },
 }
 
 #[derive(Clone)]
@@ -38,9 +41,9 @@ pub struct Instrument {
 }
 
 impl Instrument {
-    pub fn new(addr: SocketAddr) -> Self {
+    pub fn new(addr: SocketAddr, slave_id: u8) -> Self {
         Self {
-            inner: IoTask::new(Handler { addr, ctx: None }),
+            inner: IoTask::new(Handler { addr, ctx: None, slave_id }),
         }
     }
     pub async fn request(&mut self, req: ModBusRequest) -> crate::Result<ModBusResponse> {
@@ -55,6 +58,7 @@ impl Instrument {
 struct Handler {
     addr: SocketAddr,
     ctx: Option<Context>,
+    slave_id: u8,
 }
 
 #[async_trait]
@@ -66,9 +70,9 @@ impl IoHandler for Handler {
         let mut ctx = if let Some(ctx) = self.ctx.take() {
             ctx
         } else {
-            tcp::connect(self.addr.clone()).await.map_err(Error::io)?
+            tcp::connect_slave(self.addr.clone(), Slave(self.slave_id)).await.map_err(Error::io)?
         };
-        let ret = handle_request(&mut ctx, req.clone()).await;
+        let ret = handle_modbus_request(&mut ctx, req.clone()).await;
         match ret {
             Ok(ret) => {
                 self.ctx.replace(ctx);
@@ -79,7 +83,7 @@ impl IoHandler for Handler {
                 if err.should_retry() {
                     delay_for(Duration::from_millis(100)).await;
                     let mut ctx = tcp::connect(self.addr.clone()).await.map_err(Error::io)?;
-                    let ret = handle_request(&mut ctx, req).await;
+                    let ret = handle_modbus_request(&mut ctx, req).await;
                     if ret.is_ok() {
                         // this time we succeeded, reinsert ctx
                         self.ctx.replace(ctx);
@@ -93,7 +97,7 @@ impl IoHandler for Handler {
     }
 }
 
-async fn handle_request(ctx: &mut Context, req: ModBusRequest) -> crate::Result<ModBusResponse> {
+pub async fn handle_modbus_request(ctx: &mut Context, req: ModBusRequest) -> crate::Result<ModBusResponse> {
     match req {
         ModBusRequest::ReadCoil { addr, cnt } => ctx
             .read_coils(addr, cnt)
@@ -131,13 +135,12 @@ async fn handle_request(ctx: &mut Context, req: ModBusRequest) -> crate::Result<
                 .map_err(Error::io)?;
             match resp {
                 Response::Custom(code, data) => {
-                    Ok(ModBusResponse::Custom(code, data))
+                    Ok(ModBusResponse::Custom { code, data })
                 }
                 _ => {
                     Err(Error::InvalidResponse)
                 }
             }
-
         }
     }
 }
