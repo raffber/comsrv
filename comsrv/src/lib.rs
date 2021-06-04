@@ -18,6 +18,7 @@ use visa::VisaError;
 use crate::can::CanError;
 use crate::sigrok::SigrokError;
 
+mod address;
 pub mod app;
 mod bytestream;
 mod can;

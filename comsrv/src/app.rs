@@ -3,10 +3,11 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task;
 use wsrpc::server::{Requested, Server as WsrpcServer};
 
+use crate::address::Address;
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
 use crate::can::{CanRequest, CanResponse};
+use crate::instrument::Instrument;
 use crate::instrument::InstrumentOptions;
-use crate::instrument::{Address, Instrument};
 use crate::inventory::Inventory;
 use crate::modbus::{ModBusAddress, ModBusRequest, ModBusResponse, ModBusTransport};
 use crate::scpi::{ScpiRequest, ScpiResponse};
