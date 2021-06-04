@@ -7,20 +7,20 @@ use tokio_serial::{FlowControl, SerialPortSettings};
 
 use crate::serial::DEFAULT_TIMEOUT_MS;
 
-#[derive(PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum StopBits {
     One,
     Two,
 }
 
-#[derive(PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum Parity {
     None,
     Odd,
     Even,
 }
 
-#[derive(PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum DataBits {
     Five,
     Six,
@@ -55,7 +55,7 @@ pub fn parse_serial_settings(settings: &str) -> crate::Result<(DataBits, Parity,
     Ok((data_bits, parity, stop_bits))
 }
 
-#[derive(PartialEq, Clone, Serialize, Deserialize, Hash)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Hash)]
 pub struct SerialParams {
     pub baud: u32,
     pub data_bits: DataBits,

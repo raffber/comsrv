@@ -48,7 +48,7 @@ impl Address {
         let addr = &splits[2].to_lowercase();
         if kind == "tcp" {
             // modbus::tcp::192.168.0.1:1234
-            if splits.len() != 3 || splits.len() != 4 {
+            if splits.len() != 3 && splits.len() != 4 {
                 return Err(Error::InvalidAddress);
             }
             let addr: SocketAddr = addr.parse().map_err(|_| Error::InvalidAddress)?;
@@ -66,7 +66,7 @@ impl Address {
             if let Ok(addr) = addr.parse() {
                 // rtu over tcp
                 // modbus::rtu::192.168.1.123{::56}
-                if splits.len() != 3 || splits.len() != 4 {
+                if splits.len() != 3 && splits.len() != 4 {
                     return Err(Error::InvalidAddress);
                 }
                 let slave_id: u8 = if splits.len() == 4 {
@@ -82,12 +82,12 @@ impl Address {
             } else {
                 // rtu over serial
                 // modbus::rtu::/dev/ttyUSB0::115200::8N1{::123}
-                if splits.len() != 5 || splits.len() != 6 {
+                if splits.len() != 5 && splits.len() != 6 {
                     return Err(Error::InvalidAddress);
                 }
                 let (path, params) = SerialParams::from_address(&splits[2..5])?;
                 let slave_id: u8 = if splits.len() == 6 {
-                    splits[6].parse().map_err(|_| Error::InvalidAddress)?
+                    splits[5].parse().map_err(|_| Error::InvalidAddress)?
                 } else {
                     255
                 };
@@ -229,5 +229,76 @@ impl Display for Address {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let x: String = self.clone().into();
         f.write_str(&x)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::SocketAddr;
+    use crate::serial::params::{DataBits, StopBits, Parity};
+
+    #[test]
+    fn test_modbus_address() {
+        let addr = Address::parse("modbus::tcp::192.168.1.1:509").unwrap();
+        let ref_sock_addr: SocketAddr = "192.168.1.1:509".parse().unwrap();
+        match addr {
+            Address::Modbus { addr, transport, slave_id } => {
+                match addr {
+                    ModBusAddress::Tcp { addr } => assert_eq!(addr, ref_sock_addr),
+                    _ => {}
+                }
+                assert!(matches!(transport, ModBusTransport::Tcp));
+                assert_eq!(slave_id, 255);
+            }
+            _ => panic!()
+        }
+        let addr = Address::parse("modbus::tcp::192.168.1.1:509::123").unwrap();
+        match addr {
+            Address::Modbus { addr, transport, slave_id } => {
+                match addr {
+                    ModBusAddress::Tcp { addr } => assert_eq!(addr, ref_sock_addr),
+                    _ => {}
+                }
+                assert!(matches!(transport, ModBusTransport::Tcp));
+                assert_eq!(slave_id, 123);
+            }
+            _ => panic!()
+        }
+
+        let addr = Address::parse("modbus::rtu::192.168.1.1:509::123").unwrap();
+        match addr {
+            Address::Modbus { addr, transport, slave_id } => {
+                match addr {
+                    ModBusAddress::Tcp { addr } => assert_eq!(addr, ref_sock_addr),
+                    _ => {}
+                }
+                assert!(matches!(transport, ModBusTransport::Rtu));
+                assert_eq!(slave_id, 123);
+            }
+            _ => panic!()
+        }
+
+
+        let addr = Address::parse("modbus::rtu::/dev/ttyUSB0::115200::8N1::123").unwrap();
+        match addr {
+            Address::Modbus { addr, transport, slave_id } => {
+                match addr {
+                    ModBusAddress::Serial { path, params } => {
+                        assert_eq!(path, "/dev/ttyUSB0");
+                        assert_eq!(params, SerialParams {
+                            baud: 115200,
+                            data_bits: DataBits::Eight,
+                            stop_bits: StopBits::One,
+                            parity: Parity::None
+                        });
+                    },
+                    _ => {}
+                }
+                assert!(matches!(transport, ModBusTransport::Rtu));
+                assert_eq!(slave_id, 123);
+            }
+            _ => panic!()
+        }
     }
 }
