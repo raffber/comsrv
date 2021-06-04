@@ -7,20 +7,20 @@ use tokio_serial::{FlowControl, SerialPortSettings};
 
 use crate::serial::DEFAULT_TIMEOUT_MS;
 
-#[derive(PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum StopBits {
     One,
     Two,
 }
 
-#[derive(PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum Parity {
     None,
     Odd,
     Even,
 }
 
-#[derive(PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum DataBits {
     Five,
     Six,
@@ -28,34 +28,34 @@ pub enum DataBits {
     Eight,
 }
 
-pub fn parse_serial_settings(settings: &str) -> Option<(DataBits, Parity, StopBits)> {
+pub fn parse_serial_settings(settings: &str) -> crate::Result<(DataBits, Parity, StopBits)> {
     let settings = settings.to_lowercase();
     let chars = settings.as_bytes();
     if chars.len() != 3 {
-        return None;
+        return Err(crate::Error::InvalidAddress);
     }
     let data_bits = match chars[0] as char {
         '8' => DataBits::Eight,
         '7' => DataBits::Seven,
         '6' => DataBits::Six,
         '5' => DataBits::Five,
-        _ => return None,
+        _ => return Err(crate::Error::InvalidAddress),
     };
     let parity = match chars[1] as char {
         'n' => Parity::None,
         'o' => Parity::Odd,
         'e' => Parity::Even,
-        _ => return None,
+        _ => return Err(crate::Error::InvalidAddress),
     };
     let stop_bits = match chars[2] as char {
         '1' => StopBits::One,
         '2' => StopBits::Two,
-        _ => return None,
+        _ => return Err(crate::Error::InvalidAddress),
     };
-    Some((data_bits, parity, stop_bits))
+    Ok((data_bits, parity, stop_bits))
 }
 
-#[derive(PartialEq, Clone, Serialize, Deserialize, Hash)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Hash)]
 pub struct SerialParams {
     pub baud: u32,
     pub data_bits: DataBits,
@@ -64,15 +64,16 @@ pub struct SerialParams {
 }
 
 impl SerialParams {
-    pub fn from_string(addr: &str) -> Option<(String, SerialParams)> {
-        let splits: Vec<_> = addr.split("::").map(|x| x.to_string()).collect();
-        if splits.len() != 4 {
-            return None;
+    pub fn from_address(addr_parts: &[&str]) -> crate::Result<(String, SerialParams)> {
+        if addr_parts.len() != 3 {
+            return Err(crate::Error::InvalidAddress);
         }
-        let path = splits[1].clone();
-        let baud_rate: u32 = splits[2].parse().ok()?;
-        let (bits, parity, stop) = parse_serial_settings(&splits[3])?;
-        Some((
+        let path = addr_parts[0].into();
+        let baud_rate: u32 = addr_parts[1]
+            .parse()
+            .map_err(|_| crate::Error::InvalidAddress)?;
+        let (bits, parity, stop) = parse_serial_settings(&addr_parts[2])?;
+        Ok((
             path,
             SerialParams {
                 baud: baud_rate,
@@ -81,6 +82,16 @@ impl SerialParams {
                 parity,
             },
         ))
+    }
+}
+
+impl Display for SerialParams {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let x = format!(
+            "{}::{}{}{}",
+            self.baud, self.data_bits, self.parity, self.stop_bits
+        );
+        f.write_str(&x)
     }
 }
 

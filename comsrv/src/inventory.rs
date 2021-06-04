@@ -2,8 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use crate::address::Address;
 use crate::app::Server;
-use crate::instrument::{Address, HandleId, Instrument};
+use crate::instrument::{HandleId, Instrument};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;

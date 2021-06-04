@@ -279,12 +279,18 @@ impl Listener {
         log::debug!("CAN received - ID = {:x}", msg.id());
         if self.listen_raw {
             let tx = Response::Can(CanResponse::Raw(msg.clone()));
-            log::debug!("Broadcast raw CAN message: {}", serde_json::to_string(&msg).unwrap());
+            log::debug!(
+                "Broadcast raw CAN message: {}",
+                serde_json::to_string(&msg).unwrap()
+            );
             self.server.broadcast(tx);
         }
         if self.listen_gct {
             if let Some(msg) = self.decoder.decode(msg) {
-                log::debug!("Broadcast GCT CAN message: {}", serde_json::to_string(&msg).unwrap());
+                log::debug!(
+                    "Broadcast GCT CAN message: {}",
+                    serde_json::to_string(&msg).unwrap()
+                );
                 let msg = Response::Can(CanResponse::Gct(msg));
                 self.server.broadcast(msg);
             }

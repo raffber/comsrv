@@ -117,7 +117,10 @@ impl Drop for Visa {
     fn drop(&mut self) {
         let status = VISA.api.viClose(self.rm);
         if status < 0 {
-            panic!("Error dropping resource manager: {}", describe_status(status));
+            panic!(
+                "Error dropping resource manager: {}",
+                describe_status(status)
+            );
         }
     }
 }

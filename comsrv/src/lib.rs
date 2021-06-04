@@ -18,9 +18,11 @@ use visa::VisaError;
 use crate::can::CanError;
 use crate::sigrok::SigrokError;
 
+mod address;
 pub mod app;
 mod bytestream;
 mod can;
+mod clonable_channel;
 mod cobs;
 mod instrument;
 mod inventory;
