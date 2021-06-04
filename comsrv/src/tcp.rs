@@ -1,7 +1,7 @@
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
 use crate::clonable_channel::ClonableChannel;
 use crate::iotask::{IoHandler, IoTask};
-use crate::modbus::{handle_modbus_request, ModBusRequest, ModBusResponse};
+use crate::modbus::{ModBusRequest, ModBusResponse, handle_modbus_request_timeout};
 use crate::Error;
 use async_trait::async_trait;
 use std::net::SocketAddr;
@@ -48,7 +48,8 @@ impl Handler {
                     .map_err(Error::io);
                 match ret {
                     Ok(mut ctx) => {
-                        let ret = handle_modbus_request(&mut ctx, req).await;
+                        let timeout = Duration::from_millis(1000);
+                        let ret = handle_modbus_request_timeout(&mut ctx, req, timeout).await;
                         (ret.map(TcpResponse::ModBus), cloned.take().unwrap())
                     }
                     Err(err) => (Err(err), cloned.take().unwrap()),

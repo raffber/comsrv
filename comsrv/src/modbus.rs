@@ -8,7 +8,7 @@ use crate::iotask::{IoHandler, IoTask};
 use crate::serial::SerialParams;
 use crate::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
-use tokio::time::{delay_for, Duration};
+use tokio::time::{delay_for, timeout, Duration};
 use tokio_modbus::prelude::{Response, Slave, SlaveContext};
 
 fn is_one(x: &u16) -> bool {
@@ -117,7 +117,8 @@ impl IoHandler for Handler {
             tcp::connect(self.addr.clone()).await.map_err(Error::io)?
         };
         ctx.set_slave(Slave(req.slave_id));
-        let ret = handle_modbus_request(&mut ctx, req.inner.clone()).await;
+        let timeout = Duration::from_millis(1000);
+        let ret = handle_modbus_request_timeout(&mut ctx, req.inner.clone(), timeout).await;
         match ret {
             Ok(ret) => {
                 self.ctx.replace(ctx);
@@ -129,7 +130,7 @@ impl IoHandler for Handler {
                     delay_for(Duration::from_millis(100)).await;
                     let mut ctx = tcp::connect(self.addr.clone()).await.map_err(Error::io)?;
                     ctx.set_slave(Slave(req.slave_id));
-                    let ret = handle_modbus_request(&mut ctx, req.inner.clone()).await;
+                    let ret = handle_modbus_request_timeout(&mut ctx, req.inner.clone(), timeout).await;
                     if ret.is_ok() {
                         // this time we succeeded, reinsert ctx
                         self.ctx.replace(ctx);
@@ -140,6 +141,18 @@ impl IoHandler for Handler {
                 }
             }
         }
+    }
+}
+
+pub async fn handle_modbus_request_timeout(
+    ctx: &mut Context,
+    req: ModBusRequest,
+    duration: Duration,
+) -> crate::Result<ModBusResponse> {
+    let fut = handle_modbus_request(ctx, req);
+    match timeout(duration, fut).await {
+        Ok(x) => x,
+        Err(_) => Err(crate::Error::Timeout),
     }
 }
 

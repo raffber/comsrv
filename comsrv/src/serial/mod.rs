@@ -9,12 +9,13 @@ pub use params::SerialParams;
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
 use crate::clonable_channel::ClonableChannel;
 use crate::iotask::{IoHandler, IoTask};
-use crate::modbus::{handle_modbus_request, ModBusRequest, ModBusResponse};
+use crate::modbus::{ModBusRequest, ModBusResponse, handle_modbus_request_timeout};
 use crate::scpi::{ScpiRequest, ScpiResponse};
 use crate::serial::params::{DataBits, Parity, StopBits};
 use crate::serial::prologix::{handle_prologix_request, init_prologix};
 use crate::Error;
 use tokio_modbus::prelude::Slave;
+use std::time::Duration;
 
 pub mod params;
 
@@ -120,7 +121,8 @@ impl IoHandler for Handler {
                 let mut ctx =
                     tokio_modbus::client::rtu::connect_slave(channel.clone(), Slave(slave_addr))
                         .await?;
-                let ret = handle_modbus_request(&mut ctx, req)
+                let timeout = Duration::from_millis(1000);
+                let ret = handle_modbus_request_timeout(&mut ctx, req, timeout)
                     .await
                     .map(Response::ModBus);
                 serial = channel.take().unwrap();
