@@ -1,10 +1,14 @@
+/// This module implements the `Inventory` type, which allows storing and retrieving instruments.
+/// Also, access to instruments may be locked for a given amount of time. During this time, only
+/// the task accesssing the instrument has access to the instrument.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use crate::address::Address;
+use crate::address::{Address, HandleId};
 use crate::app::Server;
-use crate::instrument::{HandleId, Instrument};
+use crate::instrument::Instrument;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -12,6 +16,8 @@ use tokio::sync::Mutex as AsyncMutex;
 use tokio::time::delay_for;
 use uuid::Uuid;
 
+/// Used to lock/unlock an instrument. Allows waiting
+/// for the lock because internally an AsyncMutex is used.
 #[derive(Clone)]
 struct Lock {
     mutex: Arc<AsyncMutex<()>>,
@@ -37,6 +43,7 @@ impl Lock {
     }
 }
 
+/// Contains an instrument which can be locked
 #[derive(Clone)]
 struct LockableInstrument {
     instr: Instrument,
@@ -48,10 +55,18 @@ struct InventoryShared {
     locks: HashMap<Uuid, HandleId>,
 }
 
+/// A collect of instruments, public API of this module
 #[derive(Clone)]
 pub struct Inventory(Arc<Mutex<InventoryShared>>);
 
+
+/// The `Inventory` type allows storing and retrieving instruments.
+/// Also, access to instruments may be locked for a given amount of time. During this time, only
+/// the task accesssing the instrument has access to the instrument.
+///
+/// `Inventory` as well as `Instrument` are `Clone + Send` and can thus be shared between threads.
 impl Inventory {
+    /// Create a new inventory
     pub fn new() -> Self {
         let inner = InventoryShared {
             instruments: Default::default(),
@@ -62,6 +77,12 @@ impl Inventory {
         ret
     }
 
+    /// Connect a new instrument. This function creates a new instrument and registers it
+    /// in the `Inventory`. However, it does not perform any io, and thus cannot fail.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if the there is no `Instrument` associated with the given address type.
     pub fn connect(&self, server: &Server, addr: &Address) -> Instrument {
         let mut inner = self.0.lock().unwrap();
         if let Some(ret) = inner.instruments.get(&addr.handle_id()) {
@@ -76,6 +97,8 @@ impl Inventory {
         ret
     }
 
+    /// If there is instrument connected to the given address, this instrument is disconnected and
+    /// dropped from the `Inventory`.
     pub fn disconnect(&self, addr: &Address) {
         log::debug!("Dropping instrument: {}", addr);
         let mut inner = self.0.lock().unwrap();
@@ -84,17 +107,21 @@ impl Inventory {
         }
     }
 
+    /// Drops all instruments
     pub fn disconnect_all(&self) {
         log::debug!("Dropping all instruments");
         let mut inner = self.0.lock().unwrap();
         inner.instruments.clear();
     }
 
+    /// Return a list of keys of instruments.
     pub fn list(&self) -> Vec<String> {
         let inner = self.0.lock().unwrap();
         inner.instruments.keys().map(|x| x.to_string()).collect()
     }
 
+    /// Wait for the lock on a given instrument. If a `lock_id` is provided and matches the
+    /// lock which is currently held, access to the `Instrument` is granted.
     pub async fn wait_for_lock(&self, addr: &Address, lock_id: Option<&Uuid>) {
         let mutex = {
             let inner = self.0.lock().unwrap();
@@ -118,6 +145,10 @@ impl Inventory {
         log::debug!("Lock acquired, proceeding.");
     }
 
+    /// Lock the given instrument for a given duration and returns an ID representing the
+    /// newly created lock. If a lock is still present on the address, the lock is removed and
+    /// unlocked.
+    /// If this behavior is undesirable, call wait_for_lock() before calling this function.
     pub async fn lock(&self, server: &Server, addr: &Address, timeout: Duration) -> Uuid {
         let ret = Uuid::new_v4();
 
@@ -170,6 +201,7 @@ impl Inventory {
         ret
     }
 
+    /// Unlock an instrument.
     pub async fn unlock(&self, id: Uuid) {
         let lock = {
             let mut inner = self.0.lock().unwrap();

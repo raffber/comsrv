@@ -2,7 +2,6 @@
 /// address strings of the form "serial::COM3::115200::8N1"
 
 use crate::can::CanAddress;
-use crate::instrument::HandleId;
 use crate::modbus::{ModBusAddress, ModBusTransport};
 use crate::serial::SerialParams;
 use crate::Error;
@@ -243,6 +242,28 @@ impl Display for Address {
         f.write_str(&x)
     }
 }
+
+
+/// Represents an identifier for an exclusive hardware resource, such
+/// as a serial port, a TCP connection or similar, as such there can
+/// be only one open instrument per handle
+#[derive(Hash, Clone, PartialEq, Eq)]
+pub struct HandleId {
+    inner: String,
+}
+
+impl HandleId {
+    pub fn new(inner: String) -> Self {
+        Self { inner }
+    }
+}
+
+impl ToString for HandleId {
+    fn to_string(&self) -> String {
+        self.inner.clone()
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

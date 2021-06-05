@@ -1,5 +1,3 @@
-use std::hash::Hash;
-
 use serde::{Deserialize, Serialize};
 
 use crate::address::Address;
@@ -38,23 +36,6 @@ pub enum Instrument {
     Tcp(TcpInstrument),
     Vxi(VxiInstrument),
     Can(CanInstrument),
-}
-
-#[derive(Hash, Clone, PartialEq, Eq)]
-pub struct HandleId {
-    inner: String,
-}
-
-impl HandleId {
-    pub fn new(inner: String) -> Self {
-        Self { inner }
-    }
-}
-
-impl ToString for HandleId {
-    fn to_string(&self) -> String {
-        self.inner.clone()
-    }
 }
 
 impl Instrument {
