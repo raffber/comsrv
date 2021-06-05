@@ -1,11 +1,10 @@
 /// This module implements a request handler for handling operation on a bytesstream-like
 /// instrument, for example TCP streams or serial ports
-
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::time::{timeout, Duration};
 
-use crate::cobs::{cobs_encode, cobs_decode};
+use crate::cobs::{cobs_decode, cobs_encode};
 use crate::Error;
 
 #[derive(Clone, Serialize, Deserialize)]

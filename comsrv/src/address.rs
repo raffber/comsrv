@@ -1,6 +1,5 @@
 /// This module implements `Address` which is used for parsing
 /// address strings of the form "serial::COM3::115200::8N1"
-
 use crate::can::CanAddress;
 use crate::modbus::{ModBusAddress, ModBusTransport};
 use crate::serial::SerialParams;
@@ -8,7 +7,6 @@ use crate::Error;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::net::{IpAddr, SocketAddr};
-
 
 /// Represents a parsed address string.
 /// An address maps to a unique hardware resource (as given by `HandleId`) but
@@ -24,7 +22,7 @@ pub enum Address {
     },
     Prologix {
         file: String,
-        gpib: u8,
+        gpib_addr: u8,
     },
     Modbus {
         addr: ModBusAddress,
@@ -129,7 +127,7 @@ impl Address {
             let addr: u8 = splits[2].parse().map_err(|_| Error::InvalidAddress)?;
             Ok(Address::Prologix {
                 file: serial_addr.to_string(),
-                gpib: addr,
+                gpib_addr: addr,
             })
         } else if splits[0].to_lowercase() == "serial" {
             // serial::/dev/ttyUSB0::9600::8N1
@@ -181,10 +179,7 @@ impl Address {
                 device: splits[1].clone(),
             })
         } else {
-            let splits: Vec<_> = splits
-                .iter()
-                .map(|x| x.to_lowercase())
-                .collect();
+            let splits: Vec<_> = splits.iter().map(|x| x.to_lowercase()).collect();
             Ok(Address::Visa { splits })
         }
     }
@@ -216,7 +211,10 @@ impl From<Address> for String {
         match addr {
             Address::Visa { splits } => splits.join("::"),
             Address::Serial { path, params } => format!("serial::{}::{}", path, params),
-            Address::Prologix { file, gpib } => format!("prologix::{}::{}", file, gpib),
+            Address::Prologix {
+                file,
+                gpib_addr: gpib,
+            } => format!("prologix::{}::{}", file, gpib),
             Address::Modbus {
                 addr,
                 transport,
@@ -243,7 +241,6 @@ impl Display for Address {
     }
 }
 
-
 /// Represents an identifier for an exclusive hardware resource, such
 /// as a serial port, a TCP connection or similar, as such there can
 /// be only one open instrument per handle
@@ -264,19 +261,22 @@ impl ToString for HandleId {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::serial::params::{DataBits, Parity, StopBits};
     use std::net::SocketAddr;
-    use crate::serial::params::{DataBits, StopBits, Parity};
 
     #[test]
     fn test_modbus_address() {
         let addr = Address::parse("modbus::tcp::192.168.1.1:509").unwrap();
         let ref_sock_addr: SocketAddr = "192.168.1.1:509".parse().unwrap();
         match addr {
-            Address::Modbus { addr, transport, slave_id } => {
+            Address::Modbus {
+                addr,
+                transport,
+                slave_id,
+            } => {
                 match addr {
                     ModBusAddress::Tcp { addr } => assert_eq!(addr, ref_sock_addr),
                     _ => {}
@@ -284,11 +284,15 @@ mod tests {
                 assert!(matches!(transport, ModBusTransport::Tcp));
                 assert_eq!(slave_id, 255);
             }
-            _ => panic!()
+            _ => panic!(),
         }
         let addr = Address::parse("modbus::tcp::192.168.1.1:509::123").unwrap();
         match addr {
-            Address::Modbus { addr, transport, slave_id } => {
+            Address::Modbus {
+                addr,
+                transport,
+                slave_id,
+            } => {
                 match addr {
                     ModBusAddress::Tcp { addr } => assert_eq!(addr, ref_sock_addr),
                     _ => {}
@@ -296,12 +300,16 @@ mod tests {
                 assert!(matches!(transport, ModBusTransport::Tcp));
                 assert_eq!(slave_id, 123);
             }
-            _ => panic!()
+            _ => panic!(),
         }
 
         let addr = Address::parse("modbus::rtu::192.168.1.1:509::123").unwrap();
         match addr {
-            Address::Modbus { addr, transport, slave_id } => {
+            Address::Modbus {
+                addr,
+                transport,
+                slave_id,
+            } => {
                 match addr {
                     ModBusAddress::Tcp { addr } => assert_eq!(addr, ref_sock_addr),
                     _ => {}
@@ -309,30 +317,150 @@ mod tests {
                 assert!(matches!(transport, ModBusTransport::Rtu));
                 assert_eq!(slave_id, 123);
             }
-            _ => panic!()
+            _ => panic!(),
         }
-
 
         let addr = Address::parse("modbus::rtu::/dev/ttyUSB0::115200::8N1::123").unwrap();
         match addr {
-            Address::Modbus { addr, transport, slave_id } => {
+            Address::Modbus {
+                addr,
+                transport,
+                slave_id,
+            } => {
                 match addr {
                     ModBusAddress::Serial { path, params } => {
                         assert_eq!(path, "/dev/ttyUSB0");
-                        assert_eq!(params, SerialParams {
-                            baud: 115200,
-                            data_bits: DataBits::Eight,
-                            stop_bits: StopBits::One,
-                            parity: Parity::None
-                        });
-                    },
+                        assert_eq!(
+                            params,
+                            SerialParams {
+                                baud: 115200,
+                                data_bits: DataBits::Eight,
+                                stop_bits: StopBits::One,
+                                parity: Parity::None
+                            }
+                        );
+                    }
                     _ => {}
                 }
                 assert!(matches!(transport, ModBusTransport::Rtu));
                 assert_eq!(slave_id, 123);
             }
-            _ => panic!()
+            _ => panic!(),
         }
     }
 
+    #[test]
+    fn parse_tcp() {
+        let addr = Address::parse("tcp::192.168.1.1:123").unwrap();
+        match addr {
+            Address::Tcp { addr } => {
+                assert_eq!(addr, "192.168.1.1:123".parse().unwrap())
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn parse_serial() {
+        let addr = Address::parse("serial::COM1::115200::8N1").unwrap();
+        match addr {
+            Address::Serial { path, params } => {
+                assert_eq!(path, "COM1");
+                assert_eq!(
+                    params,
+                    SerialParams {
+                        baud: 115200,
+                        data_bits: DataBits::Eight,
+                        stop_bits: StopBits::One,
+                        parity: Parity::None
+                    }
+                );
+            }
+            _ => panic!(),
+        }
+
+        let addr = Address::parse("serial::COM1::9600::5E2").unwrap();
+        match addr {
+            Address::Serial { path, params } => {
+                assert_eq!(path, "COM1");
+                assert_eq!(
+                    params,
+                    SerialParams {
+                        baud: 9600,
+                        data_bits: DataBits::Five,
+                        stop_bits: StopBits::Two,
+                        parity: Parity::Even
+                    }
+                );
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn parse_prologix() {
+        let addr = Address::parse("prologix::/dev/ttyUSB0::10").unwrap();
+        match addr {
+            Address::Prologix { file, gpib_addr } => {
+                assert_eq!(gpib_addr, 10);
+                assert_eq!(file, "/dev/ttyUSB0");
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn parse_vxi() {
+        let addr = Address::parse("vxi::192.168.1.1").unwrap();
+        match addr {
+            Address::Vxi { addr } => {
+                assert_eq!(addr, "192.168.1.1".parse::<IpAddr>().unwrap())
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn parse_can() {
+        let addr = Address::parse("can::socket::can0").unwrap();
+        match addr {
+            Address::Can { addr } => match addr {
+                CanAddress::Socket(interface) => assert_eq!(interface, "can0"),
+                _ => panic!(),
+            },
+            _ => panic!(),
+        }
+
+        let addr = Address::parse("can::pcan::usb1::1000000").unwrap();
+        match addr {
+            Address::Can { addr } => match addr {
+                CanAddress::PCan { ifname, bitrate } => {
+                    assert_eq!(ifname, "usb1");
+                    assert_eq!(bitrate, 1000000);
+                }
+                _ => panic!(),
+            },
+            _ => panic!(),
+        }
+
+        let addr = Address::parse("can::loopback").unwrap();
+        match addr {
+            Address::Can { addr } => match addr {
+                CanAddress::Loopback => {}
+                _ => panic!(),
+            },
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn parse_sigrok() {
+        let addr = Address::parse("sigrok::foobar").unwrap();
+        match addr {
+            Address::Sigrok { device } => {
+                assert_eq!(device, "foobar");
+            }
+            _ => panic!(),
+        }
+    }
 }

@@ -130,7 +130,8 @@ impl IoHandler for Handler {
                     delay_for(Duration::from_millis(100)).await;
                     let mut ctx = tcp::connect(self.addr).await.map_err(Error::io)?;
                     ctx.set_slave(Slave(req.slave_id));
-                    let ret = handle_modbus_request_timeout(&mut ctx, req.inner.clone(), timeout).await;
+                    let ret =
+                        handle_modbus_request_timeout(&mut ctx, req.inner.clone(), timeout).await;
                     if ret.is_ok() {
                         // this time we succeeded, reinsert ctx
                         self.ctx.replace(ctx);

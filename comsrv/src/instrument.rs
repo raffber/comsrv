@@ -63,9 +63,7 @@ impl Instrument {
                 }
                 ModBusAddress::Tcp { addr } => match transport {
                     ModBusTransport::Rtu => Instrument::Tcp(TcpInstrument::new(*addr)),
-                    ModBusTransport::Tcp => {
-                        Instrument::ModBusTcp(ModBusTcpInstrument::new(*addr))
-                    }
+                    ModBusTransport::Tcp => Instrument::ModBusTcp(ModBusTcpInstrument::new(*addr)),
                 },
             },
             Address::Tcp { addr } => Instrument::Tcp(TcpInstrument::new(*addr)),

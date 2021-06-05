@@ -132,7 +132,10 @@ impl App {
                 }
             }
             Instrument::Serial(mut instr) => match addr {
-                Address::Prologix { file: _, gpib } => {
+                Address::Prologix {
+                    file: _,
+                    gpib_addr: gpib,
+                } => {
                     let response = instr
                         .request(SerialRequest::Prologix {
                             gpib_addr: gpib,

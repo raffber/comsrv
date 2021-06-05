@@ -20,7 +20,7 @@ impl CanSender {
             CanSender::Loopback(lo) => {
                 lo.send(msg);
                 Ok(())
-            },
+            }
             CanSender::Bus { device, addr } => {
                 let addr = addr.interface();
                 let ret = device.send(msg).await;

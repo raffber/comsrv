@@ -1,7 +1,6 @@
 /// This modules implements COBS encode and decode functions as described
 /// in [wikipedia](https://en.wikipedia.org/wiki/Consistent_Overhead_Byte_Stuffing).
 
-
 /// Encode some data into a COBS frame
 pub fn cobs_encode(data: &[u8]) -> Vec<u8> {
     let mut zero_idx: i32 = -1;

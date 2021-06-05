@@ -265,7 +265,7 @@ impl DdpDecoder {
             // or frame cnt changed during one transaction
             self.reset();
             return None;
-        } else if self.src_start_addr != id.src() ||  !self.started{
+        } else if self.src_start_addr != id.src() || !self.started {
             // first frame was missing
             // or two nodes are interfering...
             return None;

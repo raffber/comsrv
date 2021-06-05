@@ -3,7 +3,6 @@
 ///
 /// Thus, the actor must implement the trait `IoHandler`. An `IoHandler` can then be placed in an
 /// `IoTask<T: IoHandler>` which implements `Send + Clone` and is thus sharable between threads.
-
 use crate::Error;
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};

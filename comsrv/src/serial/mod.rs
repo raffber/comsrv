@@ -9,13 +9,13 @@ pub use params::SerialParams;
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
 use crate::clonable_channel::ClonableChannel;
 use crate::iotask::{IoHandler, IoTask};
-use crate::modbus::{ModBusRequest, ModBusResponse, handle_modbus_request_timeout};
+use crate::modbus::{handle_modbus_request_timeout, ModBusRequest, ModBusResponse};
 use crate::scpi::{ScpiRequest, ScpiResponse};
 use crate::serial::params::{DataBits, Parity, StopBits};
 use crate::serial::prologix::{handle_prologix_request, init_prologix};
 use crate::Error;
-use tokio_modbus::prelude::Slave;
 use std::time::Duration;
+use tokio_modbus::prelude::Slave;
 
 pub mod params;
 
