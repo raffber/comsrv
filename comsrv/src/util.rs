@@ -1,5 +1,14 @@
 use serde::{Deserialize, Deserializer, Serializer};
 
+/// Allows to serializing, deserializing a `Vec<u8>` as base64.
+///
+/// ```
+/// #[serde(
+///     serialize_with = "util::to_base64",
+///     deserialize_with = "util::from_base64"
+/// )]
+/// data: Vec<u8>,
+/// ```
 pub fn to_base64<S>(data: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -7,6 +16,15 @@ where
     serializer.serialize_str(&base64::encode(&data[..]))
 }
 
+/// Allows to serializing, deserializing a `Vec<u8>` as base64.
+///
+/// ```
+/// #[serde(
+///     serialize_with = "util::to_base64",
+///     deserialize_with = "util::from_base64"
+/// )]
+/// data: Vec<u8>,
+/// ```
 pub fn from_base64<'a, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
 where
     D: Deserializer<'a>,

@@ -1,3 +1,5 @@
+/// This module implements some base types and functions to interact with SCPI-based instruments
+
 use crate::util;
 use crate::Error;
 use serde::{Deserialize, Serialize};
@@ -23,7 +25,7 @@ pub enum ScpiResponse {
     },
 }
 
-/// Parse a binary SCPI header
+/// Parse an SCPI binary header.
 pub fn parse_binary_header(rx: &[u8]) -> crate::Result<(usize, usize)> {
     let begin = rx
         .iter()
