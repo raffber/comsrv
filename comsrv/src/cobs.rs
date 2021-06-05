@@ -1,4 +1,9 @@
-pub fn cobs_pack(data: &[u8]) -> Vec<u8> {
+/// This modules implements COBS encode and decode functions as described
+/// in [wikipedia](https://en.wikipedia.org/wiki/Consistent_Overhead_Byte_Stuffing).
+
+
+/// Encode some data into a COBS frame
+pub fn cobs_encode(data: &[u8]) -> Vec<u8> {
     let mut zero_idx: i32 = -1;
     let mut ret = Vec::new();
     for (k, x) in data.iter().enumerate() {
@@ -16,7 +21,8 @@ pub fn cobs_pack(data: &[u8]) -> Vec<u8> {
     ret
 }
 
-pub fn cobs_unpack(data: &[u8]) -> Option<Vec<u8>> {
+/// Decode some data from a COBS frame
+pub fn cobs_decode(data: &[u8]) -> Option<Vec<u8>> {
     let mut ret = Vec::new();
     let mut zero_idx = 0;
     for (k, x) in data.iter().enumerate() {

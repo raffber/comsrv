@@ -1,8 +1,11 @@
+/// This module implements a request handler for handling operation on a bytesstream-like
+/// instrument, for example TCP streams or serial ports
+
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::time::{timeout, Duration};
 
-use crate::cobs::{cobs_pack, cobs_unpack};
+use crate::cobs::{cobs_encode, cobs_decode};
 use crate::Error;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -92,7 +95,7 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             Ok(ByteStreamResponse::Data(ret))
         }
         ByteStreamRequest::CobsWrite(data) => {
-            let data = cobs_pack(&data);
+            let data = cobs_encode(&data);
             AsyncWriteExt::write_all(stream, &data).await?;
             Ok(ByteStreamResponse::Done)
         }
@@ -142,12 +145,15 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
     }
 }
 
+/// This function empties the buffer. Used before sending a request, such that the response
+/// does not contain "rogue" data from previous requests.
 async fn empty_buf<T: AsyncRead + Unpin>(stream: &mut T) {
     let mut ret = Vec::new();
     let fut = AsyncReadExt::read_buf(stream, &mut ret);
     let _ = timeout(Duration::from_micros(100), fut).await;
 }
 
+/// pop a u8 from a byte stream
 async fn pop<T: AsyncRead + Unpin>(stream: &mut T) -> crate::Result<u8> {
     Ok(AsyncReadExt::read_u8(stream).await?)
 }
@@ -204,7 +210,7 @@ async fn cobs_read<T: AsyncRead + Unpin>(stream: &mut T) -> crate::Result<ByteSt
         }
     }
     // unwrap is save because we cancel above loop only in case we pushed x == 0
-    let ret = cobs_unpack(&ret).unwrap();
+    let ret = cobs_decode(&ret).unwrap();
     Ok(ByteStreamResponse::Data(ret))
 }
 
@@ -220,7 +226,7 @@ async fn cobs_query<T: AsyncRead + AsyncWrite + Unpin>(
         }
         Err(_) => {}
     };
-    let data = cobs_pack(&data);
+    let data = cobs_encode(&data);
     AsyncWriteExt::write_all(stream, &data)
         .await
         .map_err(Error::io)?;

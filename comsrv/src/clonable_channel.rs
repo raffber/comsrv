@@ -5,6 +5,12 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
 
+/// Implements a wrapper on top of `AsyncRead + AsyncWrite` that implements `Clone`.
+/// It uses `Arc<Mutex<..>>` internally. The main purpose of the struct is to pass a stream
+/// into it, perform some IO operation with it that require `Clone`
+/// and extract it back out using the `take()` function.
+///
+/// After calling `take()` all pending futures will fail.
 pub struct ClonableChannel<T: AsyncRead + AsyncWrite + Unpin> {
     inner: Arc<Mutex<Option<T>>>,
 }
@@ -18,14 +24,15 @@ impl<T: AsyncRead + AsyncWrite + Unpin> Clone for ClonableChannel<T> {
 }
 
 impl<T: AsyncRead + AsyncWrite + Unpin> ClonableChannel<T> {
+    /// Create a new `ClonableChannel` wrapping the given stream.
     pub fn new(stream: T) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Some(stream))),
         }
     }
-}
 
-impl<T: AsyncRead + AsyncWrite + Unpin> ClonableChannel<T> {
+    /// Extract the underlying stream. After calling this function all pending futures
+    /// will fail, since they don't have access to the underlying stream anymore.
     pub fn take(self) -> Option<T> {
         let mut locked = self.inner.lock().unwrap();
         locked.take()

@@ -14,6 +14,18 @@ takes care of managing the instrument state (such as establishing a connection) 
 
 The request are checked and dispatched from the main actor in `App::run()`.
 
+## Addresses, Request and Response
+
+The `Request` and `Response` types are defined in `app.rs` and define the wire format. The main handler in the application
+matches a request and parses the address. An additional step is then required to verify whether the given address
+is valid for the request at hand.
+
+An address has a `address.handle_id()` function which returns a handle that maps directly to a hardware resource and
+is used to identify the instrument. Once the instrument has been found, the request is passed to the instrument.
+
+The `Inventory` keeps track of all instruments and maps `HandleId -> Instrument`.
+It also provides the locking feature. Thus access to an instrument might be delayed until a lock has been released.
+
 ## Code Map
 
 * `main.rs` - Entry point. Spawns the `App::run()` actor
@@ -23,9 +35,10 @@ The request are checked and dispatched from the main actor in `App::run()`.
 
 ### Infrastructure
 
-* `instrument.rs` - Defines the `Address` and the `Instrument`. Each `Address` points to an `Instrument`.
+* `instrument.rs` - Defines the `Address` and the `Instrument`.
   The `Instrument`
   object is an enum over all supported instrument types.
+* `address.rs` -  Each `Address` points to an `Instrument`.
 * `inventory.rs` - The `Inventory` keeps track of all connected instruments and is sharable between threads.
 
 ### Instruments and Interfaces

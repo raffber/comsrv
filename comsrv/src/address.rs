@@ -1,3 +1,6 @@
+/// This module implements `Address` which is used for parsing
+/// address strings of the form "serial::COM3::115200::8N1"
+
 use crate::can::CanAddress;
 use crate::instrument::HandleId;
 use crate::modbus::{ModBusAddress, ModBusTransport};
@@ -7,6 +10,10 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::net::{IpAddr, SocketAddr};
 
+
+/// Represents a parsed address string.
+/// An address maps to a unique hardware resource (as given by `HandleId`) but
+/// may carry some additional settings for the communication link.
 #[derive(Clone, Hash)]
 pub enum Address {
     Visa {
@@ -102,6 +109,9 @@ impl Address {
         }
     }
 
+    /// Create a new `Address` by parsing the given address string.
+    /// If the address uses an incorrect format, it will return `Err(Error::InvalidAddress)`.
+    /// Addresses not matching any of the predefined prefixes will be treated as a VISA instrument.
     pub fn parse(addr: &str) -> crate::Result<Self> {
         let splits: Vec<_> = addr.split("::").map(|x| x.to_string()).collect();
         if splits.len() < 2 {
@@ -180,6 +190,8 @@ impl Address {
         }
     }
 
+    /// Get a `HandleId` based on the address. A `HandleId` maps directly to some underlying
+    /// hardware resource.
     pub fn handle_id(&self) -> HandleId {
         match self {
             Address::Visa { splits } => {
@@ -301,4 +313,5 @@ mod tests {
             _ => panic!()
         }
     }
+
 }
