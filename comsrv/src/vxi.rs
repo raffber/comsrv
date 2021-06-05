@@ -8,7 +8,7 @@ use crate::scpi::{ScpiRequest, ScpiResponse};
 use crate::visa::VisaOptions;
 use crate::{scpi, Error};
 
-const DEFAULT_TERMINATION: &'static str = "\n";
+const DEFAULT_TERMINATION: &str = "\n";
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -58,7 +58,7 @@ impl IoHandler for Handler {
         let mut client = if let Some(client) = self.client.take() {
             client
         } else {
-            connect(self.addr.clone()).await?
+            connect(self.addr).await?
         };
         let ret = handle_request_timeout(&mut client, req.clone()).await;
         match ret {
@@ -70,7 +70,7 @@ impl IoHandler for Handler {
                 drop(client);
                 if err.should_retry() {
                     delay_for(Duration::from_millis(100)).await;
-                    let mut client = connect(self.addr.clone()).await?;
+                    let mut client = connect(self.addr).await?;
                     let ret = handle_request_timeout(&mut client, req).await;
                     if ret.is_ok() {
                         self.client.replace(client);
@@ -138,7 +138,7 @@ async fn handle_request(
                 .map_err(Error::vxi)?;
             let rx = client.device_read().await.map_err(Error::vxi)?;
             let (offset, length) = scpi::parse_binary_header(&rx)?;
-            let ret = rx[offset..offset + length].iter().cloned().collect();
+            let ret = rx[offset..offset + length].to_vec();
             Ok(ScpiResponse::Binary { data: ret })
         }
         ScpiRequest::ReadRaw => {

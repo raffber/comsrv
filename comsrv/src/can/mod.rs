@@ -55,9 +55,9 @@ impl CanAddress {
     }
 }
 
-impl Into<String> for CanAddress {
-    fn into(self) -> String {
-        match self {
+impl From<CanAddress> for String {
+    fn from(addr: CanAddress) -> Self {
+        match addr {
             CanAddress::PCan { ifname, bitrate } => format!("pcan::{}::{}", ifname, bitrate),
             CanAddress::Socket(x) => format!("socket::{}", x),
             CanAddress::Loopback => "loopback".to_string(),
@@ -141,13 +141,15 @@ impl Instrument {
     pub fn check_disconnect(&self, err: &crate::Error) -> bool {
         match &err {
             crate::Error::Io(_) | crate::Error::Disconnected => true,
-            crate::Error::Can { addr: _, err } => match err {
-                CanError::Io(_)
-                | CanError::InvalidInterfaceAddress
-                | CanError::InvalidBitRate
-                | CanError::PCanError(_, _) => true,
-                _ => false,
-            },
+            crate::Error::Can { addr: _, err } => {
+                matches!(
+                    err,
+                    CanError::Io(_)
+                        | CanError::InvalidInterfaceAddress
+                        | CanError::InvalidBitRate
+                        | CanError::PCanError(_, _)
+                )
+            }
             _ => false,
         }
     }

@@ -114,7 +114,7 @@ impl IoHandler for Handler {
         let mut ctx = if let Some(ctx) = self.ctx.take() {
             ctx
         } else {
-            tcp::connect(self.addr.clone()).await.map_err(Error::io)?
+            tcp::connect(self.addr).await.map_err(Error::io)?
         };
         ctx.set_slave(Slave(req.slave_id));
         let timeout = Duration::from_millis(1000);
@@ -128,7 +128,7 @@ impl IoHandler for Handler {
                 drop(ctx);
                 if err.should_retry() {
                     delay_for(Duration::from_millis(100)).await;
-                    let mut ctx = tcp::connect(self.addr.clone()).await.map_err(Error::io)?;
+                    let mut ctx = tcp::connect(self.addr).await.map_err(Error::io)?;
                     ctx.set_slave(Slave(req.slave_id));
                     let ret = handle_modbus_request_timeout(&mut ctx, req.inner.clone(), timeout).await;
                     if ret.is_ok() {

@@ -183,7 +183,7 @@ impl Address {
         } else {
             let splits: Vec<_> = splits
                 .iter()
-                .map(|x| x.to_lowercase().to_string())
+                .map(|x| x.to_lowercase())
                 .collect();
             Ok(Address::Visa { splits })
         }
@@ -211,9 +211,9 @@ impl Address {
     }
 }
 
-impl Into<String> for Address {
-    fn into(self) -> String {
-        match self {
+impl From<Address> for String {
+    fn from(addr: Address) -> Self {
+        match addr {
             Address::Visa { splits } => splits.join("::"),
             Address::Serial { path, params } => format!("serial::{}::{}", path, params),
             Address::Prologix { file, gpib } => format!("prologix::{}::{}", file, gpib),

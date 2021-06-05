@@ -27,7 +27,7 @@ pub fn cobs_decode(data: &[u8]) -> Option<Vec<u8>> {
     let mut zero_idx = 0;
     for (k, x) in data.iter().enumerate() {
         if *x == 0 {
-            if ret.len() == 0 {
+            if ret.is_empty() {
                 return Some(Vec::new());
             }
             return Some(ret[1..].to_vec());

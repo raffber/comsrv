@@ -1,20 +1,20 @@
 /// This module implements the `Inventory` type, which allows storing and retrieving instruments.
 /// Also, access to instruments may be locked for a given amount of time. During this time, only
 /// the task accesssing the instrument has access to the instrument.
-
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
-
-use crate::address::{Address, HandleId};
-use crate::app::Server;
-use crate::instrument::Instrument;
 use std::time::Duration;
+
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::time::delay_for;
 use uuid::Uuid;
+
+use crate::address::{Address, HandleId};
+use crate::app::Server;
+use crate::instrument::Instrument;
 
 /// Used to lock/unlock an instrument. Allows waiting
 /// for the lock because internally an AsyncMutex is used.
@@ -59,7 +59,6 @@ struct InventoryShared {
 #[derive(Clone)]
 pub struct Inventory(Arc<Mutex<InventoryShared>>);
 
-
 /// The `Inventory` type allows storing and retrieving instruments.
 /// Also, access to instruments may be locked for a given amount of time. During this time, only
 /// the task accesssing the instrument has access to the instrument.
@@ -73,8 +72,7 @@ impl Inventory {
             locks: Default::default(),
         };
         let inner = Arc::new(Mutex::new(inner));
-        let ret = Self(inner);
-        ret
+        Self(inner)
     }
 
     /// Connect a new instrument. This function creates a new instrument and registers it
@@ -154,7 +152,7 @@ impl Inventory {
 
         let (lock, mut unlock) = {
             let mut inner = self.0.lock().unwrap();
-            let (lock, unlock) = Lock::new(ret.clone());
+            let (lock, unlock) = Lock::new(ret);
             match inner.instruments.get_mut(&addr.handle_id()) {
                 Some(mut instr) => {
                     if let Some(old_lock) = instr.lock.take() {
@@ -175,13 +173,13 @@ impl Inventory {
                 }
             };
             let handle_id = addr.handle_id();
-            inner.locks.insert(ret.clone(), handle_id.clone());
+            inner.locks.insert(ret, handle_id);
             (lock, unlock)
         };
 
         let (tx, rx) = oneshot::channel();
 
-        let lock_id = ret.clone();
+        let lock_id = ret;
         let inv = self.clone();
         tokio::task::spawn(async move {
             log::debug!("Locking: {}", lock_id);
@@ -205,23 +203,21 @@ impl Inventory {
     pub async fn unlock(&self, id: Uuid) {
         let lock = {
             let mut inner = self.0.lock().unwrap();
-            if let Some(lock) = inner.locks.remove(&id) {
-                if let Some(instr) = inner.instruments.get_mut(&lock) {
-                    if let Some(lock) = instr.lock.take() {
-                        Some(lock)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
+            inner
+                .locks
+                .remove(&id)
+                .and_then(|lock| inner.instruments.get_mut(&lock))
+                .and_then(|x| x.lock.take())
         };
         if let Some(lock) = lock {
             log::debug!("Unlocking: {}", id);
             lock.release().await;
         }
+    }
+}
+
+impl Default for Inventory {
+    fn default() -> Self {
+        Self::new()
     }
 }

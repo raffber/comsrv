@@ -82,7 +82,7 @@ fn run_command(args: &[&str]) -> crate::Result<String> {
 }
 
 pub async fn list() -> crate::Result<SigrokResponse> {
-    task::spawn_blocking(|| do_list())
+    task::spawn_blocking(do_list)
         .await
         .map_err(|_| crate::Error::Disconnected)?
 }
@@ -91,12 +91,12 @@ fn do_list() -> crate::Result<SigrokResponse> {
     let stdout = run_command(&["--scan"])?;
     let mut ret = Vec::new();
     // skip 2, first line is boilerplate, second one is demo
-    for line in stdout.split("\n").skip(2) {
+    for line in stdout.split('\n').skip(2) {
         let line = line.trim();
-        if line == "" {
+        if line.is_empty() {
             continue;
         }
-        let mut parts = line.split("-").map(|x| x.trim());
+        let mut parts = line.split('-').map(|x| x.trim());
         let addr = parts
             .next()
             .ok_or(crate::Error::Sigrok(SigrokError::InvalidOutput))?
@@ -115,7 +115,7 @@ fn do_list() -> crate::Result<SigrokResponse> {
 fn do_read(device: String, req: SigrokRequest) -> crate::Result<Data> {
     let mut args = vec!["-d", &device];
     let channels = req.channels.join(",");
-    if req.channels.len() > 0 {
+    if !req.channels.is_empty() {
         args.push("--channels");
         args.push(&channels);
     }
@@ -148,13 +148,13 @@ fn do_read(device: String, req: SigrokRequest) -> crate::Result<Data> {
 pub fn parse_csv(data: String) -> crate::Result<(HashMap<String, Vec<u8>>, usize)> {
     let mut ret = HashMap::new();
     let mut cols = Vec::new();
-    let mut line_iter = data.split("\n");
+    let mut line_iter = data.split('\n');
     let head = line_iter.next();
     if head.is_none() {
         return Err(crate::Error::Sigrok(SigrokError::InvalidOutput));
     }
     let head = head.unwrap();
-    let mut channels: Vec<_> = head.split(",").map(|x| x.to_string()).collect();
+    let mut channels: Vec<_> = head.split(',').map(|x| x.to_string()).collect();
     for _ in &channels {
         let vec: BitVec<Lsb0, u8> = BitVec::new();
         cols.push(vec);
@@ -166,7 +166,7 @@ pub fn parse_csv(data: String) -> crate::Result<(HashMap<String, Vec<u8>>, usize
         if line.is_empty() {
             continue;
         }
-        for (k, v) in line.split(",").enumerate() {
+        for (k, v) in line.split(',').enumerate() {
             if k >= channels.len() {
                 return Err(crate::Error::Sigrok(SigrokError::InvalidOutput));
             }

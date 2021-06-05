@@ -50,7 +50,7 @@ pub fn parse_binary_header(rx: &[u8]) -> crate::Result<(usize, usize)> {
         return Err(Error::InvalidBinaryHeader);
     }
     let data_length = if header_length > 0 {
-        let x: Vec<_> = rx[begin + 2..offset].iter().cloned().collect();
+        let x: Vec<_> = rx[begin + 2..offset].to_vec();
         let data = String::from_utf8(x).map_err(|_| Error::InvalidBinaryHeader)?;
         data.parse::<usize>()
             .map_err(|_| Error::InvalidBinaryHeader)?

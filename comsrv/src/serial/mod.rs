@@ -96,11 +96,8 @@ impl IoHandler for Handler {
             }
         };
         if opened {
-            match req {
-                Request::Prologix { .. } => {
-                    init_prologix(&mut serial).await?;
-                }
-                _ => {}
+            if let Request::Prologix { .. } = req {
+                init_prologix(&mut serial).await?;
             }
         }
         let ret = match req {

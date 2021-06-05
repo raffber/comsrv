@@ -86,11 +86,8 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             log::debug!("read all bytes");
             let mut ret = Vec::new();
             let fut = AsyncReadExt::read_buf(stream, &mut ret);
-            match timeout(Duration::from_micros(100), fut).await {
-                Ok(x) => {
-                    x?;
-                }
-                Err(_) => {}
+            if let Ok(x) = timeout(Duration::from_micros(100), fut).await {
+                x?;
             };
             Ok(ByteStreamResponse::Data(ret))
         }
@@ -220,11 +217,8 @@ async fn cobs_query<T: AsyncRead + AsyncWrite + Unpin>(
 ) -> crate::Result<ByteStreamResponse> {
     let mut garbage = Vec::new();
     let fut = stream.read_buf(&mut garbage);
-    match timeout(Duration::from_micros(100), fut).await {
-        Ok(x) => {
-            x?;
-        }
-        Err(_) => {}
+    if let Ok(x) = timeout(Duration::from_micros(100), fut).await {
+        x?;
     };
     let data = cobs_encode(&data);
     AsyncWriteExt::write_all(stream, &data)

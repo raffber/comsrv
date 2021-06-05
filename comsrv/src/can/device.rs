@@ -17,7 +17,10 @@ pub enum CanReceiver {
 impl CanSender {
     pub async fn send(&self, msg: CanMessage) -> crate::Result<()> {
         match self {
-            CanSender::Loopback(lo) => Ok(lo.send(msg)),
+            CanSender::Loopback(lo) => {
+                lo.send(msg);
+                Ok(())
+            },
             CanSender::Bus { device, addr } => {
                 let addr = addr.interface();
                 let ret = device.send(msg).await;

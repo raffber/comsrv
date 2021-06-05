@@ -260,19 +260,14 @@ impl DdpDecoder {
             self.expected_frame_cnt = frame_size;
             self.src_start_addr = id.src();
             self.started = true;
-        } else if self.frames_received + 1 != frame_idx {
+        } else if self.frames_received + 1 != frame_idx || frame_size != self.expected_frame_cnt {
             // out of sequence
+            // or frame cnt changed during one transaction
             self.reset();
             return None;
-        } else if frame_size != self.expected_frame_cnt {
-            // frame cnt changed during one transaction
-            self.reset();
-            return None;
-        } else if !self.started {
+        } else if self.src_start_addr != id.src() ||  !self.started{
             // first frame was missing
-            return None;
-        } else if self.src_start_addr != id.src() {
-            // two nodes are interfering...
+            // or two nodes are interfering...
             return None;
         }
         self.frames_received = frame_idx;
@@ -376,12 +371,10 @@ pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
             let num_chunks = chunks.len();
             let mut ret = Vec::with_capacity(num_chunks);
             let part_count = num_chunks - 1;
-            let mut idx = 0;
-            for chunk in chunks {
-                let type_data = (part_count as u16) << 8 | idx << 5;
+            for (idx, chunk) in chunks.into_iter().enumerate() {
+                let type_data = (part_count as u16) << 8 | (idx as u16) << 5;
                 let id = MessageId::new(MSGTYPE_DDP, src, dst, type_data);
                 ret.push(Message::new_data(id.0, true, &chunk).unwrap());
-                idx += 1;
             }
             ret
         }

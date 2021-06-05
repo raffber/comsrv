@@ -5,7 +5,6 @@ use std::mem::MaybeUninit;
 use std::os::raw::c_char;
 
 use dlopen::wrapper::{Container, WrapperApi};
-use lazy_static;
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 use thiserror::Error;
@@ -39,9 +38,9 @@ impl From<VisaError> for crate::Error {
 
 cfg_if::cfg_if! {
     if #[cfg(unix)] {
-        const VISA_LIB: &'static [u8] = include_bytes!("../../lib/libvisa.so");
+        const VISA_LIB: &[u8] = include_bytes!("../../lib/libvisa.so");
     } else {
-        const VISA_LIB: &'static [u8] = include_bytes!("../../lib/visa64.dll");
+        const VISA_LIB: &[u8] = include_bytes!("../../lib/visa64.dll");
     }
 }
 
@@ -104,6 +103,7 @@ impl Visa {
     }
 }
 
+#[allow(clippy::uninit_assumed_init)]
 fn describe_status(status: ViStatus) -> String {
     unsafe {
         let mut data: [c_char; 512] = MaybeUninit::uninit().assume_init();

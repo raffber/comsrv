@@ -23,12 +23,9 @@ pub async fn handle_prologix_request(
     log::debug!("handling prologix request for address {}", addr);
     let mut ret = Vec::with_capacity(128);
     let fut = AsyncReadExt::read(serial, &mut ret);
-    match timeout(Duration::from_millis(2), fut).await {
-        Ok(x) => {
-            x.map_err(Error::io)?;
-        }
-        Err(_) => {}
-    };
+    if let Ok(x) = timeout(Duration::from_millis(2), fut).await {
+        x.map_err(Error::io)?;
+    }
     log::debug!("Read: {:?}", ret);
     ret.clear();
     let addr_set = format!("++addr {}\n", addr);
@@ -67,8 +64,8 @@ async fn write(serial: &mut Serial, msg: &str) -> crate::Result<()> {
 }
 
 async fn write_prologix(serial: &mut Serial, mut msg: String) -> crate::Result<()> {
-    if !msg.ends_with("\n") {
-        msg.push_str("\n");
+    if !msg.ends_with('\n') {
+        msg.push('\n');
     }
     serial
         .write(msg.as_bytes())

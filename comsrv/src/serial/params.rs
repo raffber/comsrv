@@ -95,14 +95,14 @@ impl Display for SerialParams {
     }
 }
 
-impl Into<SerialPortSettings> for SerialParams {
-    fn into(self) -> SerialPortSettings {
+impl From<SerialParams> for SerialPortSettings {
+    fn from(params: SerialParams) -> Self {
         SerialPortSettings {
-            baud_rate: self.baud,
+            baud_rate: params.baud,
             data_bits: tokio_serial::DataBits::Eight,
             flow_control: FlowControl::None,
-            parity: self.parity.into(),
-            stop_bits: self.stop_bits.into(),
+            parity: params.parity.into(),
+            stop_bits: params.stop_bits.into(),
             timeout: Duration::from_millis(DEFAULT_TIMEOUT_MS),
         }
     }
@@ -117,9 +117,9 @@ impl From<tokio_serial::StopBits> for StopBits {
     }
 }
 
-impl Into<tokio_serial::StopBits> for StopBits {
-    fn into(self) -> tokio_serial::StopBits {
-        match self {
+impl From<StopBits> for tokio_serial::StopBits {
+    fn from(x: StopBits) -> Self {
+        match x {
             StopBits::One => tokio_serial::StopBits::One,
             StopBits::Two => tokio_serial::StopBits::Two,
         }
@@ -136,6 +136,7 @@ impl From<tokio_serial::Parity> for Parity {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<tokio_serial::Parity> for Parity {
     fn into(self) -> tokio_serial::Parity {
         match self {
@@ -157,6 +158,7 @@ impl From<tokio_serial::DataBits> for DataBits {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<tokio_serial::DataBits> for DataBits {
     fn into(self) -> tokio_serial::DataBits {
         match self {

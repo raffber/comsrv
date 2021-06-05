@@ -62,14 +62,14 @@ impl Instrument {
                     Instrument::Serial(instr)
                 }
                 ModBusAddress::Tcp { addr } => match transport {
-                    ModBusTransport::Rtu => Instrument::Tcp(TcpInstrument::new(addr.clone())),
+                    ModBusTransport::Rtu => Instrument::Tcp(TcpInstrument::new(*addr)),
                     ModBusTransport::Tcp => {
-                        Instrument::ModBusTcp(ModBusTcpInstrument::new(addr.clone()))
+                        Instrument::ModBusTcp(ModBusTcpInstrument::new(*addr))
                     }
                 },
             },
-            Address::Tcp { addr } => Instrument::Tcp(TcpInstrument::new(addr.clone())),
-            Address::Vxi { addr } => Instrument::Vxi(VxiInstrument::new(addr.clone())),
+            Address::Tcp { addr } => Instrument::Tcp(TcpInstrument::new(*addr)),
+            Address::Vxi { addr } => Instrument::Vxi(VxiInstrument::new(*addr)),
             Address::Can { addr } => Instrument::Can(CanInstrument::new(server, addr.clone())),
             Address::Sigrok { .. } => {
                 return None;

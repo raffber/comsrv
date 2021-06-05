@@ -9,6 +9,7 @@ use serde::{Deserialize, Deserializer, Serializer};
 /// )]
 /// data: Vec<u8>,
 /// ```
+#[allow(clippy::ptr_arg)]
 pub fn to_base64<S>(data: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,

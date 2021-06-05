@@ -120,14 +120,14 @@ impl App {
         match self.inventory.connect(&self.server, &addr) {
             Instrument::Visa(instr) => {
                 let opt = match options {
-                    InstrumentOptions::Visa(x) => x.clone(),
+                    InstrumentOptions::Visa(x) => x,
                     InstrumentOptions::Default => VisaOptions::default(),
                 };
                 match instr.request(task, opt).await {
                     Ok(x) => Ok(x),
                     Err(x) => {
                         self.inventory.disconnect(&addr);
-                        Err(x.into())
+                        Err(x)
                     }
                 }
             }
@@ -147,7 +147,7 @@ impl App {
                         }
                         Err(x) => {
                             self.inventory.disconnect(&addr);
-                            Err(x.into())
+                            Err(x)
                         }
                     }
                 }
@@ -155,14 +155,14 @@ impl App {
             },
             Instrument::Vxi(mut instr) => {
                 let opt = match options {
-                    InstrumentOptions::Visa(x) => x.clone(),
+                    InstrumentOptions::Visa(x) => x,
                     InstrumentOptions::Default => VisaOptions::default(),
                 };
                 match instr.request(task, opt).await {
                     Ok(x) => Ok(x),
                     Err(x) => {
                         self.inventory.disconnect(&addr);
-                        Err(x.into())
+                        Err(x)
                     }
                 }
             }
@@ -321,7 +321,7 @@ impl App {
                 if device.check_disconnect(&x) {
                     self.inventory.disconnect(&addr);
                 }
-                Err(x.into())
+                Err(x)
             }
         }
     }
@@ -376,7 +376,7 @@ impl App {
             Request::Sigrok { addr, task } => {
                 let addr = match Address::parse(&addr) {
                     Ok(addr) => addr,
-                    Err(err) => return Response::Error(err.into()),
+                    Err(err) => return Response::Error(err),
                 };
                 let device = match addr {
                     Address::Sigrok { device } => device,
@@ -384,17 +384,17 @@ impl App {
                 };
                 match sigrok::read(device, task).await {
                     Ok(resp) => Response::Sigrok(resp),
-                    Err(err) => Response::Error(err.into()),
+                    Err(err) => Response::Error(err),
                 }
             }
             Request::ListSigrokDevices => match sigrok::list().await {
                 Ok(resp) => Response::Sigrok(resp),
-                Err(err) => Response::Error(err.into()),
+                Err(err) => Response::Error(err),
             },
             Request::Lock { addr, timeout_ms } => {
                 let addr = match Address::parse(&addr) {
                     Ok(addr) => addr,
-                    Err(err) => return Response::Error(err.into()),
+                    Err(err) => return Response::Error(err),
                 };
                 let timeout = Duration::from_millis(timeout_ms as u64);
                 self.inventory.wait_for_lock(&addr, None).await;

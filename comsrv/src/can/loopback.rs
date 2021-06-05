@@ -1,5 +1,4 @@
 use crate::can::{CanError, CanMessage};
-use lazy_static;
 use tokio::sync::broadcast;
 
 const MAX_SIZE: usize = 1000;
