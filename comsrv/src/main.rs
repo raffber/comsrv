@@ -50,9 +50,9 @@ fn main() {
         let url = format!("0.0.0.0:{}", port);
         let http_addr: SocketAddr = format!("0.0.0.0:{}", port + 1).parse().unwrap();
         app.server.enable_broadcast_reqrep(true);
-        log::debug!("Listening on ws://{}", url);
+        println!("Listening on ws://{}", url);
         app.server.listen_ws(url).await;
-        log::debug!("Listening on http://{}", http_addr);
+        println!("Listening on http://{}", http_addr);
         app.server.listen_http(http_addr).await;
         app.run(rx).await;
         log::debug!("Application quitting.");
