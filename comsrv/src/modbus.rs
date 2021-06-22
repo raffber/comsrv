@@ -127,7 +127,7 @@ impl IoHandler for Handler {
             Err(err) => {
                 drop(ctx);
                 if err.should_retry() {
-                    delay_for(Duration::from_millis(100)).await;
+                    delay_for(Duration::from_millis(1000)).await;
                     let mut ctx = tcp::connect(self.addr).await.map_err(Error::io)?;
                     ctx.set_slave(Slave(req.slave_id));
                     let ret =
