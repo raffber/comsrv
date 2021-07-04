@@ -326,8 +326,8 @@ async fn listener_task(
     server: Server,
 ) {
     let mut listener = Listener {
-        listen_gct: false,
-        listen_raw: false,
+        listen_gct: true,
+        listen_raw: true,
         decoder: Decoder::new(),
         server,
         device,
