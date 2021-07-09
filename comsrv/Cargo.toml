@@ -28,7 +28,7 @@ async-trait = "0.1.40"
 futures = "0.3.7"
 base64 = "0.13.0"
 async-vxi11 = { git = "https://github.com/raffber/async-vxi11.git", rev = "453cb1c" }
-async-can = { git = "https://github.com/raffber/async-can.git", rev = "35dfca7bd779b11d2ac9d8cc2c243379b8dcdd25" }
+async-can = { git = "https://github.com/raffber/async-can.git", rev = "ea02709f6e563f877023fab55fcc8a6d03904480" }
 byteorder = "1.3"
 bitvec="0.20.1"
 
