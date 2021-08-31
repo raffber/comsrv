@@ -14,6 +14,9 @@ class HidDeviceInfo:
 
 
 class HidDevice(BasePipe):
+    def __init__(self, vid, pid, url=None):
+        super().__init__('can::{}::{}'.format(vid, pid), url=url)
+
     async def get_info(self) -> HidDeviceInfo:
         result = await self.get({'Hid': {
             'addr': self.addr,
