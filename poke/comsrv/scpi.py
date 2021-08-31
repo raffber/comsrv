@@ -1,6 +1,6 @@
 import base64
 
-from poke.comsrv import get, ComSrvException, ByteStreamPipe, BasePipe
+from poke.comsrv import get, ComSrvError, ByteStreamPipe, BasePipe
 from poke.scpi import Pipe as ScpiPipeBase
 
 
@@ -16,8 +16,7 @@ class ScpiPipe(ScpiPipeBase, BasePipe):
             'options': {'Default': None},
             'lock': self._lock,
         }})
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
         return result['Scpi']['String']
 
     async def write(self, msg: str):
@@ -27,8 +26,7 @@ class ScpiPipe(ScpiPipeBase, BasePipe):
             'options': {'Default': None},
             'lock': self._lock,
         }})
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
 
     async def query_binary(self, msg: str) -> bytes:
         result = await get(self._url, {
@@ -39,8 +37,7 @@ class ScpiPipe(ScpiPipeBase, BasePipe):
                 'lock': self._lock,
             }
         })
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
         data = result['Scpi']['Binary']['data']
         return base64.b64decode(data)
 
@@ -53,8 +50,7 @@ class ScpiPipe(ScpiPipeBase, BasePipe):
                 'lock': self._lock,
             }
         })
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
         data = result['Scpi']['Binary']['data']
         return base64.b64decode(data)
 

@@ -11,7 +11,33 @@ from aiohttp import ClientSession
 from pywsrpc.client import Client
 
 
-class ComSrvException(Exception):
+class ComSrvError(Exception):
+
+    @classmethod
+    def parse(cls, data):
+        if 'Hid' in data:
+            return HidError(data['Hid'])
+        if 'Timeout' in data:
+            return TimeoutError()
+        if 'Can' in data:
+            return CanError()
+        return ComSrvError(data)
+
+    @classmethod
+    def check_raise(cls, result):
+        if 'Error' in result:
+            raise ComSrvError.parse(result['Error'])
+
+
+class TimeoutError(ComSrvError):
+    pass
+
+
+class HidError(ComSrvError):
+    pass
+
+
+class CanError(ComSrvError):
     pass
 
 
@@ -49,7 +75,7 @@ async def get(url, data):
         async with session.get(url, data=data) as resp:
             data = json.loads(await resp.text())
             if resp.status != 200:
-                raise ComSrvException(data)
+                raise ComSrvError(data)
             return data
 
 
@@ -61,6 +87,10 @@ class BasePipe(object):
         self._addr = addr
         self._lock_time = 1.0
         self._lock = None
+
+    @property
+    def addr(self):
+        return self._addr
 
     @property
     def url(self):
@@ -107,6 +137,9 @@ class BasePipe(object):
         self._lock = reply['Locked']['lock_id']
         return self
 
+    async def get(self, data):
+        return await get(self._url, data)
+
     async def __aenter__(self):
         """
         Lock the instrument
@@ -151,28 +184,28 @@ class ComSrv(object):
             'Drop': addr
         })
         if 'Error' in result:
-            raise ComSrvException(result['Error'])
+            raise ComSrvError(result['Error'])
 
     async def drop_all(self):
         result = await get(self._url, {
             'DropAll': None
         })
         if 'Error' in result:
-            raise ComSrvException(result['Error'])
+            raise ComSrvError(result['Error'])
 
     async def shutdown(self):
         result = await get(self._url, {
             'Shutdown': None
         })
         if 'Error' in result:
-            raise ComSrvException(result['Error'])
+            raise ComSrvError(result['Error'])
 
     async def list_instruments(self):
         result = await get(self._url, {
             'ListInstruments': None
         })
         if 'Error' in result:
-            raise ComSrvException(result['Error'])
+            raise ComSrvError(result['Error'])
         return result['Instruments']
 
 
@@ -181,3 +214,4 @@ from .bytestream import ByteStreamPipe
 from .can import CanBus
 from .scpi import ScpiPipe, SerialScpiPipe
 from .sigrok import SigrokDevice
+from .hid import HidDevice, enumerate_hid_devices

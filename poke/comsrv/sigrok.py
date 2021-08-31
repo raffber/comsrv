@@ -2,7 +2,7 @@ from typing import List, Optional
 
 import numpy as np
 
-from poke.comsrv import get_default_http_url, get, ComSrvException
+from poke.comsrv import get_default_http_url, get, ComSrvError
 
 
 class SigrokDevice(object):
@@ -41,8 +41,7 @@ class SigrokDevice(object):
             }
         }}
         data = await get(self._url, request)
-        if 'Error' in data:
-            raise ComSrvException(data['Error'])
+        ComSrvError.check_raise(data)
         data = data['Sigrok']['Data']
         tsample = data['tsample']
         length = data['length']
@@ -58,8 +57,7 @@ async def list_devices(url=None) -> List[SigrokDevice]:
     if url is None:
         url = get_default_http_url()
     ret = await get(url, {'ListSigrokDevices': None})
-    if 'Error' in ret:
-        raise ComSrvException(ret['Error'])
+    ComSrvError.check_raise(ret)
     devices = ret['Sigrok']['Devices']
     ret = []
     for dev in devices:

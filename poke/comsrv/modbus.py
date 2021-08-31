@@ -1,6 +1,6 @@
 from typing import List
 
-from . import get, ComSrvException, BasePipe
+from . import get, ComSrvError, BasePipe
 
 
 class ModBusDevice(BasePipe):
@@ -15,8 +15,7 @@ class ModBusDevice(BasePipe):
                 'lock': self._lock,
             }
         })
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
 
     async def write_coils(self, addr: int, data: List[bool]):
         result = await get(self._url, {
@@ -29,8 +28,7 @@ class ModBusDevice(BasePipe):
                 'lock': self._lock,
             }
         })
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
 
     async def read_holding(self, addr: int, count: int = 1):
         assert count > 0
@@ -44,8 +42,7 @@ class ModBusDevice(BasePipe):
                 'lock': self._lock,
             }
         })
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
         return result['ModBus']['Number']
 
     async def read_coil(self, addr: int, count: int = 1):
@@ -60,8 +57,7 @@ class ModBusDevice(BasePipe):
                 'lock': self._lock,
             }
         })
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
         return result['ModBus']['Bool']
 
     async def read_discrete(self, addr: int, count: int = 1):
@@ -76,8 +72,7 @@ class ModBusDevice(BasePipe):
                 'lock': self._lock,
             }
         })
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
         return result['ModBus']['Bool']
 
     async def read_input(self, addr: int, count: int = 1):
@@ -92,8 +87,7 @@ class ModBusDevice(BasePipe):
                 'lock': self._lock,
             }
         })
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
         return result['ModBus']['Number']
 
     async def send_custom_command(self, code: int, data: bytes):
@@ -116,7 +110,6 @@ class ModBusDevice(BasePipe):
                 'lock': self._lock,
             }
         })
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
         ret = result['ModBus']['Custom']
         return ret['code'], ret['data']

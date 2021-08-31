@@ -1,7 +1,7 @@
 from typing import Optional
 
-from poke.can import CanException, CanMessage, GctMessage
-from poke.comsrv import get_default_ws_url, ComSrvException
+from poke.can import CanError, CanMessage, GctMessage
+from poke.comsrv import get_default_ws_url, ComSrvError
 from pywsrpc.client import Client
 
 
@@ -70,11 +70,11 @@ class CanBus(object):
         resp = await self._client.request(msg)
         if 'Error' in resp:
             if 'Can' in resp['Error']:
-                raise CanException(resp['Error']['Can'])
+                raise CanError(resp['Error']['Can'])
             else:
-                raise ComSrvException(resp['Error'])
+                raise ComSrvError(resp['Error'])
         if 'Can' not in resp:
-            raise ComSrvException('Unexpected wire format')
+            raise ComSrvError('Unexpected wire format')
         return resp['Can']
 
     async def send(self, msg, rx_reply=True):
@@ -92,7 +92,7 @@ class CanBus(object):
         elif isinstance(msg, GctMessage):
             task = {'TxGct': msg.to_comsrv()}
         else:
-            raise CanException('Invalid message type.')
+            raise CanError('Invalid message type.')
         await self.rpc(task, rx_reply=rx_reply)
 
     async def listen_raw(self):

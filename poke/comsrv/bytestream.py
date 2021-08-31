@@ -1,6 +1,6 @@
 from typing import Union
 
-from poke.comsrv import get, ComSrvException, BasePipe
+from poke.comsrv import get, ComSrvError, BasePipe
 
 
 class ByteStreamPipe(BasePipe):
@@ -10,8 +10,7 @@ class ByteStreamPipe(BasePipe):
             'task': {'Write': list(data)},
             'lock': self._lock
         }})
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
 
     async def read_all(self) -> bytes:
         result = await get(self._url, {'Bytes': {
@@ -19,8 +18,7 @@ class ByteStreamPipe(BasePipe):
             'task': 'ReadAll',
             'lock': self._lock
         }})
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
         data = bytes(result['Bytes']['Data'])
         return data
 
@@ -33,8 +31,7 @@ class ByteStreamPipe(BasePipe):
             }},
             'lock': self._lock,
         }})
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
         data = bytes(result['Bytes']['Data'])
         return data
 
@@ -47,8 +44,7 @@ class ByteStreamPipe(BasePipe):
             }},
             'lock': self._lock
         }})
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
         data = bytes(result['Bytes']['Data'])
         return data
 
@@ -58,8 +54,7 @@ class ByteStreamPipe(BasePipe):
             'task': {'ReadUpTo': count},
             'lock': self._lock
         }})
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
         data = bytes(result['Bytes']['Data'])
         return data
 
@@ -69,8 +64,7 @@ class ByteStreamPipe(BasePipe):
             'task': {'CobsWrite': list(data)},
             'lock': self._lock
         }})
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
 
     async def cobs_read(self, timeout):
         result = await get(self._url, {'Bytes': {
@@ -80,8 +74,7 @@ class ByteStreamPipe(BasePipe):
             },
             'lock': self._lock,
         }})
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
         data = bytes(result['Bytes']['Data'])
         return data
 
@@ -96,8 +89,7 @@ class ByteStreamPipe(BasePipe):
             },
             'lock': self._lock,
         }})
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
         data = bytes(result['Bytes']['Data'])
         return data
 
@@ -115,8 +107,7 @@ class ByteStreamPipe(BasePipe):
             },
             'lock': self._lock,
         }})
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
 
     async def read_line(self, timeout, term: Union[int, str] = '\n'):
         if isinstance(term, str):
@@ -132,8 +123,7 @@ class ByteStreamPipe(BasePipe):
             },
             'lock': self._lock,
         }})
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
         return result['Bytes']['String']
 
     async def query_line(self, line: str, timeout, term: Union[int, str] = '\n'):
@@ -151,6 +141,5 @@ class ByteStreamPipe(BasePipe):
             },
             'lock': self._lock,
         }})
-        if 'Error' in result:
-            raise ComSrvException(result['Error'])
+        ComSrvError.check_raise(result)
         return result['Bytes']['String']
