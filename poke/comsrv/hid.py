@@ -15,7 +15,7 @@ class HidDeviceInfo:
 
 class HidDevice(BasePipe):
     def __init__(self, vid, pid, url=None):
-        super().__init__('can::{}::{}'.format(vid, pid), url=url)
+        super().__init__('hid::{:x}::{:x}'.format(vid, pid), url=url)
 
     async def get_info(self) -> HidDeviceInfo:
         result = await self.get({'Hid': {
@@ -29,7 +29,7 @@ class HidDevice(BasePipe):
     async def write(self, data):
         result = await self.get({'Hid': {
             'addr': self.addr,
-            'task': {'Write': {'data': data}}
+            'task': {'Write': {'data': list(data)}}
         }})
         ComSrvError.check_raise(result)
 
