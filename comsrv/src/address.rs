@@ -215,7 +215,7 @@ impl Address {
             Address::Tcp { addr } => HandleId::new(addr.to_string()),
             Address::Can { addr } => HandleId::new(addr.interface()),
             Address::Sigrok { device } => HandleId::new(device.to_string()),
-            Address::Hid { idn } => HandleId::new(format!("hid::{}::{}", idn.vid(), idn.pid())),
+            Address::Hid { .. } => HandleId::new(self.clone().into()),
         }
     }
 }
@@ -244,7 +244,7 @@ impl From<Address> for String {
             Address::Vxi { addr } => format!("vxi::{}", addr),
             Address::Can { addr } => format!("can::{}", addr),
             Address::Sigrok { device } => format!("sigrok::{}", device),
-            Address::Hid { idn } => format!("hid::{}::{}", idn.vid(), idn.pid()),
+            Address::Hid { idn } => format!("hid::{:#x}::{:#x}", idn.vid(), idn.pid()),
         }
     }
 }
