@@ -2,12 +2,12 @@ use crate::scpi::{ScpiRequest, ScpiResponse};
 use crate::Error;
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::time::{delay_for, timeout};
-use tokio_serial::Serial;
+use tokio::time::{sleep, timeout};
+use tokio_serial::SerialStream;
 
 const PROLOGIX_TIMEOUT: f32 = 1.0;
 
-pub async fn init_prologix(serial: &mut Serial) -> crate::Result<()> {
+pub async fn init_prologix(serial: &mut SerialStream) -> crate::Result<()> {
     log::debug!("Initalizing prologix.");
     write(serial, "++savecfg 0\n").await?;
     write(serial, "++auto 0\n").await?;
@@ -16,7 +16,7 @@ pub async fn init_prologix(serial: &mut Serial) -> crate::Result<()> {
 }
 
 pub async fn handle_prologix_request(
-    serial: &mut Serial,
+    serial: &mut SerialStream,
     addr: u8,
     req: ScpiRequest,
 ) -> crate::Result<ScpiResponse> {
@@ -47,7 +47,7 @@ pub async fn handle_prologix_request(
         }
         ScpiRequest::ReadRaw => {
             write(serial, "++read eoi\n").await?;
-            delay_for(Duration::from_millis(100)).await;
+            sleep(Duration::from_millis(100)).await;
             let mut ret = Vec::new();
             serial.read(&mut ret).await.map_err(Error::io)?;
             Ok(ScpiResponse::Binary { data: ret })
@@ -55,7 +55,7 @@ pub async fn handle_prologix_request(
     }
 }
 
-async fn write(serial: &mut Serial, msg: &str) -> crate::Result<()> {
+async fn write(serial: &mut SerialStream, msg: &str) -> crate::Result<()> {
     serial
         .write(msg.as_bytes())
         .await
@@ -63,7 +63,7 @@ async fn write(serial: &mut Serial, msg: &str) -> crate::Result<()> {
         .map_err(Error::io)
 }
 
-async fn write_prologix(serial: &mut Serial, mut msg: String) -> crate::Result<()> {
+async fn write_prologix(serial: &mut SerialStream, mut msg: String) -> crate::Result<()> {
     if !msg.ends_with('\n') {
         msg.push('\n');
     }
@@ -74,7 +74,7 @@ async fn write_prologix(serial: &mut Serial, mut msg: String) -> crate::Result<(
         .map_err(Error::io)
 }
 
-async fn read_prologix(serial: &mut Serial) -> crate::Result<String> {
+async fn read_prologix(serial: &mut SerialStream) -> crate::Result<String> {
     let start = Instant::now();
     let mut ret = Vec::new();
     loop {

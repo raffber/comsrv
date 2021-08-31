@@ -6,7 +6,7 @@ use crate::Error;
 use async_trait::async_trait;
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
-use tokio::time::{delay_for, Duration};
+use tokio::time::{sleep, Duration};
 use tokio_modbus::prelude::Slave;
 
 #[derive(Clone)]
@@ -82,7 +82,7 @@ impl IoHandler for Handler {
             Err(err) => {
                 drop(stream);
                 if err.should_retry() {
-                    delay_for(Duration::from_millis(100)).await;
+                    sleep(Duration::from_millis(100)).await;
                     let stream = TcpStream::connect(&self.addr.clone())
                         .await
                         .map_err(Error::io)?;

@@ -3,7 +3,7 @@ use std::io::{Error, ErrorKind};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 /// Implements a wrapper on top of `AsyncRead + AsyncWrite` that implements `Clone`.
 /// It uses `Arc<Mutex<..>>` internally. The main purpose of the struct is to pass a stream
@@ -11,6 +11,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 /// and extract it back out using the `take()` function.
 ///
 /// After calling `take()` all pending futures will fail.
+#[derive(Debug)]
 pub struct ClonableChannel<T: AsyncRead + AsyncWrite + Unpin> {
     inner: Arc<Mutex<Option<T>>>,
 }
@@ -40,11 +41,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> ClonableChannel<T> {
 }
 
 impl<T: AsyncRead + AsyncWrite + Unpin> AsyncRead for ClonableChannel<T> {
-    fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
         let inner = &mut self.inner.lock().unwrap();
         if inner.is_none() {
             return Poll::Ready(Err(Error::new(ErrorKind::Other, "Channel closed.")));

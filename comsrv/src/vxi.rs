@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use async_vxi11::CoreClient;
 use std::net::IpAddr;
-use tokio::time::{delay_for, Duration};
+use tokio::time::{sleep, Duration};
 
 use crate::iotask::{IoHandler, IoTask};
 use crate::scpi::{ScpiRequest, ScpiResponse};
@@ -69,7 +69,7 @@ impl IoHandler for Handler {
             Err(err) => {
                 drop(client);
                 if err.should_retry() {
-                    delay_for(Duration::from_millis(100)).await;
+                    sleep(Duration::from_millis(100)).await;
                     let mut client = connect(self.addr).await?;
                     let ret = handle_request_timeout(&mut client, req).await;
                     if ret.is_ok() {

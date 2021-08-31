@@ -9,7 +9,7 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::sync::Mutex as AsyncMutex;
-use tokio::time::delay_for;
+use tokio::time::sleep;
 use uuid::Uuid;
 
 use crate::address::{Address, HandleId};
@@ -187,7 +187,7 @@ impl Inventory {
             let _ = tx.send(());
 
             tokio::select! {
-                _ = delay_for(timeout) => {},
+                _ = sleep(timeout) => {},
                 _ = unlock.recv() => {},
             }
 

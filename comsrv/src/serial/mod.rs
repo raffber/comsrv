@@ -2,7 +2,7 @@ mod prologix;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use tokio_serial::Serial;
+use tokio_serial::{SerialPortBuilder, SerialPortBuilderExt, SerialStream, ErrorKind};
 
 pub use params::SerialParams;
 
@@ -60,8 +60,32 @@ pub enum Response {
 }
 
 pub struct Handler {
-    serial: Option<(Serial, SerialParams)>,
+    serial: Option<(SerialStream, SerialParams)>,
     path: String,
+}
+
+impl From<tokio_serial::Error> for crate::Error {
+    fn from(x: tokio_serial::Error) -> Self {
+        match x.kind {
+            ErrorKind::NoDevice => crate::Error::InvalidRequest,
+            ErrorKind::InvalidInput => crate::Error::InvalidRequest,
+            ErrorKind::Unknown => crate::Error::NotSupported,
+            ErrorKind::Io(io) => {
+                let desc = format!("{:?}", io);
+                let io_err = std::io::Error::new(io, &desc);
+                crate::Error::io(io_err)
+            },
+        }
+    }
+}
+
+
+async fn open_serial_port(path: &str, params: &SerialParams) -> crate::Result<SerialStream> {
+    Ok(tokio_serial::new(path, params.baud)
+        .parity(params.parity.into())
+        .stop_bits(params.stop_bits.into())
+        .data_bits(params.data_bits.into())
+        .open_native_async()?)
 }
 
 #[async_trait]
@@ -74,11 +98,8 @@ impl IoHandler for Handler {
         let (mut serial, opened) = match self.serial.take() {
             None => {
                 log::debug!("Opening {}", self.path);
-                let settings = new_params.clone().into();
-                (
-                    Serial::from_path(&self.path, &settings).map_err(Error::io)?,
-                    true,
-                )
+                let stream = open_serial_port(&self.path, &new_params).await?;
+                (stream, true)
             }
             Some((serial, old_params)) => {
                 if old_params == new_params {
@@ -87,11 +108,8 @@ impl IoHandler for Handler {
                 } else {
                     drop(serial);
                     log::debug!("Reopening {}", self.path);
-                    let settings = new_params.clone().into();
-                    (
-                        Serial::from_path(&self.path, &settings).map_err(Error::io)?,
-                        true,
-                    )
+                    let stream = open_serial_port(&self.path, &new_params).await?;
+                    (stream, true)
                 }
             }
         };

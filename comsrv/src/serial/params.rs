@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tokio_serial::{FlowControl, SerialPortSettings};
+use tokio_serial::FlowControl;
 
 use crate::serial::DEFAULT_TIMEOUT_MS;
 
@@ -92,19 +92,6 @@ impl Display for SerialParams {
             self.baud, self.data_bits, self.parity, self.stop_bits
         );
         f.write_str(&x)
-    }
-}
-
-impl From<SerialParams> for SerialPortSettings {
-    fn from(params: SerialParams) -> Self {
-        SerialPortSettings {
-            baud_rate: params.baud,
-            data_bits: tokio_serial::DataBits::Eight,
-            flow_control: FlowControl::None,
-            parity: params.parity.into(),
-            stop_bits: params.stop_bits.into(),
-            timeout: Duration::from_millis(DEFAULT_TIMEOUT_MS),
-        }
     }
 }
 
