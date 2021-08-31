@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::address::Address;
 use crate::app::Server;
 use crate::can::Instrument as CanInstrument;
+use crate::hid::Instrument as HidInstrument;
 use crate::modbus::{ModBusAddress, ModBusTcpInstrument, ModBusTransport};
 use crate::serial::Instrument as SerialInstrument;
 use crate::tcp::Instrument as TcpInstrument;
@@ -36,6 +37,7 @@ pub enum Instrument {
     Tcp(TcpInstrument),
     Vxi(VxiInstrument),
     Can(CanInstrument),
+    Hid(HidInstrument),
 }
 
 impl Instrument {
@@ -72,6 +74,7 @@ impl Instrument {
             Address::Sigrok { .. } => {
                 return None;
             }
+            Address::Hid { idn } => Instrument::Hid(HidInstrument::new(idn.clone())),
         };
         Some(ret)
     }
@@ -84,6 +87,7 @@ impl Instrument {
             Instrument::Tcp(x) => x.disconnect(),
             Instrument::Vxi(x) => x.disconnect(),
             Instrument::Can(x) => x.disconnect(),
+            Instrument::Hid(x) => x.disconnect(),
         }
     }
 

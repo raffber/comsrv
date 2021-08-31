@@ -16,6 +16,7 @@ use thiserror::Error;
 use visa::VisaError;
 
 use crate::can::CanError;
+use crate::hid::HidError;
 use crate::sigrok::SigrokError;
 
 mod address;
@@ -24,6 +25,7 @@ mod bytestream;
 mod can;
 mod clonable_channel;
 mod cobs;
+mod hid;
 mod instrument;
 mod inventory;
 mod iotask;
@@ -78,6 +80,8 @@ pub enum Error {
     Can { addr: String, err: CanError },
     #[error("Sigrok error: {0}")]
     Sigrok(SigrokError),
+    #[error("Hid error: {0}")]
+    Hid(HidError),
 }
 
 impl Error {

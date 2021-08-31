@@ -1,6 +1,7 @@
 /// This module implements `Address` which is used for parsing
 /// address strings of the form "serial::COM3::115200::8N1"
 use crate::can::CanAddress;
+use crate::hid::HidIdentifier;
 use crate::modbus::{ModBusAddress, ModBusTransport};
 use crate::serial::SerialParams;
 use crate::Error;
@@ -40,6 +41,9 @@ pub enum Address {
     },
     Sigrok {
         device: String,
+    },
+    Hid {
+        idn: HidIdentifier,
     },
 }
 
@@ -178,6 +182,15 @@ impl Address {
             Ok(Address::Sigrok {
                 device: splits[1].clone(),
             })
+        } else if splits[0].to_lowercase() == "hid" {
+            if splits.len() != 3 {
+                return Err(Error::InvalidAddress);
+            }
+            let vid = u16::from_str_radix(&splits[1], 16).map_err(|_| Error::InvalidAddress)?;
+            let pid = u16::from_str_radix(&splits[2], 16).map_err(|_| Error::InvalidAddress)?;
+            Ok(Address::Hid {
+                idn: HidIdentifier::new(vid, pid),
+            })
         } else {
             let splits: Vec<_> = splits.iter().map(|x| x.to_lowercase()).collect();
             Ok(Address::Visa { splits })
@@ -202,6 +215,7 @@ impl Address {
             Address::Tcp { addr } => HandleId::new(addr.to_string()),
             Address::Can { addr } => HandleId::new(addr.interface()),
             Address::Sigrok { device } => HandleId::new(device.to_string()),
+            Address::Hid { idn } => HandleId::new(format!("hid::{}::{}", idn.vid(), idn.pid())),
         }
     }
 }
@@ -230,6 +244,7 @@ impl From<Address> for String {
             Address::Vxi { addr } => format!("vxi::{}", addr),
             Address::Can { addr } => format!("can::{}", addr),
             Address::Sigrok { device } => format!("sigrok::{}", device),
+            Address::Hid { idn } => format!("hid::{}::{}", idn.vid(), idn.pid()),
         }
     }
 }
@@ -336,7 +351,7 @@ mod tests {
                                 baud: 115200,
                                 data_bits: DataBits::Eight,
                                 stop_bits: StopBits::One,
-                                parity: Parity::None
+                                parity: Parity::None,
                             }
                         );
                     }
@@ -372,7 +387,7 @@ mod tests {
                         baud: 115200,
                         data_bits: DataBits::Eight,
                         stop_bits: StopBits::One,
-                        parity: Parity::None
+                        parity: Parity::None,
                     }
                 );
             }
@@ -389,7 +404,7 @@ mod tests {
                         baud: 9600,
                         data_bits: DataBits::Five,
                         stop_bits: StopBits::Two,
-                        parity: Parity::Even
+                        parity: Parity::Even,
                     }
                 );
             }

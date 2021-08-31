@@ -6,6 +6,7 @@ use wsrpc::server::{Requested, Server as WsrpcServer};
 use crate::address::Address;
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
 use crate::can::{CanRequest, CanResponse};
+use crate::hid::{HidRequest, HidResponse};
 use crate::instrument::Instrument;
 use crate::instrument::InstrumentOptions;
 use crate::inventory::Inventory;
@@ -51,7 +52,14 @@ pub enum Request {
         addr: String,
         task: SigrokRequest,
     },
+    Hid {
+        addr: String,
+        task: HidRequest,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        lock: Option<Uuid>,
+    },
     ListSigrokDevices,
+    ListHidDevices,
     ListInstruments,
     Lock {
         addr: String,
@@ -73,6 +81,7 @@ pub enum Response {
     Can(CanResponse),
     Sigrok(SigrokResponse),
     Locked { addr: String, lock_id: Uuid },
+    Hid(HidResponse),
     Done,
 }
 
@@ -329,6 +338,27 @@ impl App {
         }
     }
 
+    async fn handle_hid(
+        &self,
+        addr: &str,
+        task: HidRequest,
+        lock: Option<Uuid>,
+    ) -> Result<HidResponse, Error> {
+        let addr = Address::parse(&addr)?;
+        let mut device = match self.inventory.connect(&self.server, &addr) {
+            Instrument::Hid(device) => device,
+            _ => return Err(Error::NotSupported),
+        };
+        self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
+        match device.request(task).await {
+            Ok(x) => Ok(x),
+            Err(x) => {
+                self.inventory.disconnect(&addr);
+                Err(x)
+            }
+        }
+    }
+
     pub async fn shutdown(&self) {
         self.inventory.disconnect_all();
         self.server.shutdown().await;
@@ -411,6 +441,14 @@ impl App {
                 self.inventory.unlock(id).await;
                 Response::Done
             }
+            Request::Hid { addr, task, lock } => match self.handle_hid(&addr, task, lock).await {
+                Ok(x) => Response::Hid(x),
+                Err(x) => Response::Error(x),
+            },
+            Request::ListHidDevices => match crate::hid::list_devices().await {
+                Ok(result) => Response::Hid(HidResponse::List(result)),
+                Err(x) => Response::Error(x),
+            },
         }
     }
 }
