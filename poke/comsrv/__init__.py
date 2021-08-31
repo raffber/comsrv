@@ -163,6 +163,9 @@ class BasePipe(object):
         await get(self._url, {'Unlock': self._lock})
         self._lock = None
         return self
+    
+    async def drop(self):
+        await ComSrvError(url=self._url).drop(self._addr)
 
 
 async def connect_client(url=None):
