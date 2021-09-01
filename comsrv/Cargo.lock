@@ -84,7 +84,7 @@ dependencies = [
  "log",
  "pin-project-lite 0.2.7",
  "tokio 1.10.1",
- "tungstenite 0.13.0",
+ "tungstenite",
 ]
 
 [[package]]
@@ -125,12 +125,6 @@ name = "base64"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b41b7ea54a0c9d92199de89e20e58d49f02f8e699814ef3fdf266f6f748d15c7"
-
-[[package]]
-name = "base64"
-version = "0.12.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3441f0f7b02788e948e47f457ca01f1d7e6d92c693bc132c22b087d3141c03ff"
 
 [[package]]
 name = "base64"
@@ -642,15 +636,6 @@ checksum = "86b45e59b16c76b11bf9738fd5d38879d3bd28ad292d7b313608becb17ae2df9"
 dependencies = [
  "autocfg",
  "hashbrown",
-]
-
-[[package]]
-name = "input_buffer"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19a8a95243d5a0398cae618ec29477c6e3cb631152be5c19481f80bc71559754"
-dependencies = [
- "bytes 0.5.6",
 ]
 
 [[package]]
@@ -1461,6 +1446,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-stream"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b2f3f698253f03119ac0102beaa64f67a67e08074d03a22d18784104543727f"
+dependencies = [
+ "futures-core",
+ "pin-project-lite 0.2.7",
+ "tokio 1.10.1",
+]
+
+[[package]]
 name = "tokio-util"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1522,25 +1518,6 @@ checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
 
 [[package]]
 name = "tungstenite"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0308d80d86700c5878b9ef6321f020f29b1bb9d5ff3cab25e75e23f3a492a23"
-dependencies = [
- "base64 0.12.3",
- "byteorder",
- "bytes 0.5.6",
- "http",
- "httparse",
- "input_buffer 0.3.1",
- "log",
- "rand 0.7.3",
- "sha-1",
- "url",
- "utf-8",
-]
-
-[[package]]
-name = "tungstenite"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5fe8dada8c1a3aeca77d6b51a4f1314e0f4b8e438b7b1b71e3ddaca8080e4093"
@@ -1550,7 +1527,7 @@ dependencies = [
  "bytes 1.1.0",
  "http",
  "httparse",
- "input_buffer 0.4.0",
+ "input_buffer",
  "log",
  "rand 0.8.4",
  "sha-1",
@@ -1743,7 +1720,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio 1.10.1",
- "tungstenite 0.11.1",
+ "tokio-stream",
  "url",
  "uuid",
 ]
