@@ -1,11 +1,7 @@
 use core::fmt;
 use std::fmt::{Display, Formatter};
-use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tokio_serial::FlowControl;
-
-use crate::serial::DEFAULT_TIMEOUT_MS;
 
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum StopBits {

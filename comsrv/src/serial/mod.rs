@@ -2,7 +2,7 @@ mod prologix;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use tokio_serial::{SerialPortBuilder, SerialPortBuilderExt, SerialStream, ErrorKind};
+use tokio_serial::{SerialPortBuilderExt, SerialStream, ErrorKind};
 
 pub use params::SerialParams;
 
@@ -13,7 +13,6 @@ use crate::modbus::{handle_modbus_request_timeout, ModBusRequest, ModBusResponse
 use crate::scpi::{ScpiRequest, ScpiResponse};
 use crate::serial::params::{DataBits, Parity, StopBits};
 use crate::serial::prologix::{handle_prologix_request, init_prologix};
-use crate::Error;
 use std::time::Duration;
 use tokio_modbus::prelude::Slave;
 
@@ -72,7 +71,7 @@ impl From<tokio_serial::Error> for crate::Error {
             ErrorKind::Unknown => crate::Error::NotSupported,
             ErrorKind::Io(io) => {
                 let desc = format!("{:?}", io);
-                let io_err = std::io::Error::new(io, &desc);
+                let io_err = std::io::Error::new(io, desc.as_str());
                 crate::Error::io(io_err)
             },
         }

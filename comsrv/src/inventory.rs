@@ -38,7 +38,7 @@ impl Lock {
         )
     }
 
-    async fn release(mut self) {
+    async fn release(self) {
         let _ = self.unlock.send(()).await;
     }
 }
