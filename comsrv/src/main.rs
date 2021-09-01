@@ -43,7 +43,7 @@ fn main() {
         }
     };
 
-    let mut rt = Runtime::new().unwrap();
+    let rt = Runtime::new().unwrap();
     rt.block_on(async move {
         let (app, rx) = App::new();
 
