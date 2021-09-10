@@ -6,47 +6,8 @@ use tokio::time::{timeout, Duration};
 
 use crate::cobs::{cobs_decode, cobs_encode};
 use crate::Error;
+use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse};
 
-#[derive(Clone, Serialize, Deserialize)]
-pub enum ByteStreamRequest {
-    Write(Vec<u8>),
-    ReadToTerm {
-        term: u8,
-        timeout_ms: u32,
-    },
-    ReadExact {
-        count: u32,
-        timeout_ms: u32,
-    },
-    ReadUpTo(u32),
-    ReadAll,
-    CobsWrite(Vec<u8>),
-    CobsRead(u32), // timeout
-    CobsQuery {
-        data: Vec<u8>,
-        timeout_ms: u32,
-    },
-    WriteLine {
-        line: String,
-        term: u8,
-    },
-    ReadLine {
-        timeout_ms: u32,
-        term: u8,
-    },
-    QueryLine {
-        line: String,
-        timeout_ms: u32,
-        term: u8,
-    },
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum ByteStreamResponse {
-    Done,
-    Data(Vec<u8>),
-    String(String),
-}
 
 pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
     stream: &mut T,

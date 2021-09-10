@@ -18,6 +18,7 @@ use visa::VisaError;
 use crate::can::CanError;
 use crate::hid::HidError;
 use crate::sigrok::SigrokError;
+use comsrv_protocol::Response;
 
 mod address;
 pub mod app;
@@ -107,6 +108,13 @@ impl Error {
             }
             _ => false,
         }
+    }
+}
+
+impl Into<Response> for Error {
+    fn into(self) -> Response {
+        let ret = serde_json::to_value(self).unwrap();
+        Response::Error(ret)
     }
 }
 

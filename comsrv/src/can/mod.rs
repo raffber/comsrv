@@ -13,30 +13,13 @@ use crate::app::{Response, Server};
 use crate::can::device::{CanReceiver, CanSender};
 use crate::can::gct::{Decoder, GctMessage};
 use crate::iotask::{IoHandler, IoTask};
+use comsrv_protocol::{CanRequest, CanResponse};
 
 mod crc;
 mod device;
 mod gct;
 mod loopback;
 
-#[derive(Serialize, Deserialize, Clone)]
-pub enum CanRequest {
-    ListenRaw(bool),
-    ListenGct(bool),
-    StopAll,
-    EnableLoopback(bool),
-    TxRaw(Message),
-    TxGct(GctMessage),
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub enum CanResponse {
-    Started(String),
-    Stopped(String),
-    Ok,
-    Raw(Message),
-    Gct(GctMessage),
-}
 
 #[derive(Clone, Hash)]
 pub enum CanAddress {

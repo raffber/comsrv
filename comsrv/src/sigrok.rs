@@ -6,6 +6,7 @@ use bitvec::vec::BitVec;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::task;
+use comsrv_protocol::{SigrokRequest, SigrokResponse};
 
 #[derive(Error, Debug, Clone, Serialize, Deserialize)]
 pub enum SigrokError {
@@ -25,31 +26,11 @@ pub enum Acquire {
     Samples(u64),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-pub struct SigrokRequest {
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    channels: Vec<String>,
-    acquire: Acquire,
-    sample_rate: u64,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Data {
-    tsample: f64,
-    length: usize,
-    channels: HashMap<String, Vec<u8>>,
-}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Device {
     addr: String,
     desc: String,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum SigrokResponse {
-    Data(Data),
-    Devices(Vec<Device>),
 }
 
 pub async fn read(device: String, req: SigrokRequest) -> crate::Result<SigrokResponse> {

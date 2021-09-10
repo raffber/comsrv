@@ -11,24 +11,6 @@ use crate::visa::asynced::Instrument as VisaInstrument;
 use crate::visa::VisaOptions;
 use crate::vxi::Instrument as VxiInstrument;
 
-#[derive(Clone, Serialize, Deserialize)]
-pub enum InstrumentOptions {
-    Visa(VisaOptions),
-    Default,
-}
-
-impl Default for InstrumentOptions {
-    fn default() -> Self {
-        InstrumentOptions::Default
-    }
-}
-
-impl InstrumentOptions {
-    pub fn is_default(&self) -> bool {
-        matches!(self, InstrumentOptions::Default)
-    }
-}
-
 #[derive(Clone)]
 pub enum Instrument {
     Visa(VisaInstrument),

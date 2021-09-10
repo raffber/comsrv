@@ -10,6 +10,7 @@ use crate::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use tokio::time::{sleep, timeout, Duration};
 use tokio_modbus::prelude::{Response, Slave, SlaveContext};
+use comsrv_protocol::{ModBusRequest, ModBusResponse};
 
 fn is_one(x: &u16) -> bool {
     *x == 1
@@ -47,24 +48,6 @@ impl Display for ModBusAddress {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-pub enum ModBusRequest {
-    ReadCoil { addr: u16, cnt: u16 },
-    ReadDiscrete { addr: u16, cnt: u16 },
-    ReadInput { addr: u16, cnt: u16 },
-    ReadHolding { addr: u16, cnt: u16 },
-    WriteCoil { addr: u16, values: Vec<bool> },
-    WriteRegister { addr: u16, data: Vec<u16> },
-    CustomCommand { code: u8, data: Vec<u8> },
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum ModBusResponse {
-    Done,
-    Number(Vec<u16>),
-    Bool(Vec<bool>),
-    Custom { code: u8, data: Vec<u8> },
-}
 
 #[derive(Clone)]
 struct HandlerRequest {

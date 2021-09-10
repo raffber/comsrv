@@ -19,71 +19,8 @@ use crate::visa::VisaOptions;
 use crate::{sigrok, Error};
 use std::time::Duration;
 use uuid::Uuid;
+use comsrv_protocol::{Request, Response, ScpiRequest, ScpiResponse, ModBusRequest, ModBusResponse, ByteStreamRequest, ByteStreamResponse, CanRequest, CanResponse};
 
-#[derive(Clone, Serialize, Deserialize)]
-pub enum Request {
-    Scpi {
-        addr: String,
-        task: ScpiRequest,
-        #[serde(skip_serializing_if = "Option::is_none", default)]
-        lock: Option<Uuid>,
-        #[serde(skip_serializing_if = "InstrumentOptions::is_default", default)]
-        options: InstrumentOptions, // XXX: currently unused, remove?
-    },
-    ModBus {
-        addr: String,
-        task: ModBusRequest,
-        #[serde(skip_serializing_if = "Option::is_none", default)]
-        lock: Option<Uuid>,
-    },
-    Bytes {
-        addr: String,
-        task: ByteStreamRequest,
-        #[serde(skip_serializing_if = "Option::is_none", default)]
-        lock: Option<Uuid>,
-    },
-    Can {
-        addr: String,
-        task: CanRequest,
-        #[serde(skip_serializing_if = "Option::is_none", default)]
-        lock: Option<Uuid>,
-    },
-    Sigrok {
-        addr: String,
-        task: SigrokRequest,
-    },
-    Hid {
-        addr: String,
-        task: HidRequest,
-        #[serde(skip_serializing_if = "Option::is_none", default)]
-        lock: Option<Uuid>,
-    },
-    ListSigrokDevices,
-    ListHidDevices,
-    ListInstruments,
-    Lock {
-        addr: String,
-        timeout_ms: u32,
-    },
-    Unlock(Uuid),
-    DropAll,
-    Drop(String),
-    Shutdown,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum Response {
-    Error(crate::Error),
-    Instruments(Vec<String>),
-    Scpi(ScpiResponse),
-    Bytes(ByteStreamResponse),
-    ModBus(ModBusResponse),
-    Can(CanResponse),
-    Sigrok(SigrokResponse),
-    Locked { addr: String, lock_id: Uuid },
-    Hid(HidResponse),
-    Done,
-}
 
 pub type Server = WsrpcServer<Request, Response>;
 
@@ -122,7 +59,6 @@ impl App {
         addr: String,
         task: ScpiRequest,
         lock: Option<Uuid>,
-        options: InstrumentOptions,
     ) -> Result<ScpiResponse, Error> {
         let addr = Address::parse(&addr)?;
         self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
@@ -373,23 +309,23 @@ impl App {
                 options,
             } => match self.handle_scpi(addr, task, lock, options).await {
                 Ok(result) => Response::Scpi(result),
-                Err(err) => Response::Error(err),
+                Err(err) => err.into(),
             },
             Request::ListInstruments => Response::Instruments(self.inventory.list()),
             Request::ModBus { addr, task, lock } => {
                 match self.handle_modbus(addr, task, lock).await {
                     Ok(result) => Response::ModBus(result),
-                    Err(err) => Response::Error(err),
+                    Err(err) => err.into(),
                 }
             }
             Request::Bytes { addr, task, lock } => match self.handle_bytes(&addr, task, lock).await
             {
                 Ok(result) => Response::Bytes(result),
-                Err(err) => Response::Error(err),
+                Err(err) => err.into(),
             },
             Request::Can { addr, task, lock } => match self.handle_can(&addr, task, lock).await {
                 Ok(result) => Response::Can(result),
-                Err(err) => Response::Error(err),
+                Err(err) => err.into(),
             },
             Request::DropAll => {
                 self.inventory.disconnect_all();
@@ -404,30 +340,30 @@ impl App {
                     self.inventory.disconnect(&addr);
                     Response::Done
                 }
-                Err(err) => Response::Error(err),
+                Err(err) => err.into(),
             },
             Request::Sigrok { addr, task } => {
                 let addr = match Address::parse(&addr) {
                     Ok(addr) => addr,
-                    Err(err) => return Response::Error(err),
+                    Err(err) => return err.into(),
                 };
                 let device = match addr {
                     Address::Sigrok { device } => device,
-                    _ => return Response::Error(Error::NotSupported),
+                    _ => return Error::NotSupported.into(),
                 };
                 match sigrok::read(device, task).await {
                     Ok(resp) => Response::Sigrok(resp),
-                    Err(err) => Response::Error(err),
+                    Err(err) => err.into(),
                 }
             }
             Request::ListSigrokDevices => match sigrok::list().await {
                 Ok(resp) => Response::Sigrok(resp),
-                Err(err) => Response::Error(err),
+                Err(err) => err.into(),
             },
             Request::Lock { addr, timeout_ms } => {
                 let addr = match Address::parse(&addr) {
                     Ok(addr) => addr,
-                    Err(err) => return Response::Error(err),
+                    Err(err) => return err.into(),
                 };
                 let timeout = Duration::from_millis(timeout_ms as u64);
                 self.inventory.wait_for_lock(&addr, None).await;
@@ -443,11 +379,11 @@ impl App {
             }
             Request::Hid { addr, task, lock } => match self.handle_hid(&addr, task, lock).await {
                 Ok(x) => Response::Hid(x),
-                Err(x) => Response::Error(x),
+                Err(x) => x.into(),
             },
             Request::ListHidDevices => match crate::hid::list_devices().await {
                 Ok(result) => Response::Hid(HidResponse::List(result)),
-                Err(x) => Response::Error(x),
+                Err(x) => x.into(),
             },
         }
     }

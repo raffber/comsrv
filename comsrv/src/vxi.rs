@@ -7,6 +7,7 @@ use crate::iotask::{IoHandler, IoTask};
 use crate::scpi::{ScpiRequest, ScpiResponse};
 use crate::visa::VisaOptions;
 use crate::{scpi, Error};
+use comsrv_protocol::{ScpiResponse, ScpiRequest};
 
 const DEFAULT_TERMINATION: &str = "\n";
 
