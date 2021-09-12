@@ -4,7 +4,7 @@ use std::thread;
 use tokio::sync::oneshot;
 
 use comsrv_protocol::{ScpiRequest, ScpiResponse};
-use crate::visa::{Instrument as BlockingInstrument, VisaOptions};
+use crate::visa::{Instrument as BlockingInstrument};
 use crate::Error;
 
 #[derive(Clone)]
@@ -27,12 +27,11 @@ impl Instrument {
         thread::spawn(move || {
             let mut oinstr = None;
             while let Ok(msg) = rx.recv() {
-                let (request, options, reply) = match msg {
+                let (request, reply) = match msg {
                     Msg::Scpi {
                         request,
-                        options,
                         reply,
-                    } => (request, options, reply),
+                    } => (request, reply),
                     Msg::Drop => {
                         break;
                     }
@@ -40,11 +39,11 @@ impl Instrument {
                 let instr = if let Some(instr) = oinstr.take() {
                     Ok(instr)
                 } else {
-                    BlockingInstrument::open(&addr, &options).map_err(Error::Visa)
+                    BlockingInstrument::open(&addr).map_err(Error::Visa)
                 };
                 match instr {
                     Ok(instr) => {
-                        let _ = reply.send(instr.handle_scpi(request, &options));
+                        let _ = reply.send(instr.handle_scpi(request));
                         oinstr.replace(instr);
                     }
                     Err(err) => {

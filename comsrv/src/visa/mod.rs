@@ -30,13 +30,13 @@ pub struct Instrument {
 }
 
 impl Instrument {
-    pub fn open(addr: &str, _options: &VisaOptions) -> VisaResult<Self> {
+    pub fn open(addr: &str) -> VisaResult<Self> {
         Ok(Self {
             instr: VisaInstrument::open(addr.to_string(), Some(DEFAULT_TIMEOUT))?,
         })
     }
 
-    pub fn write<T: AsRef<str>>(&self, msg: T, _options: &VisaOptions) -> VisaResult<()> {
+    pub fn write<T: AsRef<str>>(&self, msg: T) -> VisaResult<()> {
         let mut msg = msg.as_ref().to_string();
         if !msg.ends_with(DEFAULT_TERMINATION) {
             msg.push_str(DEFAULT_TERMINATION);
@@ -98,17 +98,16 @@ impl Instrument {
 
     pub fn handle_scpi(
         &self,
-        req: ScpiRequest,
-        options: &VisaOptions,
+        req: ScpiRequest
     ) -> crate::Result<ScpiResponse> {
         match req {
             ScpiRequest::Write(x) => self
-                .write(x, options)
+                .write(x)
                 .map_err(Error::Visa)
                 .map(|_| ScpiResponse::Done),
-            ScpiRequest::QueryString(x) => self.query_string(x, options).map(ScpiResponse::String),
+            ScpiRequest::QueryString(x) => self.query_string(x).map(ScpiResponse::String),
             ScpiRequest::QueryBinary(x) => self
-                .query_binary(x, options)
+                .query_binary(x)
                 .map(|data| ScpiResponse::Binary { data }),
             ScpiRequest::ReadRaw => self
                 .read()

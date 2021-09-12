@@ -6,11 +6,10 @@ use tokio_serial::{SerialPortBuilderExt, SerialStream, ErrorKind};
 
 pub use params::SerialParams;
 
-use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
 use crate::clonable_channel::ClonableChannel;
 use crate::iotask::{IoHandler, IoTask};
-use crate::modbus::{handle_modbus_request_timeout, ModBusRequest, ModBusResponse};
-use comsrv_protocol::{ScpiRequest, ScpiResponse};
+use crate::modbus::{handle_modbus_request_timeout};
+use comsrv_protocol::{ScpiRequest, ScpiResponse, ByteStreamRequest, ByteStreamResponse, ModBusRequest, ModBusResponse};
 use crate::serial::params::{DataBits, Parity, StopBits};
 use crate::serial::prologix::{handle_prologix_request, init_prologix};
 use std::time::Duration;

@@ -5,7 +5,7 @@ use byteorder::{ByteOrder, LittleEndian};
 
 use crate::can::crc::crc16;
 use crate::can::CanError;
-use comsrv_protocol::{GctMessage, MSGTYPE_MONITORING_DATA, BROADCAST_ADDR, MSGTYPE_MONITORING_REQUEST, MSGTYPE_SYSCTRL, SysCtrlType, MSGTYPE_DDP, MSGTYPE_HEARTBEAT};
+use comsrv_protocol::{GctMessage, MSGTYPE_MONITORING_DATA, BROADCAST_ADDR, MSGTYPE_MONITORING_REQUEST, MSGTYPE_SYSCTRL, SysCtrlType, MSGTYPE_DDP, MSGTYPE_HEARTBEAT, MessageId};
 
 
 struct DdpDecoder {
@@ -108,12 +108,12 @@ impl Decoder {
             return None;
         }
         let id = MessageId(msg.id());
-        match id.msg_type() {
+        match id.msg_type {
             MSGTYPE_SYSCTRL => GctMessage::try_decode_sysctrl(msg),
             MSGTYPE_MONITORING_DATA => GctMessage::try_decode_monitoring_data(msg),
             MSGTYPE_MONITORING_REQUEST => GctMessage::try_decode_monitoring_request(msg),
             MSGTYPE_DDP => {
-                let dst = id.dst();
+                let dst = id.dst;
                 let decoder = self.ddp.entry(dst).or_insert_with(|| DdpDecoder::new(dst));
                 decoder.decode(msg)
             }

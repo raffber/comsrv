@@ -20,7 +20,6 @@ pub struct Instrument {
 #[derive(Clone)]
 struct Request {
     req: ScpiRequest,
-    options: VisaOptions,
 }
 
 impl Instrument {
@@ -37,9 +36,8 @@ impl Instrument {
     pub async fn request(
         &mut self,
         req: ScpiRequest,
-        options: VisaOptions,
     ) -> crate::Result<ScpiResponse> {
-        let req = Request { req, options };
+        let req = Request { req };
         self.inner.request(req).await
     }
 }
@@ -96,7 +94,7 @@ async fn handle_request_timeout(
     client: &mut CoreClient,
     req: Request,
 ) -> crate::Result<ScpiResponse> {
-    let fut = handle_request(client, req.req, req.options);
+    let fut = handle_request(client, req.req );
     tokio::time::timeout(DEFAULT_TIMEOUT, fut)
         .await
         .map_err(|_| crate::Error::Timeout)?
@@ -105,7 +103,6 @@ async fn handle_request_timeout(
 async fn handle_request(
     client: &mut CoreClient,
     req: ScpiRequest,
-    _options: VisaOptions,
 ) -> crate::Result<ScpiResponse> {
     match req {
         ScpiRequest::Write(mut msg) => {

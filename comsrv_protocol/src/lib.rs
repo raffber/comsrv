@@ -243,16 +243,16 @@ pub enum HidResponse {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct HidDeviceInfo {
-    idn: HidIdentifier,
-    manufacturer: Option<String>,
-    product: Option<String>,
-    serial_number: Option<String>,
+    pub idn: HidIdentifier,
+    pub manufacturer: Option<String>,
+    pub product: Option<String>,
+    pub serial_number: Option<String>,
 }
 
 #[derive(Hash, Clone, Serialize, Deserialize)]
 pub struct HidIdentifier {
-    pid: u16,
-    vid: u16,
+    pub pid: u16,
+    pub vid: u16,
 }
 
 impl HidIdentifier {
@@ -361,7 +361,7 @@ impl GctMessage {
         }
     }
 
-    fn try_decode_sysctrl(msg: DataFrame) -> Option<GctMessage> {
+    pub fn try_decode_sysctrl(msg: DataFrame) -> Option<GctMessage> {
         let id = MessageId(msg.id);
         if id.src() == BROADCAST_ADDR {
             return None;
@@ -388,7 +388,7 @@ impl GctMessage {
         })
     }
 
-    fn try_decode_monitoring_data(msg: DataFrame) -> Option<GctMessage> {
+    pub fn try_decode_monitoring_data(msg: DataFrame) -> Option<GctMessage> {
         let id = MessageId(msg.id);
         if id.src() == BROADCAST_ADDR {
             return None;
@@ -403,7 +403,7 @@ impl GctMessage {
         })
     }
 
-    fn try_decode_monitoring_request(msg: DataFrame) -> Option<GctMessage> {
+    pub fn try_decode_monitoring_request(msg: DataFrame) -> Option<GctMessage> {
         let id = MessageId(msg.id);
         if id.src() == BROADCAST_ADDR {
             return None;
@@ -420,7 +420,7 @@ impl GctMessage {
         })
     }
 
-    fn try_decode_heartbeat(msg: DataFrame) -> Option<GctMessage> {
+    pub fn try_decode_heartbeat(msg: DataFrame) -> Option<GctMessage> {
         let id = MessageId(msg.id);
         if id.src() == BROADCAST_ADDR {
             return None;
@@ -436,10 +436,10 @@ impl GctMessage {
     }
 }
 
-struct MessageId(u32);
+pub struct MessageId(pub u32);
 
 impl MessageId {
-    fn new(msg_type: u8, src: u8, dst: u8, type_data: u16) -> Self {
+    pub fn new(msg_type: u8, src: u8, dst: u8, type_data: u16) -> Self {
         let ret = (type_data & 0x7FF) as u32
             | (dst as u32 & 0x7F) << 11
             | (src as u32 & 0x7F) << 18
@@ -447,19 +447,19 @@ impl MessageId {
         MessageId(ret)
     }
 
-    fn msg_type(&self) -> u8 {
+    pub fn msg_type(&self) -> u8 {
         ((self.0 >> 25) & 0xF) as u8
     }
 
-    fn src(&self) -> u8 {
+    pub fn src(&self) -> u8 {
         ((self.0 >> 18) & 0x7F) as u8
     }
 
-    fn dst(&self) -> u8 {
+    pub fn dst(&self) -> u8 {
         ((self.0 >> 11) & 0x7F) as u8
     }
 
-    fn type_data(&self) -> u16 {
+    pub fn type_data(&self) -> u16 {
         (self.0 & 0x7FF) as u16
     }
 }

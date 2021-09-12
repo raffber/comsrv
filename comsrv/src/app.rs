@@ -4,18 +4,18 @@ use tokio::task;
 use wsrpc::server::{Requested, Server as WsrpcServer};
 
 use crate::address::Address;
-use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
-use crate::can::{CanRequest, CanResponse};
 use comsrv_protocol::{HidRequest, HidResponse};
 use crate::instrument::Instrument;
 use crate::inventory::Inventory;
-use crate::modbus::{ModBusAddress, ModBusRequest, ModBusResponse, ModBusTransport};
 use crate::visa::VisaOptions;
 use crate::{sigrok, Error};
 use std::time::Duration;
 use uuid::Uuid;
 use comsrv_protocol::{Request, Response, ScpiRequest, ScpiResponse, ModBusRequest, ModBusResponse, ByteStreamRequest, ByteStreamResponse, CanRequest, CanResponse};
 use crate::tcp::{TcpResponse, TcpRequest};
+use crate::serial::{Request as SerialRequest, SerialParams};
+use crate::serial::Response as SerialResponse;
+use crate::modbus::{ModBusAddress, ModBusTransport};
 
 
 pub type Server = WsrpcServer<Request, Response>;
@@ -94,11 +94,7 @@ impl App {
                 _ => Err(Error::NotSupported),
             },
             Instrument::Vxi(mut instr) => {
-                let opt = match options {
-                    InstrumentOptions::Visa(x) => x,
-                    InstrumentOptions::Default => VisaOptions::default(),
-                };
-                match instr.request(task, opt).await {
+                match instr.request(task).await {
                     Ok(x) => Ok(x),
                     Err(x) => {
                         self.inventory.disconnect(&addr);
@@ -298,8 +294,7 @@ impl App {
                 addr,
                 task,
                 lock,
-                options,
-            } => match self.handle_scpi(addr, task, lock, options).await {
+            } => match self.handle_scpi(addr, task, lock).await {
                 Ok(result) => Response::Scpi(result),
                 Err(err) => err.into(),
             },

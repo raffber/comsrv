@@ -106,7 +106,7 @@ fn do_read(device: String, req: SigrokRequest) -> crate::Result<SigrokData> {
     let csv = run_command(&args)?;
 
     let (channels, length) = parse_csv(csv)?;
-    Ok(Data {
+    Ok(SigrokData {
         tsample: 1.0 / (req.sample_rate as f64),
         length,
         channels,

@@ -1,8 +1,6 @@
 use std::fmt;
 use std::fmt::Display;
 
-pub use async_can::Message as CanMessage;
-use async_can::{Error, Message};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -13,13 +11,36 @@ use crate::app::{Server};
 use crate::can::device::{CanReceiver, CanSender};
 use crate::can::gct::Decoder;
 use crate::iotask::{IoHandler, IoTask};
-use comsrv_protocol::{Request, CanRequest, CanResponse};
+use comsrv_protocol::{Request, CanRequest, CanResponse, Response, DataFrame, CanMessage, RemoteFrame};
+use async_can::Error;
 
 mod crc;
 mod device;
 mod gct;
 mod loopback;
 
+pub fn into_protocol_message(msg: async_can::Message) -> CanMessage {
+    match msg {
+        async_can::Message::Data(x) => CanMessage::Data(DataFrame {
+            id: x.id(),
+            ext_id: x.ext_id(),
+            data: x.data().to_vec()
+        }),
+        async_can::Message::Remote(x) => {CanMessage::Remote(RemoteFrame {
+            id: x.id(),
+            ext_id: x.ext_id(),
+            dlc: x.dlc()
+        })}
+    }
+}
+
+pub fn into_async_can_message(msg: CanMessage) -> async_can::Message {
+    match msg {
+        CanMessage::Data(x) => async_can::Message::new_data(x.id, x.ext_id, &x.data),
+        CanMessage::Remote(_) => {}
+    }
+
+}
 
 #[derive(Clone, Hash)]
 pub enum CanAddress {
@@ -260,10 +281,10 @@ impl Listener {
         }
     }
 
-    fn rx(&mut self, msg: Message) {
+    fn rx(&mut self, msg: async_can::Message) {
         log::debug!("CAN received - ID = {:x}", msg.id());
         if self.listen_raw {
-            let tx = Response::Can(CanResponse::Raw(msg.clone()));
+            let tx = Response::Can(CanResponse::Raw(into_protocol_message(msg.clone())));
             log::debug!(
                 "Broadcast raw CAN message: {}",
                 serde_json::to_string(&msg).unwrap()
@@ -287,7 +308,7 @@ impl Listener {
             addr: self.device.address().into(),
             err: err.clone(),
         };
-        self.server.broadcast(Response::Error(send_err));
+        self.server.broadcast(send_err.into());
         // depending on error, continue listening or quit...
         match err {
             CanError::Io(_)
