@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use tokio::task;
+use comsrv_protocol::{HidRequest, HidIdentifier, HidResponse};
 
 lazy_static! {
     static ref HID_API: HidResult<HidApi> = HidApi::new();

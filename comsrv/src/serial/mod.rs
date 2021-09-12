@@ -10,7 +10,7 @@ use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
 use crate::clonable_channel::ClonableChannel;
 use crate::iotask::{IoHandler, IoTask};
 use crate::modbus::{handle_modbus_request_timeout, ModBusRequest, ModBusResponse};
-use crate::scpi::{ScpiRequest, ScpiResponse};
+use comsrv_protocol::{ScpiRequest, ScpiResponse};
 use crate::serial::params::{DataBits, Parity, StopBits};
 use crate::serial::prologix::{handle_prologix_request, init_prologix};
 use std::time::Duration;

@@ -6,7 +6,7 @@ use bitvec::vec::BitVec;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::task;
-use comsrv_protocol::{SigrokRequest, SigrokResponse};
+use comsrv_protocol::{SigrokRequest, SigrokResponse, SigrokDevice, SigrokAcquire, SigrokData};
 
 #[derive(Error, Debug, Clone, Serialize, Deserialize)]
 pub enum SigrokError {
@@ -18,19 +18,6 @@ pub enum SigrokError {
     },
     #[error("Invalid Output")]
     InvalidOutput,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum Acquire {
-    Time(f32),
-    Samples(u64),
-}
-
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Device {
-    addr: String,
-    desc: String,
 }
 
 pub async fn read(device: String, req: SigrokRequest) -> crate::Result<SigrokResponse> {
@@ -87,13 +74,13 @@ fn do_list() -> crate::Result<SigrokResponse> {
             .next()
             .ok_or(crate::Error::Sigrok(SigrokError::InvalidOutput))?
             .to_string();
-        let device = Device { addr, desc };
+        let device = SigrokDevice { addr, desc };
         ret.push(device)
     }
     Ok(SigrokResponse::Devices(ret))
 }
 
-fn do_read(device: String, req: SigrokRequest) -> crate::Result<Data> {
+fn do_read(device: String, req: SigrokRequest) -> crate::Result<SigrokData> {
     let mut args = vec!["-d", &device];
     let channels = req.channels.join(",");
     if !req.channels.is_empty() {
@@ -104,11 +91,11 @@ fn do_read(device: String, req: SigrokRequest) -> crate::Result<Data> {
     let sample_rate = format!("samplerate={}", req.sample_rate);
     args.push(&sample_rate);
     let acq = match req.acquire {
-        Acquire::Time(t) => {
+        SigrokAcquire::Time(t) => {
             args.push("--time");
             format!("{}s", t)
         }
-        Acquire::Samples(samples) => {
+        SigrokAcquire::Samples(samples) => {
             args.push("--samples");
             format!("{}", samples)
         }

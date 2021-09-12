@@ -9,11 +9,11 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task;
 
-use crate::app::{Response, Server};
+use crate::app::{Server};
 use crate::can::device::{CanReceiver, CanSender};
-use crate::can::gct::{Decoder, GctMessage};
+use crate::can::gct::Decoder;
 use crate::iotask::{IoHandler, IoTask};
-use comsrv_protocol::{CanRequest, CanResponse};
+use comsrv_protocol::{Request, CanRequest, CanResponse};
 
 mod crc;
 mod device;

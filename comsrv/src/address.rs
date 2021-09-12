@@ -1,7 +1,7 @@
 /// This module implements `Address` which is used for parsing
 /// address strings of the form "serial::COM3::115200::8N1"
 use crate::can::CanAddress;
-use crate::hid::HidIdentifier;
+use comsrv_protocol::HidIdentifier;
 use crate::modbus::{ModBusAddress, ModBusTransport};
 use crate::serial::SerialParams;
 use crate::Error;

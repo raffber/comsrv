@@ -35,7 +35,6 @@ mod scpi;
 mod serial;
 mod sigrok;
 mod tcp;
-mod util;
 pub mod visa;
 mod vxi;
 

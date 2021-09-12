@@ -6,20 +6,16 @@ use wsrpc::server::{Requested, Server as WsrpcServer};
 use crate::address::Address;
 use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
 use crate::can::{CanRequest, CanResponse};
-use crate::hid::{HidRequest, HidResponse};
+use comsrv_protocol::{HidRequest, HidResponse};
 use crate::instrument::Instrument;
-use crate::instrument::InstrumentOptions;
 use crate::inventory::Inventory;
 use crate::modbus::{ModBusAddress, ModBusRequest, ModBusResponse, ModBusTransport};
-use crate::scpi::{ScpiRequest, ScpiResponse};
-use crate::serial::{Request as SerialRequest, Response as SerialResponse, SerialParams};
-use crate::sigrok::{SigrokRequest, SigrokResponse};
-use crate::tcp::{TcpRequest, TcpResponse};
 use crate::visa::VisaOptions;
 use crate::{sigrok, Error};
 use std::time::Duration;
 use uuid::Uuid;
 use comsrv_protocol::{Request, Response, ScpiRequest, ScpiResponse, ModBusRequest, ModBusResponse, ByteStreamRequest, ByteStreamResponse, CanRequest, CanResponse};
+use crate::tcp::{TcpResponse, TcpRequest};
 
 
 pub type Server = WsrpcServer<Request, Response>;
@@ -64,11 +60,7 @@ impl App {
         self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
         match self.inventory.connect(&self.server, &addr) {
             Instrument::Visa(instr) => {
-                let opt = match options {
-                    InstrumentOptions::Visa(x) => x,
-                    InstrumentOptions::Default => VisaOptions::default(),
-                };
-                match instr.request(task, opt).await {
+                match instr.request(task).await {
                     Ok(x) => Ok(x),
                     Err(x) => {
                         self.inventory.disconnect(&addr);

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use visa_sys::Instrument as VisaInstrument;
 pub use visa_sys::{VisaError, VisaResult};
 
-use crate::scpi::{ScpiRequest, ScpiResponse};
+use comsrv_protocol::{ScpiRequest, ScpiResponse};
 use crate::{scpi, Error};
 
 mod consts;

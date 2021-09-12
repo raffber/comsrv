@@ -3,7 +3,7 @@ use std::thread;
 
 use tokio::sync::oneshot;
 
-use crate::scpi::{ScpiRequest, ScpiResponse};
+use comsrv_protocol::{ScpiRequest, ScpiResponse};
 use crate::visa::{Instrument as BlockingInstrument, VisaOptions};
 use crate::Error;
 
@@ -15,7 +15,6 @@ pub struct Instrument {
 enum Msg {
     Scpi {
         request: ScpiRequest,
-        options: VisaOptions,
         reply: oneshot::Sender<crate::Result<ScpiResponse>>,
     },
     Drop,
@@ -61,12 +60,10 @@ impl Instrument {
     pub async fn request(
         self,
         req: ScpiRequest,
-        options: VisaOptions,
     ) -> crate::Result<ScpiResponse> {
         let (tx, rx) = oneshot::channel();
         let thmsg = Msg::Scpi {
             request: req,
-            options,
             reply: tx,
         };
         self.tx.send(thmsg).map_err(|_| Error::Disconnected)?;

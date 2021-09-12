@@ -1,5 +1,4 @@
 /// This module implements some base types and functions to interact with SCPI-based instruments
-use crate::util;
 use crate::Error;
 use serde::{Deserialize, Serialize};
 
