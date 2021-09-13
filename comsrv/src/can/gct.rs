@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 
-use async_can::{DataFrame, Message};
-use byteorder::{ByteOrder, LittleEndian};
-
 use crate::can::crc::crc16;
 use crate::can::CanError;
-use comsrv_protocol::{GctMessage, MSGTYPE_MONITORING_DATA, BROADCAST_ADDR, MSGTYPE_MONITORING_REQUEST, MSGTYPE_SYSCTRL, SysCtrlType, MSGTYPE_DDP, MSGTYPE_HEARTBEAT, MessageId};
+use comsrv_protocol::{GctMessage, MSGTYPE_MONITORING_DATA, BROADCAST_ADDR, MSGTYPE_MONITORING_REQUEST, MSGTYPE_SYSCTRL, SysCtrlType, MSGTYPE_DDP, MSGTYPE_HEARTBEAT, MessageId, CanMessage, DataFrame};
+use byteorder::{LittleEndian, ByteOrder};
 
 
 struct DdpDecoder {
@@ -52,7 +50,7 @@ impl DdpDecoder {
     }
 
     fn decode(&mut self, msg: DataFrame) -> Option<GctMessage> {
-        let id = MessageId(msg.id());
+        let id = MessageId(msg.id);
         if id.dst() != self.dst_addr {
             return None;
         }
@@ -76,7 +74,7 @@ impl DdpDecoder {
             return None;
         }
         self.frames_received = frame_idx;
-        self.data.extend_from_slice(&msg.data());
+        self.data.extend_from_slice(&msg.data);
         if frame_idx == frame_size {
             return self.decode_completed();
         }
@@ -99,21 +97,21 @@ impl Decoder {
         self.ddp.clear()
     }
 
-    pub fn decode(&mut self, msg: Message) -> Option<GctMessage> {
+    pub fn decode(&mut self, msg: CanMessage) -> Option<GctMessage> {
         let msg = match msg {
-            Message::Data(msg) => msg,
+            CanMessage::Data(msg) => msg,
             _ => return None,
         };
-        if !msg.ext_id() {
+        if !msg.ext_id {
             return None;
         }
-        let id = MessageId(msg.id());
-        match id.msg_type {
+        let id = MessageId(msg.id);
+        match id.msg_type() {
             MSGTYPE_SYSCTRL => GctMessage::try_decode_sysctrl(msg),
             MSGTYPE_MONITORING_DATA => GctMessage::try_decode_monitoring_data(msg),
             MSGTYPE_MONITORING_REQUEST => GctMessage::try_decode_monitoring_request(msg),
             MSGTYPE_DDP => {
-                let dst = id.dst;
+                let dst = id.dst();
                 let decoder = self.ddp.entry(dst).or_insert_with(|| DdpDecoder::new(dst));
                 decoder.decode(msg)
             }
@@ -123,8 +121,10 @@ impl Decoder {
     }
 }
 
-pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
-    msg.validate()?;
+pub fn encode(msg: GctMessage) -> Result<Vec<CanMessage>, CanError> {
+    if let Err(_) = msg.validate() {
+        return Err(CanError::InvalidMessage);
+    }
     let ret = match msg {
         GctMessage::SysCtrl {
             src,
@@ -140,7 +140,12 @@ pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
             };
             let type_data = (cmd << 2) | (value as u16) << 1 | query as u16;
             let id = MessageId::new(MSGTYPE_SYSCTRL, src, dst, type_data);
-            vec![Message::new_data(id.0, true, &data).unwrap()]
+            let msg = CanMessage::Data(DataFrame {
+                id: id.0,
+                ext_id: true,
+                data,
+            });
+            vec![msg]
         }
         GctMessage::MonitoringData {
             src,
@@ -150,7 +155,12 @@ pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
         } => {
             let type_data = ((group_idx as u16) << 6) | reading_idx as u16;
             let id = MessageId::new(MSGTYPE_MONITORING_DATA, src, BROADCAST_ADDR, type_data);
-            vec![Message::new_data(id.0, true, &data).unwrap()]
+            let msg = CanMessage::Data(DataFrame {
+                id: id.0,
+                ext_id: true,
+                data,
+            });
+            vec![msg]
         }
         GctMessage::MonitoringRequest {
             src,
@@ -166,7 +176,12 @@ pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
             );
             let mut data = [0_u8; 8];
             LittleEndian::write_u64(&mut data, readings);
-            vec![Message::new_data(id.0, true, &data).unwrap()]
+            let msg = CanMessage::Data(DataFrame {
+                id: id.0,
+                ext_id: true,
+                data: data.to_vec(),
+            });
+            vec![msg]
         }
         GctMessage::Ddp { src, dst, mut data } => {
             let crc = crc16(&data);
@@ -179,7 +194,12 @@ pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
             for (idx, chunk) in chunks.into_iter().enumerate() {
                 let type_data = (part_count as u16) << 8 | (idx as u16) << 5;
                 let id = MessageId::new(MSGTYPE_DDP, src, dst, type_data);
-                ret.push(Message::new_data(id.0, true, &chunk).unwrap());
+                let msg = CanMessage::Data(DataFrame {
+                    id: id.0,
+                    ext_id: true,
+                    data: chunk.to_vec(),
+                });
+                ret.push(msg);
             }
             ret
         }
@@ -187,7 +207,12 @@ pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
             let id = MessageId::new(MSGTYPE_HEARTBEAT, src, BROADCAST_ADDR, 0);
             let mut data = [0_u8; 2];
             LittleEndian::write_u16(&mut data, product_id);
-            vec![Message::new_data(id.0, true, &data).unwrap()]
+            let msg = CanMessage::Data(DataFrame {
+                id: id.0,
+                ext_id: true,
+                data: data.to_vec(),
+            });
+            vec![msg]
         }
     };
     Ok(ret)

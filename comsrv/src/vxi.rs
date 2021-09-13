@@ -4,7 +4,6 @@ use std::net::IpAddr;
 use tokio::time::{sleep, Duration};
 
 use crate::iotask::{IoHandler, IoTask};
-use crate::visa::VisaOptions;
 use crate::{scpi, Error};
 use comsrv_protocol::{ScpiResponse, ScpiRequest};
 

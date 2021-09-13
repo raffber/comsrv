@@ -1,5 +1,3 @@
-use serde::{Deserialize, Serialize};
-
 use crate::address::Address;
 use crate::app::Server;
 use crate::can::Instrument as CanInstrument;
@@ -8,7 +6,6 @@ use crate::modbus::{ModBusAddress, ModBusTcpInstrument, ModBusTransport};
 use crate::serial::Instrument as SerialInstrument;
 use crate::tcp::Instrument as TcpInstrument;
 use crate::visa::asynced::Instrument as VisaInstrument;
-use crate::visa::VisaOptions;
 use crate::vxi::Instrument as VxiInstrument;
 
 #[derive(Clone)]

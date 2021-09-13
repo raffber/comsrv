@@ -59,10 +59,9 @@ impl Instrument {
     pub fn query_string<T: AsRef<str>>(
         &self,
         msg: T,
-        options: &VisaOptions,
     ) -> crate::Result<String> {
         log::debug!("Query[{}]: `{}`", self.instr.addr(), msg.as_ref());
-        self.write(msg, options).map_err(Error::Visa)?;
+        self.write(msg).map_err(Error::Visa)?;
         let rx = self.read().map_err(Error::Visa)?;
         let ret = String::from_utf8(rx).map_err(Error::DecodeError)?;
         log::debug!("Reply[{}]: `{}`", self.instr.addr(), ret);
@@ -83,10 +82,9 @@ impl Instrument {
     pub fn query_binary<T: AsRef<str>>(
         &self,
         msg: T,
-        option: &VisaOptions,
     ) -> crate::Result<Vec<u8>> {
         log::debug!("QueryBinary[{}]: `{}`", self.instr.addr(), msg.as_ref());
-        self.write(msg, option).map_err(Error::Visa)?;
+        self.write(msg).map_err(Error::Visa)?;
         let rx = self.read().map_err(Error::Visa)?;
         let (offset, length) = scpi::parse_binary_header(&rx)?;
         Ok(rx[offset..offset + length].to_vec())

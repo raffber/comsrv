@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task;
 use wsrpc::server::{Requested, Server as WsrpcServer};
@@ -7,7 +6,6 @@ use crate::address::Address;
 use comsrv_protocol::{HidRequest, HidResponse};
 use crate::instrument::Instrument;
 use crate::inventory::Inventory;
-use crate::visa::VisaOptions;
 use crate::{sigrok, Error};
 use std::time::Duration;
 use uuid::Uuid;

@@ -1,6 +1,5 @@
 /// This module implements a request handler for handling operation on a bytesstream-like
 /// instrument, for example TCP streams or serial ports
-use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::time::{timeout, Duration};
 

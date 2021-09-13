@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use serde_json::Value as JsonValue;
 use uuid::Uuid;
-use std::io::Read;
 use std::iter::repeat;
 use byteorder::{LittleEndian, ByteOrder};
 
@@ -75,6 +74,22 @@ pub enum Response {
 pub enum CanMessage {
     Data(DataFrame),
     Remote(RemoteFrame),
+}
+
+impl CanMessage {
+    pub fn id(&self) -> u32 {
+        match self {
+            CanMessage::Data(x) => x.id,
+            CanMessage::Remote(x) => x.id,
+        }
+    }
+
+    pub fn ext_id(&self) -> bool {
+        match self {
+            CanMessage::Data(x) => x.ext_id,
+            CanMessage::Remote(x) => x.ext_id,
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -196,8 +211,8 @@ pub enum SigrokResponse {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SigrokDevice {
-    addr: String,
-    desc: String,
+    pub addr: String,
+    pub desc: String,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -319,7 +334,7 @@ pub const MAX_DDP_DATA_LEN: usize = 61; // 8 message * 8bytes - crc - cmd
 
 
 impl GctMessage {
-    fn validate(&self) -> Result<(), ()> {
+    pub fn validate(&self) -> Result<(), ()> {
         let ok = match self {
             GctMessage::SysCtrl {
                 src,

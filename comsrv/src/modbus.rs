@@ -1,7 +1,6 @@
 use std::net::SocketAddr;
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use tokio_modbus::client::{tcp, Client, Context, Reader, Writer};
 
 use crate::iotask::{IoHandler, IoTask};

@@ -11,8 +11,8 @@ use crate::app::{Server};
 use crate::can::device::{CanReceiver, CanSender};
 use crate::can::gct::Decoder;
 use crate::iotask::{IoHandler, IoTask};
-use comsrv_protocol::{Request, CanRequest, CanResponse, Response, DataFrame, CanMessage, RemoteFrame};
-use async_can::Error;
+use comsrv_protocol::{CanRequest, CanResponse, Response, DataFrame, CanMessage, RemoteFrame};
+use async_can::{Error, CanFrameError};
 
 mod crc;
 mod device;
@@ -24,22 +24,23 @@ pub fn into_protocol_message(msg: async_can::Message) -> CanMessage {
         async_can::Message::Data(x) => CanMessage::Data(DataFrame {
             id: x.id(),
             ext_id: x.ext_id(),
-            data: x.data().to_vec()
+            data: x.data().to_vec(),
         }),
-        async_can::Message::Remote(x) => {CanMessage::Remote(RemoteFrame {
-            id: x.id(),
-            ext_id: x.ext_id(),
-            dlc: x.dlc()
-        })}
+        async_can::Message::Remote(x) => {
+            CanMessage::Remote(RemoteFrame {
+                id: x.id(),
+                ext_id: x.ext_id(),
+                dlc: x.dlc(),
+            })
+        }
     }
 }
 
-pub fn into_async_can_message(msg: CanMessage) -> async_can::Message {
+pub fn into_async_can_message(msg: CanMessage) -> Result<async_can::Message, CanFrameError> {
     match msg {
         CanMessage::Data(x) => async_can::Message::new_data(x.id, x.ext_id, &x.data),
-        CanMessage::Remote(_) => {}
+        CanMessage::Remote(x) => async_can::Message::new_remote(x.id, x.ext_id, x.dlc),
     }
-
 }
 
 #[derive(Clone, Hash)]
@@ -112,6 +113,13 @@ impl From<async_can::Error> for CanError {
             Error::IdTooLong => CanError::IdTooLong,
             Error::DataTooLong => CanError::DataTooLong,
         }
+    }
+}
+
+impl From<async_can::CanFrameError> for CanError {
+    fn from(x: CanFrameError) -> Self {
+        let err: async_can::Error = x.into();
+        err.into()
     }
 }
 
@@ -281,10 +289,10 @@ impl Listener {
         }
     }
 
-    fn rx(&mut self, msg: async_can::Message) {
+    fn rx(&mut self, msg: CanMessage) {
         log::debug!("CAN received - ID = {:x}", msg.id());
         if self.listen_raw {
-            let tx = Response::Can(CanResponse::Raw(into_protocol_message(msg.clone())));
+            let tx = Response::Can(CanResponse::Raw(msg.clone()));
             log::debug!(
                 "Broadcast raw CAN message: {}",
                 serde_json::to_string(&msg).unwrap()
@@ -343,7 +351,7 @@ async fn listener_task(
                 None => break
             },
             msg = listener.device.recv() => match msg {
-                Ok(msg) => listener.rx(msg),
+                Ok(x) => listener.rx(x),
                 Err(err) => if !listener.err(err).await { break; }
             }
         }
