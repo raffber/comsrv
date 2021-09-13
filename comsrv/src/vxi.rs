@@ -5,7 +5,7 @@ use tokio::time::{sleep, Duration};
 
 use crate::iotask::{IoHandler, IoTask};
 use crate::{scpi, Error};
-use comsrv_protocol::{ScpiResponse, ScpiRequest};
+use comsrv_protocol::{ScpiRequest, ScpiResponse};
 
 const DEFAULT_TERMINATION: &str = "\n";
 
@@ -32,10 +32,7 @@ impl Instrument {
         self.inner.disconnect();
     }
 
-    pub async fn request(
-        &mut self,
-        req: ScpiRequest,
-    ) -> crate::Result<ScpiResponse> {
+    pub async fn request(&mut self, req: ScpiRequest) -> crate::Result<ScpiResponse> {
         let req = Request { req };
         self.inner.request(req).await
     }
@@ -93,16 +90,13 @@ async fn handle_request_timeout(
     client: &mut CoreClient,
     req: Request,
 ) -> crate::Result<ScpiResponse> {
-    let fut = handle_request(client, req.req );
+    let fut = handle_request(client, req.req);
     tokio::time::timeout(DEFAULT_TIMEOUT, fut)
         .await
         .map_err(|_| crate::Error::Timeout)?
 }
 
-async fn handle_request(
-    client: &mut CoreClient,
-    req: ScpiRequest,
-) -> crate::Result<ScpiResponse> {
+async fn handle_request(client: &mut CoreClient, req: ScpiRequest) -> crate::Result<ScpiResponse> {
     match req {
         ScpiRequest::Write(mut msg) => {
             if !msg.ends_with(DEFAULT_TERMINATION) {

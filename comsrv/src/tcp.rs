@@ -1,13 +1,13 @@
 use crate::clonable_channel::ClonableChannel;
 use crate::iotask::{IoHandler, IoTask};
-use crate::modbus::{handle_modbus_request_timeout};
+use crate::modbus::handle_modbus_request_timeout;
 use crate::Error;
 use async_trait::async_trait;
+use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse, ModBusRequest, ModBusResponse};
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
 use tokio::time::{sleep, Duration};
 use tokio_modbus::prelude::Slave;
-use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse, ModBusRequest, ModBusResponse};
 
 #[derive(Clone)]
 pub struct Instrument {

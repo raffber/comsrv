@@ -1,8 +1,6 @@
 /// This module implements some base types and functions to interact with SCPI-based instruments
 use crate::Error;
 
-
-
 /// Parse an SCPI binary header.
 pub fn parse_binary_header(rx: &[u8]) -> crate::Result<(usize, usize)> {
     let begin = rx

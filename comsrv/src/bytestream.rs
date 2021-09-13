@@ -7,7 +7,6 @@ use crate::cobs::{cobs_decode, cobs_encode};
 use crate::Error;
 use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse};
 
-
 pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
     stream: &mut T,
     req: ByteStreamRequest,

@@ -2,7 +2,7 @@ use async_can::{Receiver, Sender};
 
 /// This module is responsible for mapping CAN functionality a device to different backends
 use crate::can::loopback::LoopbackDevice;
-use crate::can::{CanAddress, CanError, CanMessage, into_protocol_message, into_async_can_message};
+use crate::can::{into_async_can_message, into_protocol_message, CanAddress, CanError, CanMessage};
 
 pub enum CanSender {
     Loopback(LoopbackDevice),
@@ -23,8 +23,10 @@ impl CanSender {
             }
             CanSender::Bus { device, addr } => {
                 let addr = addr.interface();
-                let msg = into_async_can_message(msg)
-                    .map_err(|err| crate::Error::Can { addr: addr.clone(), err: err.into() })?;
+                let msg = into_async_can_message(msg).map_err(|err| crate::Error::Can {
+                    addr: addr.clone(),
+                    err: err.into(),
+                })?;
 
                 let ret = device.send(msg).await;
                 ret.map_err(|x| crate::Error::Can {

@@ -2,9 +2,11 @@ use std::collections::HashMap;
 
 use crate::can::crc::crc16;
 use crate::can::CanError;
-use comsrv_protocol::{GctMessage, MSGTYPE_MONITORING_DATA, BROADCAST_ADDR, MSGTYPE_MONITORING_REQUEST, MSGTYPE_SYSCTRL, SysCtrlType, MSGTYPE_DDP, MSGTYPE_HEARTBEAT, MessageId, CanMessage, DataFrame};
-use byteorder::{LittleEndian, ByteOrder};
-
+use byteorder::{ByteOrder, LittleEndian};
+use comsrv_protocol::{
+    CanMessage, DataFrame, GctMessage, MessageId, SysCtrlType, BROADCAST_ADDR, MSGTYPE_DDP,
+    MSGTYPE_HEARTBEAT, MSGTYPE_MONITORING_DATA, MSGTYPE_MONITORING_REQUEST, MSGTYPE_SYSCTRL,
+};
 
 struct DdpDecoder {
     dst_addr: u8,

@@ -1,12 +1,12 @@
 use crate::iotask::{IoHandler, IoTask};
 use async_trait::async_trait;
+use comsrv_protocol::{HidDeviceInfo, HidIdentifier, HidRequest, HidResponse};
 use hidapi::{HidApi, HidDevice as HidApiDevice, HidError as HidApiError, HidResult};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::{Display, Formatter};
 use tokio::task;
-use comsrv_protocol::{HidRequest, HidIdentifier, HidResponse, HidDeviceInfo};
 
 lazy_static! {
     static ref HID_API: HidResult<HidApi> = HidApi::new();

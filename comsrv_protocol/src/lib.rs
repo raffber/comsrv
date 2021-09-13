@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
+use byteorder::{ByteOrder, LittleEndian};
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use uuid::Uuid;
+use std::collections::HashMap;
 use std::iter::repeat;
-use byteorder::{LittleEndian, ByteOrder};
+use uuid::Uuid;
 
 mod util;
 
@@ -13,7 +13,7 @@ pub enum Request {
         addr: String,
         task: ScpiRequest,
         #[serde(skip_serializing_if = "Option::is_none", default)]
-        lock: Option<Uuid>
+        lock: Option<Uuid>,
     },
     ModBus {
         addr: String,
@@ -125,7 +125,6 @@ pub enum CanResponse {
     Gct(GctMessage),
 }
 
-
 #[derive(Clone, Serialize, Deserialize)]
 pub enum ByteStreamRequest {
     Write(Vec<u8>),
@@ -181,8 +180,8 @@ pub enum ScpiResponse {
     String(String),
     Binary {
         #[serde(
-        serialize_with = "util::to_base64",
-        deserialize_with = "util::from_base64"
+            serialize_with = "util::to_base64",
+            deserialize_with = "util::from_base64"
         )]
         data: Vec<u8>,
     },
@@ -201,7 +200,6 @@ pub enum SigrokAcquire {
     Time(f32),
     Samples(u64),
 }
-
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum SigrokResponse {
@@ -331,7 +329,6 @@ pub const MSGTYPE_MONITORING_REQUEST: u8 = 8;
 pub const MSGTYPE_DDP: u8 = 12;
 pub const MSGTYPE_HEARTBEAT: u8 = 14;
 pub const MAX_DDP_DATA_LEN: usize = 61; // 8 message * 8bytes - crc - cmd
-
 
 impl GctMessage {
     pub fn validate(&self) -> Result<(), ()> {

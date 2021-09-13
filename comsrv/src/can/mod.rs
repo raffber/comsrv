@@ -7,12 +7,12 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task;
 
-use crate::app::{Server};
+use crate::app::Server;
 use crate::can::device::{CanReceiver, CanSender};
 use crate::can::gct::Decoder;
 use crate::iotask::{IoHandler, IoTask};
-use comsrv_protocol::{CanRequest, CanResponse, Response, DataFrame, CanMessage, RemoteFrame};
-use async_can::{Error, CanFrameError};
+use async_can::{CanFrameError, Error};
+use comsrv_protocol::{CanMessage, CanRequest, CanResponse, DataFrame, RemoteFrame, Response};
 
 mod crc;
 mod device;
@@ -26,13 +26,11 @@ pub fn into_protocol_message(msg: async_can::Message) -> CanMessage {
             ext_id: x.ext_id(),
             data: x.data().to_vec(),
         }),
-        async_can::Message::Remote(x) => {
-            CanMessage::Remote(RemoteFrame {
-                id: x.id(),
-                ext_id: x.ext_id(),
-                dlc: x.dlc(),
-            })
-        }
+        async_can::Message::Remote(x) => CanMessage::Remote(RemoteFrame {
+            id: x.id(),
+            ext_id: x.ext_id(),
+            dlc: x.dlc(),
+        }),
     }
 }
 

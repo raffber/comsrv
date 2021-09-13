@@ -1,5 +1,5 @@
-use comsrv_protocol::{ScpiRequest, ScpiResponse};
 use crate::Error;
+use comsrv_protocol::{ScpiRequest, ScpiResponse};
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::{sleep, timeout};

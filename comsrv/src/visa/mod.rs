@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use visa_sys::Instrument as VisaInstrument;
 pub use visa_sys::{VisaError, VisaResult};
 
-use comsrv_protocol::{ScpiRequest, ScpiResponse};
 use crate::{scpi, Error};
+use comsrv_protocol::{ScpiRequest, ScpiResponse};
 
 mod consts;
 
@@ -56,10 +56,7 @@ impl Instrument {
         Ok(ret)
     }
 
-    pub fn query_string<T: AsRef<str>>(
-        &self,
-        msg: T,
-    ) -> crate::Result<String> {
+    pub fn query_string<T: AsRef<str>>(&self, msg: T) -> crate::Result<String> {
         log::debug!("Query[{}]: `{}`", self.instr.addr(), msg.as_ref());
         self.write(msg).map_err(Error::Visa)?;
         let rx = self.read().map_err(Error::Visa)?;
@@ -79,10 +76,7 @@ impl Instrument {
         todo!()
     }
 
-    pub fn query_binary<T: AsRef<str>>(
-        &self,
-        msg: T,
-    ) -> crate::Result<Vec<u8>> {
+    pub fn query_binary<T: AsRef<str>>(&self, msg: T) -> crate::Result<Vec<u8>> {
         log::debug!("QueryBinary[{}]: `{}`", self.instr.addr(), msg.as_ref());
         self.write(msg).map_err(Error::Visa)?;
         let rx = self.read().map_err(Error::Visa)?;
@@ -94,10 +88,7 @@ impl Instrument {
         self.instr.addr()
     }
 
-    pub fn handle_scpi(
-        &self,
-        req: ScpiRequest
-    ) -> crate::Result<ScpiResponse> {
+    pub fn handle_scpi(&self, req: ScpiRequest) -> crate::Result<ScpiResponse> {
         match req {
             ScpiRequest::Write(x) => self
                 .write(x)

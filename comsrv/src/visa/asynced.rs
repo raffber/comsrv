@@ -3,9 +3,9 @@ use std::thread;
 
 use tokio::sync::oneshot;
 
-use comsrv_protocol::{ScpiRequest, ScpiResponse};
-use crate::visa::{Instrument as BlockingInstrument};
+use crate::visa::Instrument as BlockingInstrument;
 use crate::Error;
+use comsrv_protocol::{ScpiRequest, ScpiResponse};
 
 #[derive(Clone)]
 pub struct Instrument {
@@ -28,10 +28,7 @@ impl Instrument {
             let mut oinstr = None;
             while let Ok(msg) = rx.recv() {
                 let (request, reply) = match msg {
-                    Msg::Scpi {
-                        request,
-                        reply,
-                    } => (request, reply),
+                    Msg::Scpi { request, reply } => (request, reply),
                     Msg::Drop => {
                         break;
                     }
@@ -56,10 +53,7 @@ impl Instrument {
         Instrument { tx }
     }
 
-    pub async fn request(
-        self,
-        req: ScpiRequest,
-    ) -> crate::Result<ScpiResponse> {
+    pub async fn request(self, req: ScpiRequest) -> crate::Result<ScpiResponse> {
         let (tx, rx) = oneshot::channel();
         let thmsg = Msg::Scpi {
             request: req,

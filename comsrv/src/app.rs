@@ -3,18 +3,20 @@ use tokio::task;
 use wsrpc::server::{Requested, Server as WsrpcServer};
 
 use crate::address::Address;
-use comsrv_protocol::{HidRequest, HidResponse};
 use crate::instrument::Instrument;
 use crate::inventory::Inventory;
+use crate::modbus::{ModBusAddress, ModBusTransport};
+use crate::serial::Response as SerialResponse;
+use crate::serial::{Request as SerialRequest, SerialParams};
+use crate::tcp::{TcpRequest, TcpResponse};
 use crate::{sigrok, Error};
+use comsrv_protocol::{
+    ByteStreamRequest, ByteStreamResponse, CanRequest, CanResponse, ModBusRequest, ModBusResponse,
+    Request, Response, ScpiRequest, ScpiResponse,
+};
+use comsrv_protocol::{HidRequest, HidResponse};
 use std::time::Duration;
 use uuid::Uuid;
-use comsrv_protocol::{Request, Response, ScpiRequest, ScpiResponse, ModBusRequest, ModBusResponse, ByteStreamRequest, ByteStreamResponse, CanRequest, CanResponse};
-use crate::tcp::{TcpResponse, TcpRequest};
-use crate::serial::{Request as SerialRequest, SerialParams};
-use crate::serial::Response as SerialResponse;
-use crate::modbus::{ModBusAddress, ModBusTransport};
-
 
 pub type Server = WsrpcServer<Request, Response>;
 
@@ -57,15 +59,13 @@ impl App {
         let addr = Address::parse(&addr)?;
         self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
         match self.inventory.connect(&self.server, &addr) {
-            Instrument::Visa(instr) => {
-                match instr.request(task).await {
-                    Ok(x) => Ok(x),
-                    Err(x) => {
-                        self.inventory.disconnect(&addr);
-                        Err(x)
-                    }
+            Instrument::Visa(instr) => match instr.request(task).await {
+                Ok(x) => Ok(x),
+                Err(x) => {
+                    self.inventory.disconnect(&addr);
+                    Err(x)
                 }
-            }
+            },
             Instrument::Serial(mut instr) => match addr {
                 Address::Prologix {
                     file: _,
@@ -91,15 +91,13 @@ impl App {
                 }
                 _ => Err(Error::NotSupported),
             },
-            Instrument::Vxi(mut instr) => {
-                match instr.request(task).await {
-                    Ok(x) => Ok(x),
-                    Err(x) => {
-                        self.inventory.disconnect(&addr);
-                        Err(x)
-                    }
+            Instrument::Vxi(mut instr) => match instr.request(task).await {
+                Ok(x) => Ok(x),
+                Err(x) => {
+                    self.inventory.disconnect(&addr);
+                    Err(x)
                 }
-            }
+            },
             _ => Err(Error::NotSupported),
         }
     }
@@ -288,11 +286,7 @@ impl App {
 
     async fn handle_request(&self, req: Request) -> Response {
         match req {
-            Request::Scpi {
-                addr,
-                task,
-                lock,
-            } => match self.handle_scpi(addr, task, lock).await {
+            Request::Scpi { addr, task, lock } => match self.handle_scpi(addr, task, lock).await {
                 Ok(result) => Response::Scpi(result),
                 Err(err) => err.into(),
             },

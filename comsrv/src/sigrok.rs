@@ -3,10 +3,10 @@ use std::process::{Command, Stdio};
 
 use bitvec::order::Lsb0;
 use bitvec::vec::BitVec;
+use comsrv_protocol::{SigrokAcquire, SigrokData, SigrokDevice, SigrokRequest, SigrokResponse};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::task;
-use comsrv_protocol::{SigrokRequest, SigrokResponse, SigrokDevice, SigrokAcquire, SigrokData};
 
 #[derive(Error, Debug, Clone, Serialize, Deserialize)]
 pub enum SigrokError {
