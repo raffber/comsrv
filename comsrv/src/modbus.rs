@@ -1,12 +1,12 @@
 use std::net::SocketAddr;
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use tokio_modbus::client::{tcp, Client, Context, Reader, Writer};
 
 use crate::iotask::{IoHandler, IoTask};
 use crate::serial::SerialParams;
 use crate::Error;
+use comsrv_protocol::{ModBusRequest, ModBusResponse};
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use tokio::time::{sleep, timeout, Duration};
 use tokio_modbus::prelude::{Response, Slave, SlaveContext};
@@ -45,25 +45,6 @@ impl Display for ModBusAddress {
             ModBusAddress::Tcp { addr } => f.write_fmt(format_args!("{}", addr)),
         }
     }
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum ModBusRequest {
-    ReadCoil { addr: u16, cnt: u16 },
-    ReadDiscrete { addr: u16, cnt: u16 },
-    ReadInput { addr: u16, cnt: u16 },
-    ReadHolding { addr: u16, cnt: u16 },
-    WriteCoil { addr: u16, values: Vec<bool> },
-    WriteRegister { addr: u16, data: Vec<u16> },
-    CustomCommand { code: u8, data: Vec<u8> },
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum ModBusResponse {
-    Done,
-    Number(Vec<u16>),
-    Bool(Vec<bool>),
-    Custom { code: u8, data: Vec<u8> },
 }
 
 #[derive(Clone)]

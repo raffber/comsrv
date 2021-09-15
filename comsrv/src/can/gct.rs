@@ -1,207 +1,12 @@
 use std::collections::HashMap;
-use std::iter::repeat;
-
-use async_can::{DataFrame, Message};
-use byteorder::{ByteOrder, LittleEndian};
-use serde::{Deserialize, Serialize};
 
 use crate::can::crc::crc16;
 use crate::can::CanError;
-
-const BROADCAST_ADDR: u8 = 0x7F;
-
-const MSGTYPE_SYSCTRL: u8 = 1;
-const MSGTYPE_MONITORING_DATA: u8 = 7;
-const MSGTYPE_MONITORING_REQUEST: u8 = 8;
-const MSGTYPE_DDP: u8 = 12;
-const MSGTYPE_HEARTBEAT: u8 = 14;
-
-const MAX_DDP_DATA_LEN: usize = 61; // 8 message * 8bytes - crc - cmd
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum SysCtrlType {
-    Value,
-    Query,
-    None,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum GctMessage {
-    SysCtrl {
-        src: u8,
-        dst: u8,
-        cmd: u16,
-        tp: SysCtrlType,
-        data: Vec<u8>,
-    },
-    MonitoringData {
-        src: u8,
-        group_idx: u8,
-        reading_idx: u8,
-        data: Vec<u8>,
-    },
-    MonitoringRequest {
-        src: u8,
-        dst: u8,
-        group_idx: u8,
-        readings: u64,
-    },
-    Ddp {
-        src: u8,
-        dst: u8,
-        data: Vec<u8>,
-    },
-    Heartbeat {
-        src: u8,
-        product_id: u16,
-    },
-}
-
-impl GctMessage {
-    fn validate(&self) -> Result<(), CanError> {
-        let ok = match self {
-            GctMessage::SysCtrl {
-                src,
-                dst,
-                data,
-                cmd,
-                ..
-            } => {
-                let cmd_ok = *cmd < 1024;
-                let addr_ok = *src < BROADCAST_ADDR && *dst <= BROADCAST_ADDR;
-                addr_ok && data.len() <= 8 && cmd_ok
-            }
-            GctMessage::MonitoringData {
-                src,
-                group_idx,
-                reading_idx,
-                data,
-            } => *src < BROADCAST_ADDR && data.len() < 8 && *group_idx < 32 && *reading_idx < 64,
-            GctMessage::MonitoringRequest {
-                src,
-                dst,
-                group_idx,
-                ..
-            } => *src < BROADCAST_ADDR && *dst <= BROADCAST_ADDR && *group_idx < 32,
-            GctMessage::Ddp { src, dst, data } => {
-                let addr_ok = *src < BROADCAST_ADDR && *dst <= BROADCAST_ADDR;
-                addr_ok && data.len() <= MAX_DDP_DATA_LEN
-            }
-            GctMessage::Heartbeat { src, product_id } => {
-                let addr_ok = *src < BROADCAST_ADDR;
-                let prod_id_ok = *product_id != 0 && *product_id != 0xFFFF;
-                addr_ok && prod_id_ok
-            }
-        };
-        if ok {
-            Ok(())
-        } else {
-            Err(CanError::InvalidMessage)
-        }
-    }
-
-    fn try_decode_sysctrl(msg: DataFrame) -> Option<GctMessage> {
-        let id = MessageId(msg.id());
-        if id.src() == BROADCAST_ADDR {
-            return None;
-        }
-        let value = (id.type_data() & 2) > 0;
-        let query = (id.type_data() & 1) > 0;
-        if value && query {
-            return None;
-        }
-        let tp = if value {
-            SysCtrlType::Value
-        } else if query {
-            SysCtrlType::Query
-        } else {
-            SysCtrlType::None
-        };
-
-        Some(GctMessage::SysCtrl {
-            src: id.src(),
-            dst: id.dst(),
-            cmd: id.type_data() >> 2,
-            data: msg.data().to_vec(),
-            tp,
-        })
-    }
-
-    fn try_decode_monitoring_data(msg: DataFrame) -> Option<GctMessage> {
-        let id = MessageId(msg.id());
-        if id.src() == BROADCAST_ADDR {
-            return None;
-        }
-        let group_idx = (id.type_data() >> 6) as u8;
-        let reading_idx = (id.type_data() & 0x3F) as u8;
-        Some(GctMessage::MonitoringData {
-            src: id.src(),
-            group_idx,
-            reading_idx,
-            data: msg.data().to_vec(),
-        })
-    }
-
-    fn try_decode_monitoring_request(msg: DataFrame) -> Option<GctMessage> {
-        let id = MessageId(msg.id());
-        if id.src() == BROADCAST_ADDR {
-            return None;
-        }
-        let group_idx = (id.type_data() >> 6) as u8;
-        let mut data = msg.data().to_vec();
-        data.extend(repeat(0).take(8 - data.len()));
-        let readings = LittleEndian::read_u64(&data);
-        Some(GctMessage::MonitoringRequest {
-            src: id.src(),
-            dst: id.dst(),
-            group_idx,
-            readings,
-        })
-    }
-
-    fn try_decode_heartbeat(msg: DataFrame) -> Option<GctMessage> {
-        let id = MessageId(msg.id());
-        if id.src() == BROADCAST_ADDR {
-            return None;
-        }
-        if msg.data().len() < 2 {
-            return None;
-        }
-        let product_id = LittleEndian::read_u16(msg.data());
-        Some(GctMessage::Heartbeat {
-            src: id.src(),
-            product_id,
-        })
-    }
-}
-
-struct MessageId(u32);
-
-impl MessageId {
-    fn new(msg_type: u8, src: u8, dst: u8, type_data: u16) -> Self {
-        let ret = (type_data & 0x7FF) as u32
-            | (dst as u32 & 0x7F) << 11
-            | (src as u32 & 0x7F) << 18
-            | (msg_type as u32 & 0xF) << 25;
-        MessageId(ret)
-    }
-
-    fn msg_type(&self) -> u8 {
-        ((self.0 >> 25) & 0xF) as u8
-    }
-
-    fn src(&self) -> u8 {
-        ((self.0 >> 18) & 0x7F) as u8
-    }
-
-    fn dst(&self) -> u8 {
-        ((self.0 >> 11) & 0x7F) as u8
-    }
-
-    fn type_data(&self) -> u16 {
-        (self.0 & 0x7FF) as u16
-    }
-}
+use byteorder::{ByteOrder, LittleEndian};
+use comsrv_protocol::{
+    CanMessage, DataFrame, GctMessage, MessageId, SysCtrlType, BROADCAST_ADDR, MSGTYPE_DDP,
+    MSGTYPE_HEARTBEAT, MSGTYPE_MONITORING_DATA, MSGTYPE_MONITORING_REQUEST, MSGTYPE_SYSCTRL,
+};
 
 struct DdpDecoder {
     dst_addr: u8,
@@ -247,7 +52,7 @@ impl DdpDecoder {
     }
 
     fn decode(&mut self, msg: DataFrame) -> Option<GctMessage> {
-        let id = MessageId(msg.id());
+        let id = MessageId(msg.id);
         if id.dst() != self.dst_addr {
             return None;
         }
@@ -271,7 +76,7 @@ impl DdpDecoder {
             return None;
         }
         self.frames_received = frame_idx;
-        self.data.extend_from_slice(&msg.data());
+        self.data.extend_from_slice(&msg.data);
         if frame_idx == frame_size {
             return self.decode_completed();
         }
@@ -294,15 +99,15 @@ impl Decoder {
         self.ddp.clear()
     }
 
-    pub fn decode(&mut self, msg: Message) -> Option<GctMessage> {
+    pub fn decode(&mut self, msg: CanMessage) -> Option<GctMessage> {
         let msg = match msg {
-            Message::Data(msg) => msg,
+            CanMessage::Data(msg) => msg,
             _ => return None,
         };
-        if !msg.ext_id() {
+        if !msg.ext_id {
             return None;
         }
-        let id = MessageId(msg.id());
+        let id = MessageId(msg.id);
         match id.msg_type() {
             MSGTYPE_SYSCTRL => GctMessage::try_decode_sysctrl(msg),
             MSGTYPE_MONITORING_DATA => GctMessage::try_decode_monitoring_data(msg),
@@ -318,8 +123,10 @@ impl Decoder {
     }
 }
 
-pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
-    msg.validate()?;
+pub fn encode(msg: GctMessage) -> Result<Vec<CanMessage>, CanError> {
+    if let Err(_) = msg.validate() {
+        return Err(CanError::InvalidMessage);
+    }
     let ret = match msg {
         GctMessage::SysCtrl {
             src,
@@ -335,7 +142,12 @@ pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
             };
             let type_data = (cmd << 2) | (value as u16) << 1 | query as u16;
             let id = MessageId::new(MSGTYPE_SYSCTRL, src, dst, type_data);
-            vec![Message::new_data(id.0, true, &data).unwrap()]
+            let msg = CanMessage::Data(DataFrame {
+                id: id.0,
+                ext_id: true,
+                data,
+            });
+            vec![msg]
         }
         GctMessage::MonitoringData {
             src,
@@ -345,7 +157,12 @@ pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
         } => {
             let type_data = ((group_idx as u16) << 6) | reading_idx as u16;
             let id = MessageId::new(MSGTYPE_MONITORING_DATA, src, BROADCAST_ADDR, type_data);
-            vec![Message::new_data(id.0, true, &data).unwrap()]
+            let msg = CanMessage::Data(DataFrame {
+                id: id.0,
+                ext_id: true,
+                data,
+            });
+            vec![msg]
         }
         GctMessage::MonitoringRequest {
             src,
@@ -361,7 +178,12 @@ pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
             );
             let mut data = [0_u8; 8];
             LittleEndian::write_u64(&mut data, readings);
-            vec![Message::new_data(id.0, true, &data).unwrap()]
+            let msg = CanMessage::Data(DataFrame {
+                id: id.0,
+                ext_id: true,
+                data: data.to_vec(),
+            });
+            vec![msg]
         }
         GctMessage::Ddp { src, dst, mut data } => {
             let crc = crc16(&data);
@@ -374,7 +196,12 @@ pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
             for (idx, chunk) in chunks.into_iter().enumerate() {
                 let type_data = (part_count as u16) << 8 | (idx as u16) << 5;
                 let id = MessageId::new(MSGTYPE_DDP, src, dst, type_data);
-                ret.push(Message::new_data(id.0, true, &chunk).unwrap());
+                let msg = CanMessage::Data(DataFrame {
+                    id: id.0,
+                    ext_id: true,
+                    data: chunk.to_vec(),
+                });
+                ret.push(msg);
             }
             ret
         }
@@ -382,7 +209,12 @@ pub fn encode(msg: GctMessage) -> Result<Vec<Message>, CanError> {
             let id = MessageId::new(MSGTYPE_HEARTBEAT, src, BROADCAST_ADDR, 0);
             let mut data = [0_u8; 2];
             LittleEndian::write_u16(&mut data, product_id);
-            vec![Message::new_data(id.0, true, &data).unwrap()]
+            let msg = CanMessage::Data(DataFrame {
+                id: id.0,
+                ext_id: true,
+                data: data.to_vec(),
+            });
+            vec![msg]
         }
     };
     Ok(ret)

@@ -2,17 +2,18 @@ mod prologix;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use tokio_serial::{SerialPortBuilderExt, SerialStream, ErrorKind};
+use tokio_serial::{ErrorKind, SerialPortBuilderExt, SerialStream};
 
 pub use params::SerialParams;
 
-use crate::bytestream::{ByteStreamRequest, ByteStreamResponse};
 use crate::clonable_channel::ClonableChannel;
 use crate::iotask::{IoHandler, IoTask};
-use crate::modbus::{handle_modbus_request_timeout, ModBusRequest, ModBusResponse};
-use crate::scpi::{ScpiRequest, ScpiResponse};
+use crate::modbus::handle_modbus_request_timeout;
 use crate::serial::params::{DataBits, Parity, StopBits};
 use crate::serial::prologix::{handle_prologix_request, init_prologix};
+use comsrv_protocol::{
+    ByteStreamRequest, ByteStreamResponse, ModBusRequest, ModBusResponse, ScpiRequest, ScpiResponse,
+};
 use std::time::Duration;
 use tokio_modbus::prelude::Slave;
 
@@ -73,11 +74,10 @@ impl From<tokio_serial::Error> for crate::Error {
                 let desc = format!("{:?}", io);
                 let io_err = std::io::Error::new(io, desc.as_str());
                 crate::Error::io(io_err)
-            },
+            }
         }
     }
 }
-
 
 async fn open_serial_port(path: &str, params: &SerialParams) -> crate::Result<SerialStream> {
     Ok(tokio_serial::new(path, params.baud)

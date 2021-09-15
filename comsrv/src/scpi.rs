@@ -1,28 +1,5 @@
 /// This module implements some base types and functions to interact with SCPI-based instruments
-use crate::util;
 use crate::Error;
-use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum ScpiRequest {
-    Write(String),
-    QueryString(String),
-    QueryBinary(String),
-    ReadRaw,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum ScpiResponse {
-    Done,
-    String(String),
-    Binary {
-        #[serde(
-            serialize_with = "util::to_base64",
-            deserialize_with = "util::from_base64"
-        )]
-        data: Vec<u8>,
-    },
-}
 
 /// Parse an SCPI binary header.
 pub fn parse_binary_header(rx: &[u8]) -> crate::Result<(usize, usize)> {

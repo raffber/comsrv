@@ -3,6 +3,7 @@ use std::process::{Command, Stdio};
 
 use bitvec::order::Lsb0;
 use bitvec::vec::BitVec;
+use comsrv_protocol::{SigrokAcquire, SigrokData, SigrokDevice, SigrokRequest, SigrokResponse};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::task;
@@ -17,39 +18,6 @@ pub enum SigrokError {
     },
     #[error("Invalid Output")]
     InvalidOutput,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum Acquire {
-    Time(f32),
-    Samples(u64),
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct SigrokRequest {
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    channels: Vec<String>,
-    acquire: Acquire,
-    sample_rate: u64,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Data {
-    tsample: f64,
-    length: usize,
-    channels: HashMap<String, Vec<u8>>,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Device {
-    addr: String,
-    desc: String,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum SigrokResponse {
-    Data(Data),
-    Devices(Vec<Device>),
 }
 
 pub async fn read(device: String, req: SigrokRequest) -> crate::Result<SigrokResponse> {
@@ -106,13 +74,13 @@ fn do_list() -> crate::Result<SigrokResponse> {
             .next()
             .ok_or(crate::Error::Sigrok(SigrokError::InvalidOutput))?
             .to_string();
-        let device = Device { addr, desc };
+        let device = SigrokDevice { addr, desc };
         ret.push(device)
     }
     Ok(SigrokResponse::Devices(ret))
 }
 
-fn do_read(device: String, req: SigrokRequest) -> crate::Result<Data> {
+fn do_read(device: String, req: SigrokRequest) -> crate::Result<SigrokData> {
     let mut args = vec!["-d", &device];
     let channels = req.channels.join(",");
     if !req.channels.is_empty() {
@@ -123,11 +91,11 @@ fn do_read(device: String, req: SigrokRequest) -> crate::Result<Data> {
     let sample_rate = format!("samplerate={}", req.sample_rate);
     args.push(&sample_rate);
     let acq = match req.acquire {
-        Acquire::Time(t) => {
+        SigrokAcquire::Time(t) => {
             args.push("--time");
             format!("{}s", t)
         }
-        Acquire::Samples(samples) => {
+        SigrokAcquire::Samples(samples) => {
             args.push("--samples");
             format!("{}", samples)
         }
@@ -138,7 +106,7 @@ fn do_read(device: String, req: SigrokRequest) -> crate::Result<Data> {
     let csv = run_command(&args)?;
 
     let (channels, length) = parse_csv(csv)?;
-    Ok(Data {
+    Ok(SigrokData {
         tsample: 1.0 / (req.sample_rate as f64),
         length,
         channels,

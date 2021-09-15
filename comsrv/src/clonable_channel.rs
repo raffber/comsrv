@@ -41,7 +41,11 @@ impl<T: AsyncRead + AsyncWrite + Unpin> ClonableChannel<T> {
 }
 
 impl<T: AsyncRead + AsyncWrite + Unpin> AsyncRead for ClonableChannel<T> {
-    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         let inner = &mut self.inner.lock().unwrap();
         if inner.is_none() {
             return Poll::Ready(Err(Error::new(ErrorKind::Other, "Channel closed.")));

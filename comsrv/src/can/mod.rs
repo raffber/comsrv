@@ -1,41 +1,44 @@
 use std::fmt;
 use std::fmt::Display;
 
-pub use async_can::Message as CanMessage;
-use async_can::{Error, Message};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task;
 
-use crate::app::{Response, Server};
+use crate::app::Server;
 use crate::can::device::{CanReceiver, CanSender};
-use crate::can::gct::{Decoder, GctMessage};
+use crate::can::gct::Decoder;
 use crate::iotask::{IoHandler, IoTask};
+use async_can::{CanFrameError, Error};
+use comsrv_protocol::{CanMessage, CanRequest, CanResponse, DataFrame, RemoteFrame, Response};
 
 mod crc;
 mod device;
 mod gct;
 mod loopback;
 
-#[derive(Serialize, Deserialize, Clone)]
-pub enum CanRequest {
-    ListenRaw(bool),
-    ListenGct(bool),
-    StopAll,
-    EnableLoopback(bool),
-    TxRaw(Message),
-    TxGct(GctMessage),
+pub fn into_protocol_message(msg: async_can::Message) -> CanMessage {
+    match msg {
+        async_can::Message::Data(x) => CanMessage::Data(DataFrame {
+            id: x.id(),
+            ext_id: x.ext_id(),
+            data: x.data().to_vec(),
+        }),
+        async_can::Message::Remote(x) => CanMessage::Remote(RemoteFrame {
+            id: x.id(),
+            ext_id: x.ext_id(),
+            dlc: x.dlc(),
+        }),
+    }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub enum CanResponse {
-    Started(String),
-    Stopped(String),
-    Ok,
-    Raw(Message),
-    Gct(GctMessage),
+pub fn into_async_can_message(msg: CanMessage) -> Result<async_can::Message, CanFrameError> {
+    match msg {
+        CanMessage::Data(x) => async_can::Message::new_data(x.id, x.ext_id, &x.data),
+        CanMessage::Remote(x) => async_can::Message::new_remote(x.id, x.ext_id, x.dlc),
+    }
 }
 
 #[derive(Clone, Hash)]
@@ -108,6 +111,13 @@ impl From<async_can::Error> for CanError {
             Error::IdTooLong => CanError::IdTooLong,
             Error::DataTooLong => CanError::DataTooLong,
         }
+    }
+}
+
+impl From<async_can::CanFrameError> for CanError {
+    fn from(x: CanFrameError) -> Self {
+        let err: async_can::Error = x.into();
+        err.into()
     }
 }
 
@@ -277,7 +287,7 @@ impl Listener {
         }
     }
 
-    fn rx(&mut self, msg: Message) {
+    fn rx(&mut self, msg: CanMessage) {
         log::debug!("CAN received - ID = {:x}", msg.id());
         if self.listen_raw {
             let tx = Response::Can(CanResponse::Raw(msg.clone()));
@@ -304,7 +314,7 @@ impl Listener {
             addr: self.device.address().into(),
             err: err.clone(),
         };
-        self.server.broadcast(Response::Error(send_err));
+        self.server.broadcast(send_err.into());
         // depending on error, continue listening or quit...
         match err {
             CanError::Io(_)
@@ -339,7 +349,7 @@ async fn listener_task(
                 None => break
             },
             msg = listener.device.recv() => match msg {
-                Ok(msg) => listener.rx(msg),
+                Ok(x) => listener.rx(x),
                 Err(err) => if !listener.err(err).await { break; }
             }
         }

@@ -3,9 +3,9 @@ use std::thread;
 
 use tokio::sync::oneshot;
 
-use crate::scpi::{ScpiRequest, ScpiResponse};
-use crate::visa::{Instrument as BlockingInstrument, VisaOptions};
+use crate::visa::Instrument as BlockingInstrument;
 use crate::Error;
+use comsrv_protocol::{ScpiRequest, ScpiResponse};
 
 #[derive(Clone)]
 pub struct Instrument {
@@ -15,7 +15,6 @@ pub struct Instrument {
 enum Msg {
     Scpi {
         request: ScpiRequest,
-        options: VisaOptions,
         reply: oneshot::Sender<crate::Result<ScpiResponse>>,
     },
     Drop,
@@ -28,12 +27,8 @@ impl Instrument {
         thread::spawn(move || {
             let mut oinstr = None;
             while let Ok(msg) = rx.recv() {
-                let (request, options, reply) = match msg {
-                    Msg::Scpi {
-                        request,
-                        options,
-                        reply,
-                    } => (request, options, reply),
+                let (request, reply) = match msg {
+                    Msg::Scpi { request, reply } => (request, reply),
                     Msg::Drop => {
                         break;
                     }
@@ -41,11 +36,11 @@ impl Instrument {
                 let instr = if let Some(instr) = oinstr.take() {
                     Ok(instr)
                 } else {
-                    BlockingInstrument::open(&addr, &options).map_err(Error::Visa)
+                    BlockingInstrument::open(&addr).map_err(Error::Visa)
                 };
                 match instr {
                     Ok(instr) => {
-                        let _ = reply.send(instr.handle_scpi(request, &options));
+                        let _ = reply.send(instr.handle_scpi(request));
                         oinstr.replace(instr);
                     }
                     Err(err) => {
@@ -58,15 +53,10 @@ impl Instrument {
         Instrument { tx }
     }
 
-    pub async fn request(
-        self,
-        req: ScpiRequest,
-        options: VisaOptions,
-    ) -> crate::Result<ScpiResponse> {
+    pub async fn request(self, req: ScpiRequest) -> crate::Result<ScpiResponse> {
         let (tx, rx) = oneshot::channel();
         let thmsg = Msg::Scpi {
             request: req,
-            options,
             reply: tx,
         };
         self.tx.send(thmsg).map_err(|_| Error::Disconnected)?;

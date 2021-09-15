@@ -1,5 +1,6 @@
 use crate::iotask::{IoHandler, IoTask};
 use async_trait::async_trait;
+use comsrv_protocol::{HidDeviceInfo, HidIdentifier, HidRequest, HidResponse};
 use hidapi::{HidApi, HidDevice as HidApiDevice, HidError as HidApiError, HidResult};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
@@ -9,49 +10,6 @@ use tokio::task;
 
 lazy_static! {
     static ref HID_API: HidResult<HidApi> = HidApi::new();
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum HidRequest {
-    Write { data: Vec<u8> },
-    Read { timeout_ms: i32 },
-    GetInfo,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub enum HidResponse {
-    Ok,
-    Data(Vec<u8>),
-    Info(HidDeviceInfo),
-    List(Vec<HidDeviceInfo>),
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct HidDeviceInfo {
-    idn: HidIdentifier,
-    manufacturer: Option<String>,
-    product: Option<String>,
-    serial_number: Option<String>,
-}
-
-#[derive(Hash, Clone, Serialize, Deserialize)]
-pub struct HidIdentifier {
-    pid: u16,
-    vid: u16,
-}
-
-impl HidIdentifier {
-    pub fn new(vid: u16, pid: u16) -> Self {
-        HidIdentifier { pid, vid }
-    }
-
-    pub fn pid(&self) -> u16 {
-        self.pid
-    }
-
-    pub fn vid(&self) -> u16 {
-        self.vid
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
