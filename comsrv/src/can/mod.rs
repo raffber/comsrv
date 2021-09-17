@@ -371,7 +371,11 @@ mod tests {
         let _expected_resp = CanResponse::Started(CanAddress::Loopback.interface());
         assert!(matches!(resp, Ok(_expected_resp)));
 
-        let msg = CanMessage::new_data(0xABCD, true, &[1, 2, 3, 4]).unwrap();
+        let msg = CanMessage::Data(DataFrame {
+            id: 0xABCD,
+            ext_id: true,
+            data: vec![1, 2, 3, 4]
+        });
         let sent = instr.request(CanRequest::TxRaw(msg)).await;
         assert!(matches!(sent, Ok(CanResponse::Ok)));
 
@@ -386,13 +390,13 @@ mod tests {
         } else {
             panic!()
         };
-        let msg = if let Message::Data(msg) = msg {
+        let msg = if let CanMessage::Data(msg) = msg {
             msg
         } else {
             panic!()
         };
-        assert_eq!(msg.dlc(), 4);
-        assert_eq!(&msg.data(), &[1, 2, 3, 4]);
-        assert!(msg.ext_id());
+        assert_eq!(msg.data.len(), 4);
+        assert_eq!(&msg.data, &[1, 2, 3, 4]);
+        assert!(msg.ext_id);
     }
 }

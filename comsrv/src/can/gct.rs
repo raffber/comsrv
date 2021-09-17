@@ -237,10 +237,10 @@ mod tests {
         let mut result = None;
         for x in raw {
             match x {
-                Message::Data(x) => {
+                CanMessage::Data(x) => {
                     result = decoder.decode(x);
                 }
-                Message::Remote(_) => {
+                CanMessage::Remote(_) => {
                     panic!()
                 }
             }
