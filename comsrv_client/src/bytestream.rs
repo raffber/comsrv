@@ -1,7 +1,6 @@
 use crate::{Rpc, Lockable, LockGuard, lock};
 use async_trait::async_trait;
 use std::time::Duration;
-use uuid::Uuid;
 
 pub struct ByteStreamPipe<T: Rpc> {
     rpc: T,

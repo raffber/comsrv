@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod ws;
 mod http;
 mod bytestream;
@@ -23,6 +25,8 @@ pub enum Error {
     EndpointHangUp,
     #[error("Unexpected Response")]
     UnexpectdResponse,
+    #[error("Other Error: {0}")]
+    Other(String)
 }
 
 type Result<T> = std::result::Result<T, Error>;
