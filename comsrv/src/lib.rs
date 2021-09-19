@@ -68,7 +68,7 @@ pub enum Error {
     InvalidResponse,
     #[error("Invalid Address")]
     InvalidAddress,
-    #[error("Timeout Occured")]
+    #[error("Timeout Occurred")]
     Timeout,
     #[error("Vxi11 Error")]
     #[serde(

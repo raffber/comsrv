@@ -111,6 +111,7 @@ dependencies = [
  "async-trait",
  "comsrv_protocol",
  "reqwest",
+ "serde_json",
  "thiserror",
  "tokio",
  "url",

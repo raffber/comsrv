@@ -1,9 +1,8 @@
 use crate::Rpc;
-use comsrv_protocol::{Request, Response};
 use async_trait::async_trait;
-use std::time::Duration;
+use comsrv_protocol::{Request, Response};
 use reqwest::{Client, Error};
-
+use std::time::Duration;
 
 impl From<reqwest::Error> for crate::Error {
     fn from(x: Error) -> Self {
@@ -29,7 +28,7 @@ impl HttpRpc {
         HttpRpc {
             host: "127.0.0.1".to_string(),
             port: 5903,
-            client: None
+            client: None,
         }
     }
 
@@ -37,7 +36,7 @@ impl HttpRpc {
         HttpRpc {
             host: host.to_string(),
             port: 5903,
-            client: None
+            client: None,
         }
     }
 
@@ -45,7 +44,7 @@ impl HttpRpc {
         Self {
             host: host.to_string(),
             port,
-            client: None
+            client: None,
         }
     }
 }
@@ -55,7 +54,12 @@ impl Rpc for HttpRpc {
     async fn request(&mut self, request: Request, timeout: Duration) -> crate::Result<Response> {
         let url = format!("{}:{}", self.host, self.port);
         let client = self.client.take().unwrap_or_else(|| Client::new());
-        let response = client.get(&url).timeout(timeout).json(&request).send().await?;
+        let response = client
+            .get(&url)
+            .timeout(timeout)
+            .json(&request)
+            .send()
+            .await?;
         let ret = response.json::<Response>().await;
         if ret.is_ok() {
             self.client.replace(client);

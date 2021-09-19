@@ -1,8 +1,8 @@
 use crate::Rpc;
-use comsrv_protocol::{Request, Response};
-use std::time::Duration;
-use std::io;
 use async_trait::async_trait;
+use comsrv_protocol::{Request, Response};
+use std::io;
+use std::time::Duration;
 use url::Url;
 
 type Client = wsrpc::client::Client<Request, Response>;
@@ -14,8 +14,8 @@ pub struct WsRpc {
 
 impl WsRpc {
     pub async fn connect<A>(url: A, duration: Duration) -> io::Result<Self>
-        where
-            A: Into<Url>,
+    where
+        A: Into<Url>,
     {
         let client = Client::connect(url, duration).await?;
         Ok(WsRpc { client })
