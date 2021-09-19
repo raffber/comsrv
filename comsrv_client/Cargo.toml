@@ -1,0 +1,9 @@
+[package]
+name = "comsrv_client"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+wsrpc = { path = "../wsrpc" }
+comsrv_protocol = { path = "../comsrv_protocol" }
+async-trait = "0.1.51"
