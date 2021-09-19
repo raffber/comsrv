@@ -7,3 +7,7 @@ edition = "2018"
 wsrpc = { path = "../wsrpc" }
 comsrv_protocol = { path = "../comsrv_protocol" }
 async-trait = "0.1.51"
+thiserror = "1"
+tokio = "1"
+url = "2"
+uuid = "0.8"
