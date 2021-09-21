@@ -70,7 +70,7 @@ class ByteStreamPipe(BasePipe):
         result = await get(self._url, {'Bytes': {
             'addr': self._addr,
             'task': {
-                'CobsQuery': int(timeout * 1e3),
+                'CobsRead': int(timeout * 1e3),
             },
             'lock': self._lock,
         }})

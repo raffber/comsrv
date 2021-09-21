@@ -99,4 +99,69 @@ impl<T: Rpc> ByteStreamPipe<T> {
             _ => Err(crate::Error::UnexpectdResponse),
         }
     }
+
+    pub async fn cobs_write(&mut self, data: &[u8]) -> crate::Result<()> {
+        let req = ByteStreamRequest::CobsWrite(data.to_vec());
+        match self.request(req).await? {
+            ByteStreamResponse::Done => Ok(()),
+            _ => Err(crate::Error::UnexpectdResponse),
+        }
+    }
+
+    pub async fn cobs_read(&mut self, timeout: Duration) -> crate::Result<Vec<u8>> {
+        let timeout_ms = timeout.as_millis() as u32;
+        let req = ByteStreamRequest::CobsRead(timeout_ms);
+        match self.request(req).await? {
+            ByteStreamResponse::Data(x) => Ok(x),
+            _ => Err(crate::Error::UnexpectdResponse),
+        }
+    }
+
+    pub async fn cobs_query(&mut self, write: &[u8], timeout: Duration) -> crate::Result<Vec<u8>> {
+        let timeout_ms = timeout.as_millis() as u32;
+        let req = ByteStreamRequest::CobsQuery {
+            data: write.to_vec(),
+            timeout_ms,
+        };
+        match self.request(req).await? {
+            ByteStreamResponse::Data(x) => Ok(x),
+            _ => Err(crate::Error::UnexpectdResponse),
+        }
+    }
+
+    pub async fn write_line(&mut self, write: &str, term: u8) -> crate::Result<()> {
+        let req = ByteStreamRequest::WriteLine {
+            line: write.to_string(),
+            term,
+        };
+        match self.request(req).await? {
+            ByteStreamResponse::Done => Ok(()),
+            _ => Err(crate::Error::UnexpectdResponse),
+        }
+    }
+
+    pub async fn read_line(&mut self, term: u8, timeout: Duration) -> crate::Result<String> {
+        let timeout_ms = timeout.as_millis() as u32;
+        let req = ByteStreamRequest::ReadLine {
+            timeout_ms,
+            term,
+        };
+        match self.request(req).await? {
+            ByteStreamResponse::String(x) => Ok(x),
+            _ => Err(crate::Error::UnexpectdResponse),
+        }
+    }
+
+    pub async fn query_line(&mut self, write: &str, term: u8, timeout: Duration) -> crate::Result<String> {
+        let timeout_ms = timeout.as_millis() as u32;
+        let req = ByteStreamRequest::QueryLine {
+            line: write.to_string(),
+            timeout_ms,
+            term,
+        };
+        match self.request(req).await? {
+            ByteStreamResponse::String(x) => Ok(x),
+            _ => Err(crate::Error::UnexpectdResponse),
+        }
+    }
 }
