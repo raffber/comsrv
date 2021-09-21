@@ -13,9 +13,9 @@ use tokio::task;
 use uuid::Uuid;
 use wsrpc::client::ClientError;
 
-mod bytestream;
-mod http;
-mod ws;
+pub mod bytestream;
+pub mod http;
+pub mod ws;
 
 pub const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_millis(1000);
 
