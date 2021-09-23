@@ -17,6 +17,8 @@ pub mod bytestream;
 pub mod http;
 pub mod ws;
 
+pub use comsrv_protocol as protocol;
+
 pub const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_millis(1000);
 
 #[derive(Error, Debug)]
