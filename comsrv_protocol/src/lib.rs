@@ -2,15 +2,16 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use uuid::Uuid;
-
-mod can;
-mod util;
-
+use std::fmt::{Debug, Formatter};
 pub use can::{
     CanMessage, CanRequest, CanResponse, DataFrame, GctMessage, MessageId, RemoteFrame,
     SysCtrlType, BROADCAST_ADDR, MSGTYPE_DDP, MSGTYPE_HEARTBEAT, MSGTYPE_MONITORING_DATA,
     MSGTYPE_MONITORING_REQUEST, MSGTYPE_SYSCTRL,
 };
+
+mod can;
+mod util;
+
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Request {
@@ -61,6 +62,12 @@ pub enum Request {
     Shutdown,
 }
 
+impl Debug for Request {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&serde_json::to_string(self).unwrap())
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Response {
     Error(JsonValue),
@@ -73,6 +80,12 @@ pub enum Response {
     Locked { addr: String, lock_id: Uuid },
     Hid(HidResponse),
     Done,
+}
+
+impl Debug for Response {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&serde_json::to_string(self).unwrap())
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]

@@ -34,7 +34,7 @@ impl CanBus {
     pub async fn connect(&mut self) -> crate::Result<()> {
         self.rpc.request(Request::Can {
             addr: self.address.clone(),
-            task: CanRequest::ListenGct(true),
+            task: CanRequest::ListenRaw(true),
             lock: None,
         }, Duration::from_millis(100)).await?;
         self.rpc.request(Request::Can {
@@ -50,7 +50,8 @@ impl CanBus {
         let (tx, rx) = channel(CHANNEL_CAPACITY);
 
         task::spawn(async move {
-            while let Some(x) = client.notifications().recv().await {
+            let mut notifications = client.notifications();
+            while let Some(x) = notifications.recv().await {
                 let msg = match x {
                     Response::Can(CanResponse::Raw(CanMessage::Data(msg))) => Message::RawData(msg),
                     Response::Can(CanResponse::Raw(CanMessage::Remote(msg))) => Message::RawRemote(msg),
