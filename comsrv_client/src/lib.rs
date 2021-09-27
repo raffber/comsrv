@@ -16,6 +16,7 @@ use wsrpc::client::ClientError;
 pub mod bytestream;
 pub mod http;
 pub mod ws;
+pub mod can;
 
 pub use comsrv_protocol as protocol;
 

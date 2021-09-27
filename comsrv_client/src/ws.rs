@@ -9,7 +9,7 @@ type Client = wsrpc::client::Client<Request, Response>;
 
 #[derive(Clone)]
 pub struct WsRpc {
-    client: Client,
+    pub client: Client,
 }
 
 impl WsRpc {
