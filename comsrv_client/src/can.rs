@@ -16,6 +16,7 @@ pub struct CanBus {
     rpc: WsRpc,
 }
 
+#[derive(Debug)]
 pub enum Message {
     RawData(DataFrame),
     RawRemote(RemoteFrame),
@@ -45,12 +46,11 @@ impl CanBus {
     }
 
     #[must_use]
-    pub fn subscribe<U: 'static + Send, T: Fn(Message) -> Option<U> + Send + 'static>(&self, filter: T) -> Receiver<U> {
+    pub async fn subscribe<U: 'static + Send, T: Fn(Message) -> Option<U> + Send + 'static>(&self, filter: T) -> Receiver<U> {
         let client = self.rpc.client.clone();
         let (tx, rx) = channel(CHANNEL_CAPACITY);
-
+        let mut notifications = client.notifications();
         task::spawn(async move {
-            let mut notifications = client.notifications();
             while let Some(x) = notifications.recv().await {
                 let msg = match x {
                     Response::Can(CanResponse::Raw(CanMessage::Data(msg))) => Message::RawData(msg),

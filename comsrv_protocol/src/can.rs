@@ -2,7 +2,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use serde::{Deserialize, Serialize};
 use std::iter::repeat;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum CanMessage {
     Data(DataFrame),
     Remote(RemoteFrame),
@@ -24,14 +24,14 @@ impl CanMessage {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct DataFrame {
     pub id: u32,
     pub ext_id: bool,
     pub data: Vec<u8>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RemoteFrame {
     pub id: u32,
     pub ext_id: bool,
@@ -57,14 +57,14 @@ pub enum CanResponse {
     Gct(GctMessage),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum SysCtrlType {
     Value,
     Query,
     None,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum GctMessage {
     SysCtrl {
         src: u8,
