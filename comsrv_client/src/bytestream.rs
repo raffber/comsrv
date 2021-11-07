@@ -12,6 +12,17 @@ pub struct ByteStreamPipe<T: Rpc> {
     pub timeout: Duration,
 }
 
+impl<T: Rpc> Clone for ByteStreamPipe<T> {
+    fn clone(&self) -> Self {
+        Self {
+            rpc: self.rpc.clone(),
+            addr: self.addr.clone(),
+            lock: Locked::new(),
+            timeout: self.timeout.clone()
+        }
+    }
+}
+
 #[async_trait]
 impl<T: Rpc> Lock<T> for ByteStreamPipe<T> {
     async fn lock(&mut self, timeout: Duration) -> crate::Result<LockGuard<T>> {
