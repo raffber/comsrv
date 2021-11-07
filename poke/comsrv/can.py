@@ -54,6 +54,9 @@ class CanBus(object):
         """ Disconnect from the server """
         await self.client.disconnect()
 
+    async def enable_loopback(self, loopback=True):
+        await self.rpc({'EnableLoopback': loopback})
+
     async def rpc(self, task, rx_reply=True):
         """
         Perform an RPC to the CAN endpoint.
