@@ -56,9 +56,9 @@ class ScpiPipe(ScpiPipeBase, BasePipe):
 
 
 class SerialScpiPipe(ScpiPipeBase):
-    def __init__(self, addr, url=None, term='\n', timeout=1.0):
+    def __init__(self, addr, rpc=None, term='\n', timeout=1.0):
         super().__init__()
-        self._inner = ByteStreamPipe(addr, url=url)
+        self._inner = ByteStreamPipe(addr, rpc=rpc)
         self._timeout = timeout
         self._term = term
 
