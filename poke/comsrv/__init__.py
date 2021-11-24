@@ -4,7 +4,7 @@ to instruments.
 """
 
 import json
-from typing import Union
+from typing import Union, Optional
 
 from aiohttp import ClientSession
 
@@ -69,6 +69,43 @@ def get_default_ws_url():
     return 'ws://{}:{}'.format(_default_host, _default_ws_port)
 
 
+async def connect_websocket_rpc(url=None) -> Client:
+    if url is None:
+        url = get_default_ws_url()
+    return await Client().connect(url)
+
+
+class Rpc(object):
+    async def get(self, data, timeout):
+        raise NotImplementedError
+
+
+class HttpRpc(Rpc):
+    def __init__(self, url=None):
+        if url is None:
+            url = get_default_http_url()
+        self._url = url
+
+    async def get(self, data, timeout):
+        # TODO: timeout
+        return await get(self._url, data)
+
+
+class WsRpc(Rpc):
+    def __init__(self, url=None):
+        if url is None:
+            url = get_default_ws_url()
+        self._url = url
+        self._client = Client()
+
+    async def get(self, data, timeout):
+        await self.connect(self._url)
+        return await self._client.request(data, timeout)
+
+    async def connect(self, url=None):
+        return await self._client.connect(url)
+
+
 async def get(url, data):
     data = json.dumps(data).encode()
     async with ClientSession() as session:
@@ -80,21 +117,32 @@ async def get(url, data):
 
 
 class BasePipe(object):
-    def __init__(self, addr, url=None):
-        if url is None:
-            url = get_default_http_url()
-        self._url = url
+    DEFAULT_TIMEOUT = 1.0
+
+    def __init__(self, addr, rpc: Optional[Client] = None):
+        if rpc is None:
+            rpc = HttpRpc()
         self._addr = addr
         self._lock_time = 1.0
         self._lock = None
+        self._rpc = rpc
+        self._timeout = BasePipe.DEFAULT_TIMEOUT
+
+    @property
+    def rpc(self):
+        return self._rpc
+
+    @property
+    def timeout(self):
+        return self._timeout
+
+    @timeout.setter
+    def timeout(self, value):
+        self._timeout = float(value)
 
     @property
     def addr(self):
         return self._addr
-
-    @property
-    def url(self):
-        return self._url
 
     @property
     def lock_time(self):
@@ -130,15 +178,17 @@ class BasePipe(object):
         """
         await self.unlock()
         lock_time = timeout or self._lock_time
-        reply = await get(self._url, {'Lock': {
+        reply = await self.get({'Lock': {
             'addr': self._addr,
             'timeout_ms': int(lock_time * 1000),
         }})
         self._lock = reply['Locked']['lock_id']
         return self
 
-    async def get(self, data):
-        return await get(self._url, data)
+    async def get(self, data, timeout=None):
+        if timeout is None:
+            timeout = self._timeout
+        return await self._rpc.get(data, timeout)
 
     async def __aenter__(self):
         """
@@ -160,51 +210,63 @@ class BasePipe(object):
         """
         if self._lock is None:
             return
-        await get(self._url, {'Unlock': self._lock})
+        await self.get({'Unlock': self._lock})
         self._lock = None
         return self
-    
+
     async def drop(self):
-        await ComSrvError(url=self._url).drop(self._addr)
-
-
-async def connect_client(url=None):
-    if url is None:
-        url = get_default_ws_url()
-    client = Client()
-    await client.connect(url)
-    return client
+        await ComSrv(rpc=self._rpc).drop(self._addr)
 
 
 class ComSrv(object):
-    def __init__(self, url=None):
-        if url is None:
-            url = get_default_http_url()
-        self._url = url
+    DEFAULT_TIMEOUT = 1.0
+
+    def __init__(self, rpc=None, timeout=DEFAULT_TIMEOUT):
+        if rpc is None:
+            rpc = HttpRpc()
+        self._rpc = rpc
+        self._timeout = timeout
+
+    @property
+    def timeout(self):
+        return self._timeout
+
+    @timeout.setter
+    def timeout(self, value):
+        self._timeout = value
+
+    @property
+    def rpc(self):
+        return self._rpc
+
+    async def get(self, data, timeout=None):
+        if timeout is None:
+            timeout = self._timeout
+        return await self._rpc.get(data, timeout)
 
     async def drop(self, addr):
-        result = await get(self._url, {
+        result = await self.get({
             'Drop': addr
         })
         if 'Error' in result:
             raise ComSrvError(result['Error'])
 
     async def drop_all(self):
-        result = await get(self._url, {
+        result = await self.get({
             'DropAll': None
         })
         if 'Error' in result:
             raise ComSrvError(result['Error'])
 
     async def shutdown(self):
-        result = await get(self._url, {
+        result = await self.get({
             'Shutdown': None
         })
         if 'Error' in result:
             raise ComSrvError(result['Error'])
 
     async def list_instruments(self):
-        result = await get(self._url, {
+        result = await self.get({
             'ListInstruments': None
         })
         if 'Error' in result:

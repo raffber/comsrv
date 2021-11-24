@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Optional
 
-from poke.comsrv import BasePipe, get_default_http_url, get, ComSrvError
+from poke.comsrv import BasePipe, get_default_http_url, get, ComSrvError, HttpRpc, Rpc
 
 
 @dataclass
@@ -14,8 +14,8 @@ class HidDeviceInfo:
 
 
 class HidDevice(BasePipe):
-    def __init__(self, vid, pid, url=None):
-        super().__init__('hid::{:x}::{:x}'.format(vid, pid), url=url)
+    def __init__(self, vid, pid, rpc: Optional[Rpc] = None):
+        super().__init__('hid::{:x}::{:x}'.format(vid, pid), rpc=rpc)
 
     async def get_info(self) -> HidDeviceInfo:
         result = await self.get({'Hid': {
@@ -42,10 +42,10 @@ class HidDevice(BasePipe):
         return bytes(result['Hid']['Data'])
 
 
-async def enumerate_hid_devices(url=None) -> List[HidDeviceInfo]:
-    if url is None:
-        url = get_default_http_url()
-    result = await get(url, {'ListHidDevices': None})
+async def enumerate_hid_devices(rpc=None, timeout=1.0) -> List[HidDeviceInfo]:
+    if rpc is None:
+        rpc = HttpRpc()
+    result = await rpc.get({'ListHidDevices': None}, timeout)
     if 'Error' in result:
         raise ComSrvError(result['Error']['Hid'])
     devices = result['Hid']['List']

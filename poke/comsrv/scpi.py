@@ -10,7 +10,7 @@ class ScpiPipe(ScpiPipeBase, BasePipe):
         return self._url
 
     async def query(self, msg: str) -> str:
-        result = await get(self._url, {'Scpi': {
+        result = await self.get({'Scpi': {
             'addr': self._addr,
             'task': {'QueryString': msg},
             'options': {'Default': None},
@@ -20,7 +20,7 @@ class ScpiPipe(ScpiPipeBase, BasePipe):
         return result['Scpi']['String']
 
     async def write(self, msg: str):
-        result = await get(self._url, {'Scpi': {
+        result = await self.get({'Scpi': {
             'addr': self._addr,
             'task': {'Write': msg},
             'options': {'Default': None},
@@ -29,7 +29,7 @@ class ScpiPipe(ScpiPipeBase, BasePipe):
         ComSrvError.check_raise(result)
 
     async def query_binary(self, msg: str) -> bytes:
-        result = await get(self._url, {
+        result = await self.get({
             'Scpi': {
                 'addr': self._addr,
                 'task': {'QueryBinary': msg},
@@ -42,7 +42,7 @@ class ScpiPipe(ScpiPipeBase, BasePipe):
         return base64.b64decode(data)
 
     async def read_raw(self) -> bytes:
-        result = await get(self._url, {
+        result = await self.get({
             'Scpi': {
                 'addr': self._addr,
                 'task': 'ReadRaw',

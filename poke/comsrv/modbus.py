@@ -5,7 +5,7 @@ from . import get, ComSrvError, BasePipe
 
 class ModBusDevice(BasePipe):
     async def write_registers(self, addr: int, data: List[int]):
-        result = await get(self._url, {
+        result = await self.get({
             'ModBus': {
                 'addr': self._addr,
                 'task': {'WriteRegister': {
@@ -18,7 +18,7 @@ class ModBusDevice(BasePipe):
         ComSrvError.check_raise(result)
 
     async def write_coils(self, addr: int, data: List[bool]):
-        result = await get(self._url, {
+        result = await self.get({
             'ModBus': {
                 'addr': self._addr,
                 'task': {'WriteCoil': {
@@ -32,7 +32,7 @@ class ModBusDevice(BasePipe):
 
     async def read_holding(self, addr: int, count: int = 1):
         assert count > 0
-        result = await get(self._url, {
+        result = await self.get({
             'ModBus': {
                 'addr': self._addr,
                 'task': {'ReadHolding': {
@@ -47,7 +47,7 @@ class ModBusDevice(BasePipe):
 
     async def read_coil(self, addr: int, count: int = 1):
         assert count > 0
-        result = await get(self._url, {
+        result = await self.get({
             'ModBus': {
                 'addr': self._addr,
                 'task': {'ReadHolding': {
@@ -62,7 +62,7 @@ class ModBusDevice(BasePipe):
 
     async def read_discrete(self, addr: int, count: int = 1):
         assert count > 0
-        result = await get(self._url, {
+        result = await self.get({
             'ModBus': {
                 'addr': self._addr,
                 'task': {'ReadDiscrete': {
@@ -77,7 +77,7 @@ class ModBusDevice(BasePipe):
 
     async def read_input(self, addr: int, count: int = 1):
         assert count > 0
-        result = await get(self._url, {
+        result = await self.get({
             'ModBus': {
                 'addr': self._addr,
                 'task': {'ReadInput': {
@@ -100,7 +100,7 @@ class ModBusDevice(BasePipe):
         """
         assert 0 < code < 255
 
-        result = await get(self._url, {
+        result = await self.get({
             'ModBus': {
                 'addr': self._addr,
                 'task': {'CustomCommand': {
