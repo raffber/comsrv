@@ -1,11 +1,51 @@
+use std::future::Future;
+use std::io;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 /// This module implements a request handler for handling operation on a bytesstream-like
 /// instrument, for example TCP streams or serial ports
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::time::{timeout, Duration};
 
 use crate::cobs::{cobs_decode, cobs_encode};
 use crate::Error;
 use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse};
+
+struct ReadAll<'a, T: AsyncRead + Unpin> {
+    inner: &'a mut T
+}
+
+impl<'a, T: AsyncRead+ Unpin> Future for ReadAll<'a, T> {
+    type Output = io::Result<Vec<u8>>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut ret = Vec::new();
+        loop {
+            let mut buf_data = [0_u8; 1000];
+            let mut buf = ReadBuf::new(&mut buf_data);
+            match Pin::new(&mut self.inner).poll_read(cx, &mut buf) {
+                Poll::Ready(Ok(())) => {
+                    ret.extend_from_slice(buf.filled());
+                    continue;
+                }
+                Poll::Ready(Err(err)) => {
+                    return Poll::Ready(Err(err));
+                }
+                Poll::Pending => {
+                    return Poll::Ready(Ok(ret));
+                },
+            }
+
+        }
+    }
+}
+
+pub async fn read_all<T: AsyncRead + Unpin>(stream: &mut T) -> io::Result<Vec<u8>> {
+    let fut = ReadAll {
+        inner: stream
+    };
+    fut.await
+}
 
 pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
     stream: &mut T,
@@ -42,11 +82,7 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
         }
         ByteStreamRequest::ReadAll => {
             log::debug!("read all bytes");
-            let mut ret = Vec::new();
-            let fut = AsyncReadExt::read_buf(stream, &mut ret);
-            if let Ok(x) = timeout(Duration::from_micros(100), fut).await {
-                x?;
-            };
+            let ret = read_all(stream).await?;
             Ok(ByteStreamResponse::Data(ret))
         }
         ByteStreamRequest::CobsWrite(data) => {
@@ -62,6 +98,7 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             }
         }
         ByteStreamRequest::CobsQuery { data, timeout_ms } => {
+            read_all(stream).await?;
             let duration = Duration::from_millis(timeout_ms as u64);
             match timeout(duration, cobs_query(stream, data)).await {
                 Ok(x) => x,
@@ -85,7 +122,7 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             timeout_ms,
             term,
         } => {
-            empty_buf(stream).await;
+            read_all(stream).await?;
             check_term(term)?;
             line.push(term as char);
             AsyncWriteExt::write_all(stream, line.as_bytes()).await?;
@@ -98,14 +135,6 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             Ok(ByteStreamResponse::Data(ret))
         }
     }
-}
-
-/// This function empties the buffer. Used before sending a request, such that the response
-/// does not contain "rogue" data from previous requests.
-async fn empty_buf<T: AsyncRead + Unpin>(stream: &mut T) {
-    let mut ret = Vec::new();
-    let fut = AsyncReadExt::read_buf(stream, &mut ret);
-    let _ = timeout(Duration::from_micros(100), fut).await;
 }
 
 /// pop a u8 from a byte stream
