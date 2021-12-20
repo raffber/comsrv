@@ -3,6 +3,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncReadExt, ReadBuf};
 use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc::error::TryRecvError;
 
 pub struct ByteBuffer {
     rx: mpsc::Receiver<u8>,
@@ -37,18 +38,46 @@ impl ByteBuffer {
             error: error_rx,
         }
     }
+
+    pub fn read_all(&mut self) -> io::Result<Vec<u8>> {
+        let mut ret = Vec::new();
+        loop {
+            match self.rx.try_recv() {
+                Ok(data) => {
+                    ret.push(data);
+                },
+                Err(TryRecvError::Disconnected) => {
+                    match self.error.try_recv() {
+                        Ok(err) => return Err(err),
+                        Err(_) => {
+                            // that cannot happen, in case the sender is dropped, it was dropped
+                            // because there was either an error (in which case self.error.try_recv() will succeed)
+                            // or it was dropped because this object was dropped, in which case
+                            // we cannot be here
+                            panic!()
+                        }
+                    }
+                }
+                Err(TryRecvError::Empty) => {
+                    match self.error.try_recv() {
+                        Ok(err) => {
+                            return Err(err)
+                        }
+                        Err(_) => break,
+                    }
+                }
+            }
+        }
+        Ok(ret)
+    }
 }
 
 impl<T: AsyncRead + Unpin + Send> Fetcher<T> {
     pub async fn run(mut self) {
         let cancel = self.cancel.take().unwrap();
         tokio::select! {
-            _ = self.receive() => {
-
-            }
-            _ = cancel => {
-
-            }
+            _ = self.receive() => {}
+            _ = cancel => {}
         }
     }
 
