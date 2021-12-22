@@ -59,6 +59,7 @@ pub enum Request {
     Unlock(Uuid),
     DropAll,
     Drop(String),
+    Version,
     Shutdown,
 }
 
@@ -79,6 +80,11 @@ pub enum Response {
     Sigrok(SigrokResponse),
     Locked { addr: String, lock_id: Uuid },
     Hid(HidResponse),
+    Version {
+        major: u32,
+        minor: u32,
+        build: u32
+    },
     Done,
 }
 

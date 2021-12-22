@@ -18,7 +18,13 @@ use comsrv_protocol::{HidRequest, HidResponse};
 use std::time::Duration;
 use uuid::Uuid;
 
+
 pub type Server = WsrpcServer<Request, Response>;
+
+pub const VERSION_MAJOR: u32 = 1;
+pub const VERSION_MINOR: u32 = 0;
+pub const VERSION_BUILD: u32 = 0;
+
 
 #[derive(Clone)]
 pub struct App {
@@ -364,6 +370,13 @@ impl App {
                 Ok(result) => Response::Hid(HidResponse::List(result)),
                 Err(x) => x.into(),
             },
+            Request::Version => {
+                Response::Version {
+                    major: VERSION_MAJOR,
+                    minor: VERSION_MINOR,
+                    build:  VERSION_BUILD,
+                }
+            }
         }
     }
 }
