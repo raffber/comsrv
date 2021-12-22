@@ -12,10 +12,10 @@ use crate::Error;
 use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse};
 
 struct ReadAll<'a, T: AsyncRead + Unpin> {
-    inner: &'a mut T
+    inner: &'a mut T,
 }
 
-impl<'a, T: AsyncRead+ Unpin> Future for ReadAll<'a, T> {
+impl<'a, T: AsyncRead + Unpin> Future for ReadAll<'a, T> {
     type Output = io::Result<Vec<u8>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -33,9 +33,8 @@ impl<'a, T: AsyncRead+ Unpin> Future for ReadAll<'a, T> {
                 }
                 Poll::Pending => {
                     return Poll::Ready(Ok(ret));
-                },
+                }
             }
-
         }
     }
 }
@@ -134,6 +133,14 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             let ret = read_to_term_timeout(stream, term, timeout_ms).await?;
             Ok(ByteStreamResponse::Data(ret))
         }
+        ByteStreamRequest::ModBusRtuDdp { timeout_ms, station_address, custom_command, sub_cmd, ddp_cmd, response, data } => {
+            let duration = Duration::from_millis(timeout_ms as u64);
+            let fut = modbus_ddp_rtu(stream, station_address, custom_command, sub_cmd, ddp_cmd, response, data);
+            match timeout(duration, fut).await {
+                Ok(x) => x,
+                Err(_) => Err(crate::Error::Timeout),
+            }
+        }
     }
 }
 
@@ -212,4 +219,67 @@ async fn cobs_query<T: AsyncRead + AsyncWrite + Unpin>(
         .await
         .map_err(Error::io)?;
     cobs_read(stream).await
+}
+
+pub fn ddp_crc(data: &[u8]) -> u16 {
+    let mut crc = 0xFFFF_u16;
+    for x in data {
+        crc ^= *x as u16;
+        for _ in 0..8 {
+            if crc & 1 != 0 {
+                crc = (crc >> 1) ^ 0xA001;
+            } else {
+                crc >>= 1;
+            }
+        }
+    }
+    crc
+}
+
+async fn modbus_ddp_rtu<T: AsyncRead + AsyncWrite + Unpin>(
+    stream: &mut T,
+    station_address: u8,
+    custom_cmd: u8,
+    sub_cmd: u8,
+    mut ddp_cmd: u8,
+    response: bool,
+    data: Vec<u8>) -> crate::Result<ByteStreamResponse> {
+    let _ = read_all(stream).await;
+    if response {
+        ddp_cmd |= 0x80;
+    }
+    let mut req = vec![
+        station_address,
+        custom_cmd,
+        sub_cmd,
+        (data.len() + 1) as u8,
+        ddp_cmd,
+    ];
+    req.extend(data);
+    let msg_crc = ddp_crc(&req);
+    req.push((msg_crc & 0xFF) as u8);
+    req.push(((msg_crc >> 8) & 0xFF) as u8);
+    stream.write(&req).await?;
+    let mut data = vec![0_u8; 300];
+    stream.read_exact(&mut data[0..4]).await?;
+    if data[0] != station_address
+        || data[1] != custom_cmd
+        || data[2] != sub_cmd
+    {
+        return Err(crate::Error::InvalidResponse);
+    }
+    if !response {
+        return Ok(ByteStreamResponse::Data(vec![]));
+    }
+    let len = data[3];
+    if len == 0 {
+        return Err(crate::Error::InvalidResponse);
+    }
+    stream.read_exact(&mut data[4..4 + len as usize]).await?;
+
+    if ddp_crc(&data[0 .. 4 + len as usize]) != 0 {
+        return Err(crate::Error::InvalidResponse);
+    }
+    let reply = &data[4..data.len() + 2];
+    Ok(ByteStreamResponse::Data(reply.to_vec()))
 }

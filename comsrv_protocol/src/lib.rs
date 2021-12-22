@@ -121,6 +121,15 @@ pub enum ByteStreamRequest {
         timeout_ms: u32,
         term: u8,
     },
+    ModBusRtuDdp {
+        timeout_ms: u32,
+        station_address: u8,
+        custom_command: u8,
+        sub_cmd: u8,
+        ddp_cmd: u8,
+        response: bool,
+        data: Vec<u8>,
+    },
 }
 
 #[derive(Clone, Serialize, Deserialize)]
