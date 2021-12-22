@@ -143,3 +143,24 @@ class ByteStreamPipe(BasePipe):
         }})
         ComSrvError.check_raise(result)
         return result['Bytes']['String']
+
+    async def modbus_rtu_ddp(self, station_address: int, sub_cmd: int, ddp_cmd: int, response: bool, data: bytes,
+                             timeout: float, custom_command: int = 0x44):
+        data = bytes(data)
+        result = await self.get({'Bytes': {
+            'addr': self._addr,
+            'task': {
+                'ModBusRtuDdp': {
+                    'timeout_ms': int(timeout * 1e3),
+                    'station_address': station_address,
+                    'custom_command': custom_command,
+                    'sub_cmd': sub_cmd,
+                    'ddp_cmd': ddp_cmd,
+                    'response': response,
+                    'data': data,
+                }
+            },
+            'lock': self._lock,
+        }})
+        ComSrvError.check_raise(result)
+        return result['Bytes']['Data']
