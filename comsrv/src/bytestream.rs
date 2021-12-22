@@ -278,7 +278,6 @@ async fn modbus_ddp_rtu<T: AsyncRead + AsyncWrite + Unpin>(
     stream.read_exact(&mut data[4..6 + len as usize]).await?;
 
     if ddp_crc(&data[0..6 + len as usize]) != 0 {
-        println!("UUAAAH!!");
         return Err(crate::Error::InvalidResponse);
     }
     let reply = &data[4..4 + len as usize];
