@@ -275,11 +275,12 @@ async fn modbus_ddp_rtu<T: AsyncRead + AsyncWrite + Unpin>(
     if len == 0 {
         return Err(crate::Error::InvalidResponse);
     }
-    stream.read_exact(&mut data[4..4 + len as usize]).await?;
+    stream.read_exact(&mut data[4..6 + len as usize]).await?;
 
-    if ddp_crc(&data[0 .. 4 + len as usize]) != 0 {
+    if ddp_crc(&data[0..6 + len as usize]) != 0 {
+        println!("UUAAAH!!");
         return Err(crate::Error::InvalidResponse);
     }
-    let reply = &data[4..data.len() + 2];
+    let reply = &data[4..4 + len as usize];
     Ok(ByteStreamResponse::Data(reply.to_vec()))
 }

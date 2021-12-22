@@ -145,8 +145,8 @@ class ByteStreamPipe(BasePipe):
         return result['Bytes']['String']
 
     async def modbus_rtu_ddp(self, station_address: int, sub_cmd: int, ddp_cmd: int, response: bool, data: bytes,
-                             timeout: float, custom_command: int = 0x44):
-        data = bytes(data)
+                             timeout: float, custom_command: int = 0x44) -> bytes:
+        data = list(data)
         result = await self.get({'Bytes': {
             'addr': self._addr,
             'task': {
@@ -163,4 +163,4 @@ class ByteStreamPipe(BasePipe):
             'lock': self._lock,
         }})
         ComSrvError.check_raise(result)
-        return result['Bytes']['Data']
+        return bytes(result['Bytes']['Data'])
