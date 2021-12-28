@@ -377,6 +377,16 @@ impl App {
                     build:  VERSION_BUILD,
                 }
             }
+            Request::ListSerialPorts => {
+                match tokio_serial::available_ports() {
+                    Ok(x) => {
+                        Response::SerialPorts(x.iter().map(|x| x.port_name.clone()).collect())
+                    }
+                    Err(err) => {
+                        crate::Error::Other(err.description).into()
+                    }
+                }
+            }
         }
     }
 }

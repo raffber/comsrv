@@ -168,3 +168,11 @@ pub async fn unlock<T: Rpc>(rpc: &mut T, uuid: Uuid) -> crate::Result<()> {
         .await
         .map(|_| ())
 }
+
+pub async fn list_serial_ports<T: Rpc>(rpc: &mut T) -> crate::Result<Vec<String>> {
+    match rpc.request(Request::ListSerialPorts, DEFAULT_RPC_TIMEOUT.clone()).await {
+        Ok(Response::SerialPorts(ret)) => Ok(ret),
+        Ok(_) => Err(Error::UnexpectdResponse),
+        Err(x) => Err(x),
+    }
+}

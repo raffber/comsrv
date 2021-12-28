@@ -83,6 +83,8 @@ pub enum Error {
     Sigrok(SigrokError),
     #[error("Hid error: {0}")]
     Hid(HidError),
+    #[error("Other: {0}")]
+    Other(String),
 }
 
 impl Error {

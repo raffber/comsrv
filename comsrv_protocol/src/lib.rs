@@ -50,6 +50,7 @@ pub enum Request {
         lock: Option<Uuid>,
     },
     ListSigrokDevices,
+    ListSerialPorts,
     ListHidDevices,
     ListInstruments,
     Lock {
@@ -85,6 +86,7 @@ pub enum Response {
         minor: u32,
         build: u32
     },
+    SerialPorts(Vec<String>),
     Done,
 }
 
