@@ -8,6 +8,7 @@ use std::net::SocketAddr;
 use tokio::net::TcpStream;
 use tokio::time::{sleep, Duration};
 use tokio_modbus::prelude::Slave;
+use crate::bytestream::read_all;
 
 #[derive(Clone)]
 pub struct Instrument {
@@ -42,6 +43,7 @@ impl Handler {
                 (ret.map(TcpResponse::Bytes), stream)
             }
             TcpRequest::ModBus { slave_id, req } => {
+                let _ = read_all(&mut stream).await;
                 let cloned = ClonableChannel::new(stream);
                 let ret = tokio_modbus::client::rtu::connect_slave(cloned.clone(), Slave(slave_id))
                     .await
