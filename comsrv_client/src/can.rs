@@ -1,12 +1,12 @@
+use crate::protocol::{CanRequest, DataFrame, RemoteFrame};
 use crate::ws::WsRpc;
-use comsrv_protocol::{Response, CanMessage, CanResponse, GctMessage};
-use tokio::sync::mpsc::{Receiver, channel};
-use tokio::sync::mpsc::error::TrySendError;
-use crate::protocol::{DataFrame, RemoteFrame, CanRequest};
-use tokio::task;
 use crate::Rpc;
 use comsrv_protocol::Request;
+use comsrv_protocol::{CanMessage, CanResponse, GctMessage, Response};
 use std::time::Duration;
+use tokio::sync::mpsc::error::TrySendError;
+use tokio::sync::mpsc::{channel, Receiver};
+use tokio::task;
 
 const CHANNEL_CAPACITY: usize = 1000;
 
@@ -23,7 +23,6 @@ pub enum Message {
     Gct(GctMessage),
 }
 
-
 impl CanBus {
     pub fn new<T: ToString>(address: T, rpc: WsRpc) -> Self {
         Self {
@@ -33,20 +32,34 @@ impl CanBus {
     }
 
     pub async fn connect(&mut self) -> crate::Result<()> {
-        self.rpc.request(Request::Can {
-            addr: self.address.clone(),
-            task: CanRequest::ListenRaw(true),
-            lock: None,
-        }, Duration::from_millis(100)).await?;
-        self.rpc.request(Request::Can {
-            addr: self.address.clone(),
-            task: CanRequest::ListenGct(true),
-            lock: None,
-        }, Duration::from_millis(100)).await.map(|_| ())
+        self.rpc
+            .request(
+                Request::Can {
+                    addr: self.address.clone(),
+                    task: CanRequest::ListenRaw(true),
+                    lock: None,
+                },
+                Duration::from_millis(100),
+            )
+            .await?;
+        self.rpc
+            .request(
+                Request::Can {
+                    addr: self.address.clone(),
+                    task: CanRequest::ListenGct(true),
+                    lock: None,
+                },
+                Duration::from_millis(100),
+            )
+            .await
+            .map(|_| ())
     }
 
     #[must_use]
-    pub async fn subscribe<U: 'static + Send, T: Fn(Message) -> Option<U> + Send + 'static>(&self, filter: T) -> Receiver<U> {
+    pub async fn subscribe<U: 'static + Send, T: Fn(Message) -> Option<U> + Send + 'static>(
+        &self,
+        filter: T,
+    ) -> Receiver<U> {
         let client = self.rpc.client.clone();
         let (tx, rx) = channel(CHANNEL_CAPACITY);
         let mut notifications = client.notifications();
@@ -54,9 +67,11 @@ impl CanBus {
             while let Some(x) = notifications.recv().await {
                 let msg = match x {
                     Response::Can(CanResponse::Raw(CanMessage::Data(msg))) => Message::RawData(msg),
-                    Response::Can(CanResponse::Raw(CanMessage::Remote(msg))) => Message::RawRemote(msg),
+                    Response::Can(CanResponse::Raw(CanMessage::Remote(msg))) => {
+                        Message::RawRemote(msg)
+                    }
                     Response::Can(CanResponse::Gct(msg)) => Message::Gct(msg),
-                    _ => continue
+                    _ => continue,
                 };
                 if let Some(x) = filter(msg) {
                     match tx.try_send(x) {
@@ -88,5 +103,3 @@ impl CanBus {
         }
     }
 }
-
-

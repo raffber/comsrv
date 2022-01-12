@@ -14,9 +14,10 @@ use uuid::Uuid;
 use wsrpc::client::ClientError;
 
 pub mod bytestream;
+pub mod can;
 pub mod http;
 pub mod ws;
-pub mod can;
+pub mod modbus;
 
 pub use comsrv_protocol as protocol;
 
@@ -170,7 +171,10 @@ pub async fn unlock<T: Rpc>(rpc: &mut T, uuid: Uuid) -> crate::Result<()> {
 }
 
 pub async fn list_serial_ports<T: Rpc>(rpc: &mut T) -> crate::Result<Vec<String>> {
-    match rpc.request(Request::ListSerialPorts, DEFAULT_RPC_TIMEOUT.clone()).await {
+    match rpc
+        .request(Request::ListSerialPorts, DEFAULT_RPC_TIMEOUT.clone())
+        .await
+    {
         Ok(Response::SerialPorts(ret)) => Ok(ret),
         Ok(_) => Err(Error::UnexpectdResponse),
         Err(x) => Err(x),

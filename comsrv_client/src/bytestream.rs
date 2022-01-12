@@ -18,7 +18,7 @@ impl<T: Rpc> Clone for ByteStreamPipe<T> {
             rpc: self.rpc.clone(),
             addr: self.addr.clone(),
             lock: Locked::new(),
-            timeout: self.timeout.clone()
+            timeout: self.timeout.clone(),
         }
     }
 }
@@ -153,7 +153,22 @@ impl<T: Rpc> ByteStreamPipe<T> {
 
     pub async fn read_line(&mut self, term: u8, timeout: Duration) -> crate::Result<String> {
         let timeout_ms = timeout.as_millis() as u32;
-        let req = ByteStreamRequest::ReadLine {
+        let req = ByteStreamRequest::ReadLine { timeout_ms, term };
+        match self.request(req).await? {
+            ByteStreamResponse::String(x) => Ok(x),
+            _ => Err(crate::Error::UnexpectdResponse),
+        }
+    }
+
+    pub async fn query_line(
+        &mut self,
+        write: &str,
+        term: u8,
+        timeout: Duration,
+    ) -> crate::Result<String> {
+        let timeout_ms = timeout.as_millis() as u32;
+        let req = ByteStreamRequest::QueryLine {
+            line: write.to_string(),
             timeout_ms,
             term,
         };
@@ -163,15 +178,28 @@ impl<T: Rpc> ByteStreamPipe<T> {
         }
     }
 
-    pub async fn query_line(&mut self, write: &str, term: u8, timeout: Duration) -> crate::Result<String> {
+    pub async fn modbus_rtu_ddp(
+        &mut self,
+        station_address: u8,
+        custom_command: u8,
+        sub_cmd: u8,
+        ddp_cmd: u8,
+        response: bool,
+        data: &[u8],
+        timeout: Duration,
+    ) -> crate::Result<Vec<u8>> {
         let timeout_ms = timeout.as_millis() as u32;
-        let req = ByteStreamRequest::QueryLine {
-            line: write.to_string(),
+        let req = ByteStreamRequest::ModBusRtuDdp {
             timeout_ms,
-            term,
+            station_address,
+            custom_command,
+            sub_cmd,
+            ddp_cmd,
+            response,
+            data: data.to_vec(),
         };
         match self.request(req).await? {
-            ByteStreamResponse::String(x) => Ok(x),
+            ByteStreamResponse::Data(x) => Ok(x),
             _ => Err(crate::Error::UnexpectdResponse),
         }
     }
