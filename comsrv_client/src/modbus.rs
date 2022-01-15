@@ -77,11 +77,27 @@ impl<T: Rpc> ModBusPipe<T> {
         }
     }
 
+    pub async fn read_single_coil(&mut self, addr: u16) -> crate::Result<bool> {
+        let ret = self.read_coil(addr, 1).await?;
+        if ret.len() != 1 {
+            return Err(crate::Error::UnexpectdResponse);
+        }
+        Ok(ret[0])
+    }
+
     pub async fn read_discrete(&mut self, addr: u16, cnt: u16) -> crate::Result<Vec<bool>> {
         match self.request(ModBusRequest::ReadDiscrete {addr, cnt}).await? {
             ModBusResponse::Bool(ret) => Ok(ret),
             _ => Err(crate::Error::UnexpectdResponse),
         }
+    }
+
+    pub async fn read_single_discrete(&mut self, addr: u16) -> crate::Result<bool> {
+        let ret = self.read_discrete(addr, 1).await?;
+        if ret.len() != 1 {
+            return Err(crate::Error::UnexpectdResponse);
+        }
+        Ok(ret[0])
     }
 
     pub async fn read_input(&mut self, addr: u16, cnt: u16) -> crate::Result<Vec<u16>> {
@@ -91,11 +107,27 @@ impl<T: Rpc> ModBusPipe<T> {
         }
     }
 
+    pub async fn read_single_input(&mut self, addr: u16) -> crate::Result<u16> {
+        let ret = self.read_input(addr, 1).await?;
+        if ret.len() != 1 {
+            return Err(crate::Error::UnexpectdResponse);
+        }
+        Ok(ret[0])
+    }
+
     pub async fn read_holding(&mut self, addr: u16, cnt: u16) -> crate::Result<Vec<u16>> {
         match self.request(ModBusRequest::ReadHolding {addr, cnt}).await? {
             ModBusResponse::Number(ret) => Ok(ret),
             _ => Err(crate::Error::UnexpectdResponse),
         }
+    }
+
+    pub async fn read_single_holding(&mut self, addr: u16) -> crate::Result<u16> {
+        let ret = self.read_holding(addr, 1).await?;
+        if ret.len() != 1 {
+            return Err(crate::Error::UnexpectdResponse);
+        }
+        Ok(ret[0])
     }
 
     pub async fn write_coils(&mut self, addr: u16, data: Vec<bool>) -> crate::Result<()> {
