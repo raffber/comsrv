@@ -143,4 +143,11 @@ impl<T: Rpc> ModBusPipe<T> {
             _ => Err(crate::Error::UnexpectdResponse),
         }
     }
+
+    pub async fn write_single_register(&mut self, addr: u16, data: u16) -> crate::Result<()> {
+        match self.request(ModBusRequest::WriteRegister {addr, data: vec![data]}).await? {
+            ModBusResponse::Done => Ok(()),
+            _ => Err(crate::Error::UnexpectdResponse),
+        }
+    }
 }
