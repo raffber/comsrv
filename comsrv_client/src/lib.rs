@@ -176,6 +176,7 @@ pub async fn list_serial_ports<T: Rpc>(rpc: &mut T) -> crate::Result<Vec<String>
         .await
     {
         Ok(Response::SerialPorts(ret)) => Ok(ret),
+        Ok(Response::Error(x)) => Err(Error::from_rpc(x)),
         Ok(_) => Err(Error::UnexpectdResponse),
         Err(x) => Err(x),
     }
