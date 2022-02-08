@@ -86,7 +86,11 @@ fn handle_blocking(
         },
     };
     let ret = handle_request(&mut device, idn, req);
-    (Some(device), ret)
+    if ret.is_ok() {
+        (Some(device), ret)
+    } else {
+        (None, ret)
+    }
 }
 
 fn handle_request(

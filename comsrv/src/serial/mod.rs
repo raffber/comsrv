@@ -143,7 +143,9 @@ impl IoHandler for Handler {
                 ret
             }
         };
-        self.serial.replace((serial, new_params));
+        if ret.is_ok() {
+            self.serial.replace((serial, new_params));
+        }
         ret
     }
 }
