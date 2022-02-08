@@ -108,7 +108,7 @@ impl IoHandler for Handler {
             Err(err) => {
                 drop(ctx);
                 if err.should_retry() {
-                    sleep(Duration::from_millis(1000)).await;
+                    sleep(Duration::from_millis(100)).await;
                     let mut ctx = tcp::connect(self.addr).await.map_err(Error::io)?;
                     ctx.set_slave(Slave(req.slave_id));
                     let ret =
@@ -142,38 +142,42 @@ pub async fn handle_modbus_request(
     ctx: &mut Context,
     req: ModBusRequest,
 ) -> crate::Result<ModBusResponse> {
+
+    if req.slave_id() != 0 {
+        ctx.set_slave(Slave(req.slave_id()));
+    }
     match req {
-        ModBusRequest::ReadCoil { addr, cnt } => ctx
+        ModBusRequest::ReadCoil { addr, cnt, .. } => ctx
             .read_coils(addr, cnt)
             .await
             .map_err(Error::io)
             .map(ModBusResponse::Bool),
-        ModBusRequest::ReadDiscrete { addr, cnt } => ctx
+        ModBusRequest::ReadDiscrete { addr, cnt, .. } => ctx
             .read_discrete_inputs(addr, cnt)
             .await
             .map_err(Error::io)
             .map(ModBusResponse::Bool),
-        ModBusRequest::ReadInput { addr, cnt } => ctx
+        ModBusRequest::ReadInput { addr, cnt, .. } => ctx
             .read_input_registers(addr, cnt)
             .await
             .map_err(Error::io)
             .map(ModBusResponse::Number),
-        ModBusRequest::ReadHolding { addr, cnt } => ctx
+        ModBusRequest::ReadHolding { addr, cnt, .. } => ctx
             .read_holding_registers(addr, cnt)
             .await
             .map_err(Error::io)
             .map(ModBusResponse::Number),
-        ModBusRequest::WriteCoil { addr, values } => ctx
+        ModBusRequest::WriteCoil { addr, values, .. } => ctx
             .write_multiple_coils(addr, &values)
             .await
             .map_err(Error::io)
             .map(|_| ModBusResponse::Done),
-        ModBusRequest::WriteRegister { addr, data } => ctx
+        ModBusRequest::WriteRegister { addr, data, .. } => ctx
             .write_multiple_registers(addr, &data)
             .await
             .map_err(Error::io)
             .map(|_| ModBusResponse::Done),
-        ModBusRequest::CustomCommand { code, data } => {
+        ModBusRequest::CustomCommand { code, data, .. } => {
             use tokio_modbus::prelude::Request;
             let resp = ctx
                 .call(Request::Custom(code, data))

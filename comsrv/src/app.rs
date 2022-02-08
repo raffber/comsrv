@@ -65,13 +65,7 @@ impl App {
         let addr = Address::parse(&addr)?;
         self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
         match self.inventory.connect(&self.server, &addr) {
-            Instrument::Visa(instr) => match instr.request(task).await {
-                Ok(x) => Ok(x),
-                Err(x) => {
-                    self.inventory.disconnect(&addr);
-                    Err(x)
-                }
-            },
+            Instrument::Visa(instr) => instr.request(task).await,
             Instrument::Serial(mut instr) => match addr {
                 Address::Prologix {
                     file: _,
@@ -86,24 +80,16 @@ impl App {
                     match response {
                         Ok(SerialResponse::Scpi(resp)) => Ok(resp),
                         Ok(_) => {
-                            self.inventory.disconnect(&addr);
                             Err(Error::NotSupported)
                         }
                         Err(x) => {
-                            self.inventory.disconnect(&addr);
                             Err(x)
                         }
                     }
                 }
                 _ => Err(Error::NotSupported),
             },
-            Instrument::Vxi(mut instr) => match instr.request(task).await {
-                Ok(x) => Ok(x),
-                Err(x) => {
-                    self.inventory.disconnect(&addr);
-                    Err(x)
-                }
-            },
+            Instrument::Vxi(mut instr) => instr.request(task).await,
             _ => Err(Error::NotSupported),
         }
     }
@@ -123,10 +109,16 @@ impl App {
                 transport,
                 slave_id,
             } => (addr, transport, slave_id),
+            Address::Serial { path, params } => {
+                let addr = ModBusAddress::Serial { path, params };
+                let transport = ModBusTransport::Rtu;
+                let slave_id = task.slave_id();
+                (addr, transport, slave_id)
+            }
             _ => return Err(Error::InvalidAddress),
         };
 
-        let ret = match modbus_addr {
+        match modbus_addr {
             ModBusAddress::Serial { path: _, params } => match transport {
                 ModBusTransport::Tcp => return Err(Error::NotSupported),
                 ModBusTransport::Rtu => {
@@ -170,14 +162,6 @@ impl App {
                     instr.request(task, slave_id).await
                 }
             },
-        };
-
-        match ret {
-            Ok(x) => Ok(x),
-            Err(x) => {
-                self.inventory.disconnect(&addr);
-                Err(x)
-            }
         }
     }
 
@@ -200,7 +184,6 @@ impl App {
                 _ => panic!("Invalid answer. This is a bug"),
             },
             Err(x) => {
-                self.inventory.disconnect(&addr);
                 Err(x)
             }
         }
@@ -219,7 +202,6 @@ impl App {
         match instr.request(TcpRequest::Bytes(task.clone())).await {
             Ok(TcpResponse::Bytes(x)) => Ok(x),
             Err(x) => {
-                self.inventory.disconnect(&addr);
                 Err(x)
             }
             _ => panic!(),
@@ -253,15 +235,7 @@ impl App {
             _ => return Err(Error::NotSupported),
         };
         self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
-        match device.request(task).await {
-            Ok(x) => Ok(x),
-            Err(x) => {
-                if device.check_disconnect(&x) {
-                    self.inventory.disconnect(&addr);
-                }
-                Err(x)
-            }
-        }
+        device.request(task).await
     }
 
     async fn handle_hid(
@@ -276,13 +250,7 @@ impl App {
             _ => return Err(Error::NotSupported),
         };
         self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
-        match device.request(task).await {
-            Ok(x) => Ok(x),
-            Err(x) => {
-                self.inventory.disconnect(&addr);
-                Err(x)
-            }
-        }
+        device.request(task).await
     }
 
     pub async fn shutdown(&self) {
@@ -374,7 +342,7 @@ impl App {
                 Response::Version {
                     major: VERSION_MAJOR,
                     minor: VERSION_MINOR,
-                    build:  VERSION_BUILD,
+                    build: VERSION_BUILD,
                 }
             }
             Request::ListSerialPorts => {

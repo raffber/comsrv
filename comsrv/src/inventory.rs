@@ -82,6 +82,7 @@ impl Inventory {
     ///
     /// This function panics if the there is no `Instrument` associated with the given address type.
     pub fn connect(&self, server: &Server, addr: &Address) -> Instrument {
+        log::debug!("Opening instrument: {} with {:?}", addr, addr.handle_id());
         let mut inner = self.0.lock().unwrap();
         if let Some(ret) = inner.instruments.get(&addr.handle_id()) {
             return ret.instr.clone();
@@ -98,7 +99,7 @@ impl Inventory {
     /// If there is instrument connected to the given address, this instrument is disconnected and
     /// dropped from the `Inventory`.
     pub fn disconnect(&self, addr: &Address) {
-        log::debug!("Dropping instrument: {}", addr);
+        log::debug!("Dropping instrument: {} with {:?}", addr, addr.handle_id());
         let mut inner = self.0.lock().unwrap();
         if let Some(x) = inner.instruments.remove(&addr.handle_id()) {
             x.instr.disconnect();

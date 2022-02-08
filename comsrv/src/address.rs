@@ -259,7 +259,7 @@ impl Display for Address {
 /// Represents an identifier for an exclusive hardware resource, such
 /// as a serial port, a TCP connection or similar, as such there can
 /// be only one open instrument per handle
-#[derive(Hash, Clone, PartialEq, Eq)]
+#[derive(Hash, Clone, PartialEq, Eq, Debug)]
 pub struct HandleId {
     inner: String,
 }

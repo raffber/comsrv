@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse, ModBusRequest, ModBusResponse};
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
-use tokio::time::{sleep, Duration};
+use tokio::time::Duration;
 use tokio_modbus::prelude::Slave;
 use crate::bytestream::read_all;
 
@@ -75,30 +75,10 @@ impl IoHandler for Handler {
                 .map_err(Error::io)?
         };
         let (ret, stream) = self.handle_request(stream, req.clone()).await;
-        match ret {
-            Ok(ret) => {
-                // stream was ok, reinsert back
-                self.stream.replace(stream);
-                Ok(ret)
-            }
-            Err(err) => {
-                drop(stream);
-                if err.should_retry() {
-                    sleep(Duration::from_millis(100)).await;
-                    let stream = TcpStream::connect(&self.addr.clone())
-                        .await
-                        .map_err(Error::io)?;
-                    let (ret, stream) = self.handle_request(stream, req).await;
-                    if ret.is_ok() {
-                        // this time we succeeded, reinsert stream
-                        self.stream.replace(stream);
-                    }
-                    ret
-                } else {
-                    Err(err)
-                }
-            }
+        if ret.is_ok() {
+            self.stream.replace(stream);
         }
+        ret
     }
 }
 

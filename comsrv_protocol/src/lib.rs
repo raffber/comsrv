@@ -84,7 +84,7 @@ pub enum Response {
     Version {
         major: u32,
         minor: u32,
-        build: u32
+        build: u32,
     },
     SerialPorts(Vec<String>),
     Done,
@@ -161,8 +161,8 @@ pub enum ScpiResponse {
     String(String),
     Binary {
         #[serde(
-            serialize_with = "util::to_base64",
-            deserialize_with = "util::from_base64"
+        serialize_with = "util::to_base64",
+        deserialize_with = "util::from_base64"
         )]
         data: Vec<u8>,
     },
@@ -201,15 +201,68 @@ pub struct SigrokData {
     pub channels: HashMap<String, Vec<u8>>,
 }
 
+fn is_zero(x: &u8) -> bool {
+    *x == 0
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub enum ModBusRequest {
-    ReadCoil { addr: u16, cnt: u16 },
-    ReadDiscrete { addr: u16, cnt: u16 },
-    ReadInput { addr: u16, cnt: u16 },
-    ReadHolding { addr: u16, cnt: u16 },
-    WriteCoil { addr: u16, values: Vec<bool> },
-    WriteRegister { addr: u16, data: Vec<u16> },
-    CustomCommand { code: u8, data: Vec<u8> },
+    ReadCoil {
+        addr: u16,
+        cnt: u16,
+        #[serde(skip_serializing_if = "is_zero", default)]
+        slave_id: u8,
+    },
+    ReadDiscrete {
+        addr: u16,
+        cnt: u16,
+        #[serde(skip_serializing_if = "is_zero", default)]
+        slave_id: u8,
+    },
+    ReadInput {
+        addr: u16,
+        cnt: u16,
+        #[serde(skip_serializing_if = "is_zero", default)]
+        slave_id: u8,
+    },
+    ReadHolding {
+        addr: u16,
+        cnt: u16,
+        #[serde(skip_serializing_if = "is_zero", default)]
+        slave_id: u8,
+    },
+    WriteCoil {
+        addr: u16,
+        values: Vec<bool>,
+        #[serde(skip_serializing_if = "is_zero", default)]
+        slave_id: u8,
+    },
+    WriteRegister {
+        addr: u16,
+        data: Vec<u16>,
+        #[serde(skip_serializing_if = "is_zero", default)]
+        slave_id: u8,
+    },
+    CustomCommand {
+        code: u8,
+        data: Vec<u8>,
+        #[serde(skip_serializing_if = "is_zero", default)]
+        slave_id: u8,
+    },
+}
+
+impl ModBusRequest {
+    pub fn slave_id(&self) -> u8 {
+        match self {
+            ModBusRequest::ReadCoil { slave_id, .. } => *slave_id,
+            ModBusRequest::ReadDiscrete {  slave_id, ..  } => *slave_id,
+            ModBusRequest::ReadInput {  slave_id, ..  } => *slave_id,
+            ModBusRequest::ReadHolding {  slave_id, ..  } => *slave_id,
+            ModBusRequest::WriteCoil {  slave_id, ..  } => *slave_id,
+            ModBusRequest::WriteRegister {  slave_id, ..  } => *slave_id,
+            ModBusRequest::CustomCommand {  slave_id, ..  } => *slave_id,
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
