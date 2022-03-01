@@ -55,7 +55,6 @@ impl CanBus {
             .map(|_| ())
     }
 
-    #[must_use]
     pub async fn subscribe<U: 'static + Send, T: Fn(Message) -> Option<U> + Send + 'static>(
         &self,
         filter: T,

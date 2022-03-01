@@ -71,7 +71,7 @@ impl<T: Rpc> ModBusPipe<T> {
     }
 
     pub async fn read_coil(&mut self, addr: u16, cnt: u16) -> crate::Result<Vec<bool>> {
-        match self.request(ModBusRequest::ReadCoil {addr, cnt}).await? {
+        match self.request(ModBusRequest::ReadCoil {addr, cnt, slave_id: 0}).await? {
             ModBusResponse::Bool(ret) => Ok(ret),
             _ => Err(crate::Error::UnexpectdResponse),
         }
@@ -86,7 +86,7 @@ impl<T: Rpc> ModBusPipe<T> {
     }
 
     pub async fn read_discrete(&mut self, addr: u16, cnt: u16) -> crate::Result<Vec<bool>> {
-        match self.request(ModBusRequest::ReadDiscrete {addr, cnt}).await? {
+        match self.request(ModBusRequest::ReadDiscrete {addr, cnt, slave_id: 0}).await? {
             ModBusResponse::Bool(ret) => Ok(ret),
             _ => Err(crate::Error::UnexpectdResponse),
         }
@@ -101,7 +101,7 @@ impl<T: Rpc> ModBusPipe<T> {
     }
 
     pub async fn read_input(&mut self, addr: u16, cnt: u16) -> crate::Result<Vec<u16>> {
-        match self.request(ModBusRequest::ReadInput {addr, cnt}).await? {
+        match self.request(ModBusRequest::ReadInput {addr, cnt, slave_id: 0}).await? {
             ModBusResponse::Number(ret) => Ok(ret),
             _ => Err(crate::Error::UnexpectdResponse),
         }
@@ -116,7 +116,7 @@ impl<T: Rpc> ModBusPipe<T> {
     }
 
     pub async fn read_holding(&mut self, addr: u16, cnt: u16) -> crate::Result<Vec<u16>> {
-        match self.request(ModBusRequest::ReadHolding {addr, cnt}).await? {
+        match self.request(ModBusRequest::ReadHolding {addr, cnt, slave_id: 0}).await? {
             ModBusResponse::Number(ret) => Ok(ret),
             _ => Err(crate::Error::UnexpectdResponse),
         }
@@ -131,21 +131,21 @@ impl<T: Rpc> ModBusPipe<T> {
     }
 
     pub async fn write_coils(&mut self, addr: u16, data: Vec<bool>) -> crate::Result<()> {
-        match self.request(ModBusRequest::WriteCoil {addr, values: data}).await? {
+        match self.request(ModBusRequest::WriteCoil {addr, values: data, slave_id: 0}).await? {
             ModBusResponse::Done => Ok(()),
             _ => Err(crate::Error::UnexpectdResponse),
         }
     }
 
     pub async fn write_register(&mut self, addr: u16, data: Vec<u16>) -> crate::Result<()> {
-        match self.request(ModBusRequest::WriteRegister {addr, data}).await? {
+        match self.request(ModBusRequest::WriteRegister {addr, data, slave_id: 0}).await? {
             ModBusResponse::Done => Ok(()),
             _ => Err(crate::Error::UnexpectdResponse),
         }
     }
 
     pub async fn write_single_register(&mut self, addr: u16, data: u16) -> crate::Result<()> {
-        match self.request(ModBusRequest::WriteRegister {addr, data: vec![data]}).await? {
+        match self.request(ModBusRequest::WriteRegister {addr, data: vec![data], slave_id: 0}).await? {
             ModBusResponse::Done => Ok(()),
             _ => Err(crate::Error::UnexpectdResponse),
         }
