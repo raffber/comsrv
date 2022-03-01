@@ -23,7 +23,7 @@ log = "0.4.11"
 url = "2.1.1"
 uuid = "0.8.2"
 tokio-modbus = "0.5.0"
-tokio-serial = "5.4.1"
+tokio-serial = {version = "5.4.1", features = ["libudev"]}
 async-trait = "0.1.40"
 futures = "0.3.7"
 async-vxi11 = { git = "https://github.com/raffber/async-vxi11.git", rev = "0371e960f0a3018db83fabf4d773f585959e6e06" }

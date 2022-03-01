@@ -273,6 +273,14 @@ class ComSrv(object):
             raise ComSrvError(result['Error'])
         return result['Instruments']
 
+    async def list_serial_ports(self):
+        result = await self.get({
+            'ListSerialPorts': None,
+        })
+        if 'Error' in result:
+            raise ComSrvError(result['Error'])
+        return result['SerialPorts']
+
 
 from .modbus import ModBusDevice
 from .bytestream import ByteStreamPipe
