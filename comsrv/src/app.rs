@@ -21,9 +21,11 @@ use uuid::Uuid;
 
 pub type Server = WsrpcServer<Request, Response>;
 
-pub const VERSION_MAJOR: u32 = 1;
-pub const VERSION_MINOR: u32 = 0;
-pub const VERSION_BUILD: u32 = 0;
+macro_rules! crate_version {
+    () => {
+        env!("CARGO_PKG_VERSION")
+    };
+}
 
 
 #[derive(Clone)]
@@ -339,10 +341,12 @@ impl App {
                 Err(x) => x.into(),
             },
             Request::Version => {
+                let version = crate_version!();
+                let version: Vec<_> = version.split(".").map(|x| x.parse::<u32>().unwrap()).collect();
                 Response::Version {
-                    major: VERSION_MAJOR,
-                    minor: VERSION_MINOR,
-                    build: VERSION_BUILD,
+                    major: version[0],
+                    minor: version[1],
+                    build: version[2],
                 }
             }
             Request::ListSerialPorts => {
