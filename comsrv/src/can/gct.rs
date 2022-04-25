@@ -358,7 +358,7 @@ mod tests {
         for x in raw {
             match x {
                 CanMessage::Data(x) => {
-                    result = decoder.decode(x);
+                    result = decoder.decode(&x);
                 }
                 CanMessage::Remote(_) => {
                     panic!()
