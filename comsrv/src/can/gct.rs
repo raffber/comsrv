@@ -8,7 +8,7 @@ use comsrv_protocol::{
     MSGTYPE_HEARTBEAT, MSGTYPE_MONITORING_DATA, MSGTYPE_MONITORING_REQUEST, MSGTYPE_SYSCTRL,
 };
 
-struct DdpDecoder {
+struct DdpDecoderV1 {
     dst_addr: u8,
     src_start_addr: u8,
     frames_received: u8,
@@ -17,7 +17,7 @@ struct DdpDecoder {
     data: Vec<u8>,
 }
 
-impl DdpDecoder {
+impl DdpDecoderV1 {
     fn new(dst: u8) -> Self {
         Self {
             dst_addr: dst,
@@ -48,10 +48,11 @@ impl DdpDecoder {
             src: self.src_start_addr,
             dst: self.dst_addr,
             data,
+            version: 1
         })
     }
 
-    fn decode(&mut self, msg: DataFrame) -> Option<GctMessage> {
+    fn decode(&mut self, msg: &DataFrame) -> Option<GctMessage> {
         let id = MessageId(msg.id);
         if id.dst() != self.dst_addr {
             return None;
@@ -84,19 +85,97 @@ impl DdpDecoder {
     }
 }
 
+struct DdpDecoderV2 {
+    dst_addr: u8,
+    src_start_addr: u8,
+    parts: HashMap<u32, Vec<u8>>,
+    eof_received: bool,
+    max_part_idx: u32,
+}
+
+impl DdpDecoderV2 {
+    fn new(dst: u8) -> Self {
+        Self {
+            dst_addr: dst,
+            src_start_addr: 0,
+            parts: Default::default(),
+            eof_received: false,
+            max_part_idx: 0
+        }
+    }
+
+    fn reset(&mut self) {
+        self.parts.clear();
+        self.src_start_addr = 0;
+        self.eof_received = false;
+    }
+
+
+    pub fn decode(&mut self, msg: DataFrame) -> Option<GctMessage> {
+        let id = MessageId(msg.id);
+        if id.dst() != self.dst_addr {
+            return None;
+        }
+        let type_data = id.type_data();
+        let idx = (type_data & 0xFF) as u32;
+        let eof = ((type_data >> 10) & 1) > 1;
+        if idx == 0 {
+            self.reset();
+            self.src_start_addr = id.src();
+        }
+        if id.src() != self.src_start_addr {
+            self.reset();
+            return None;
+        }
+        self.parts.insert(idx, msg.data);
+        if eof {
+            self.eof_received = true;
+            self.max_part_idx = idx;
+        }
+
+        if !self.eof_received {
+            return None;
+        }
+        // check if we got all parts
+        for k in 0 .. (self.max_part_idx + 1) {
+            if self.parts.get(&k).is_none() {
+                return None
+            }
+        }
+        // yes complete..., try decoding
+        let mut data = Vec::with_capacity((self.max_part_idx + 1) as usize * 8);
+        for k in 0 .. (self.max_part_idx + 1) {
+            data.extend(self.parts.get(&k).unwrap());
+        }
+        self.reset();
+
+        if data.len() < 2 || crc16(&data) != 0 {
+            return None;
+        }
+        Some(GctMessage::Ddp {
+            src: self.src_start_addr,
+            dst: self.dst_addr,
+            data: data[0..data.len() - 2].to_vec(),
+            version: 2
+        })
+    }
+}
+
 pub struct Decoder {
-    ddp: HashMap<u8, DdpDecoder>,
+    ddp_v1: HashMap<u8, DdpDecoderV1>,
+    ddp_v2: HashMap<u8, DdpDecoderV2>,
 }
 
 impl Decoder {
     pub fn new() -> Self {
         Self {
-            ddp: Default::default(),
+            ddp_v1: Default::default(),
+            ddp_v2: Default::default()
         }
     }
 
     pub fn reset(&mut self) {
-        self.ddp.clear()
+        self.ddp_v1.clear()
     }
 
     pub fn decode(&mut self, msg: CanMessage) -> Option<GctMessage> {
@@ -114,13 +193,64 @@ impl Decoder {
             MSGTYPE_MONITORING_REQUEST => GctMessage::try_decode_monitoring_request(msg),
             MSGTYPE_DDP => {
                 let dst = id.dst();
-                let decoder = self.ddp.entry(dst).or_insert_with(|| DdpDecoder::new(dst));
-                decoder.decode(msg)
+                let decoder_v1 = self.ddp_v1.entry(dst).or_insert_with(|| DdpDecoderV1::new(dst));
+                let decoder_v2 = self.ddp_v2.entry(dst).or_insert_with(|| DdpDecoderV2::new(dst));
+                if let Some(x) = decoder_v1.decode(&msg) {
+                    Some(x)
+                } else if let Some(x) = decoder_v2.decode(msg) {
+                    Some(x)
+                } else {
+                    None
+                }
             }
             MSGTYPE_HEARTBEAT => GctMessage::try_decode_heartbeat(msg),
             _ => None,
         }
     }
+}
+
+fn encode_ddp_v1(src: u8, dst: u8, mut data: Vec<u8>) -> Vec<CanMessage> {
+    let crc = crc16(&data);
+    data.push((crc >> 8) as u8);
+    data.push((crc & 0xFF_u16) as u8);
+    let chunks: Vec<_> = data.chunks(8).collect();
+    let num_chunks = chunks.len();
+    let mut ret = Vec::with_capacity(num_chunks);
+    let part_count = num_chunks - 1;
+    for (idx, chunk) in chunks.into_iter().enumerate() {
+        let type_data = (part_count as u16) << 8 | (idx as u16) << 5;
+        let id = MessageId::new(MSGTYPE_DDP, src, dst, type_data);
+        let msg = CanMessage::Data(DataFrame {
+            id: id.0,
+            ext_id: true,
+            data: chunk.to_vec(),
+        });
+        ret.push(msg);
+    }
+    ret
+}
+
+fn encode_ddp_v2(src: u8, dst: u8, mut data: Vec<u8>) -> Vec<CanMessage> {
+    let crc = crc16(&data);
+    data.push((crc >> 8) as u8);
+    data.push((crc & 0xFF_u16) as u8);
+    let max_idx = data.len() / 8;
+    let mut ret = Vec::with_capacity(max_idx + 1);
+    for (idx, chunk) in data.chunks(8).enumerate() {
+        let mut type_data = idx & 0xFF;
+        if idx == max_idx {
+            // set EOF
+            type_data |= 1 << 10;
+        }
+        let id = MessageId::new(MSGTYPE_DDP, src, dst, type_data as u16);
+        let msg = CanMessage::Data(DataFrame {
+            id: id.0,
+            ext_id: true,
+            data: chunk.to_vec(),
+        });
+        ret.push(msg);
+    }
+    ret
 }
 
 pub fn encode(msg: GctMessage) -> Result<Vec<CanMessage>, CanError> {
@@ -185,25 +315,14 @@ pub fn encode(msg: GctMessage) -> Result<Vec<CanMessage>, CanError> {
             });
             vec![msg]
         }
-        GctMessage::Ddp { src, dst, mut data } => {
-            let crc = crc16(&data);
-            data.push((crc >> 8) as u8);
-            data.push((crc & 0xFF_u16) as u8);
-            let chunks: Vec<_> = data.chunks(8).collect();
-            let num_chunks = chunks.len();
-            let mut ret = Vec::with_capacity(num_chunks);
-            let part_count = num_chunks - 1;
-            for (idx, chunk) in chunks.into_iter().enumerate() {
-                let type_data = (part_count as u16) << 8 | (idx as u16) << 5;
-                let id = MessageId::new(MSGTYPE_DDP, src, dst, type_data);
-                let msg = CanMessage::Data(DataFrame {
-                    id: id.0,
-                    ext_id: true,
-                    data: chunk.to_vec(),
-                });
-                ret.push(msg);
+        GctMessage::Ddp { src, dst, data, version } => {
+            if version == 0 || version == 1 {
+                encode_ddp_v1(src, dst, data)
+            } else if version == 2 {
+                encode_ddp_v2(src, dst, data)
+            } else {
+                vec![]
             }
-            ret
         }
         GctMessage::Heartbeat { src, product_id } => {
             let id = MessageId::new(MSGTYPE_HEARTBEAT, src, BROADCAST_ADDR, 0);
@@ -231,9 +350,10 @@ mod tests {
             src: 12,
             dst: 34,
             data: data.clone(),
+            version: 0
         };
         let raw = encode(msg).unwrap();
-        let mut decoder = DdpDecoder::new(34);
+        let mut decoder = DdpDecoderV1::new(34);
         let mut result = None;
         for x in raw {
             match x {
@@ -250,7 +370,7 @@ mod tests {
             GctMessage::Ddp {
                 src,
                 dst,
-                data: rx_data,
+                data: rx_data, version: _,
             } => {
                 assert_eq!(data, rx_data);
                 assert_eq!(src, 12);
