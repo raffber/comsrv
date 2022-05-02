@@ -19,6 +19,9 @@ use tokio_modbus::prelude::Slave;
 
 pub mod params;
 
+#[cfg(target_os = "linux")]
+mod linux_low_latency;
+
 const DEFAULT_TIMEOUT_MS: u64 = 500;
 
 pub enum Request {
@@ -80,11 +83,21 @@ impl From<tokio_serial::Error> for crate::Error {
 }
 
 async fn open_serial_port(path: &str, params: &SerialParams) -> crate::Result<SerialStream> {
-    Ok(tokio_serial::new(path, params.baud)
+    let serial_stream = tokio_serial::new(path, params.baud)
         .parity(params.parity.into())
         .stop_bits(params.stop_bits.into())
         .data_bits(params.data_bits.into())
-        .open_native_async()?)
+        .open_native_async()?;
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Err(x) = linux_low_latency::apply_low_latency(&serial_stream) {
+            log::error!("Cannot set ASYNC_LOW_LATENCY on serial port: {}", x)
+        }
+        log::info!("Applied ASYNC_LOW_LATENCY to {}", path);
+    }
+
+    Ok(serial_stream)
 }
 
 #[async_trait]
