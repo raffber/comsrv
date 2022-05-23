@@ -174,11 +174,13 @@ struct Handler {
 }
 
 impl Handler {
-    fn check_listener(&mut self) {
+    async fn check_listener(&mut self) {
         if let Some(tx) = self.listener.as_ref() {
             if tx.is_closed() {
                 self.listener.take();
-                self.device.take();
+                if let Some(device) = self.device.take() {
+                    let _ = device.close().await;
+                }
             }
         }
     }
@@ -195,9 +197,7 @@ impl IoHandler for Handler {
         // note that we don't generally support this anyways for socketcan...
         // TODO: we should support a manual drop in the root API, such that this can be worked around
 
-
-
-        self.check_listener();
+        self.check_listener().await;
         if self.device.is_none() {
             self.device.replace(CanSender::new(self.addr.clone())?);
         }

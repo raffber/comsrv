@@ -73,6 +73,10 @@ impl CanSender {
             CanAddress::Loopback => Ok(CanSender::Loopback(LoopbackDevice::new())),
         }
     }
+
+    pub async fn close(self) -> crate::Result<()> {
+        Ok(())
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -94,6 +98,10 @@ impl CanReceiver {
             CanAddress::Loopback => Ok(CanReceiver::Loopback(LoopbackDevice::new())),
         }
     }
+
+    pub async fn close(self) -> crate::Result<()> {
+        Ok(())
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -109,6 +117,18 @@ impl CanSender {
             }
             CanAddress::Socket(_) => Err(crate::Error::NotSupported),
             CanAddress::Loopback => Ok(Self::Loopback(LoopbackDevice::new())),
+        }
+    }
+
+    pub async fn close(self) -> crate::Result<()> {
+        match self {
+            CanSender::Loopback(_) => Ok(()),
+            CanSender::Bus { device, addr } => {
+                device.close().await.map_err(|x| crate::Error::Can {
+                    addr: addr.interface(),
+                    err: x.into(),
+                })
+            }
         }
     }
 }
@@ -128,5 +148,9 @@ impl CanReceiver {
             CanAddress::Socket(_) => Err(crate::Error::NotSupported),
             CanAddress::Loopback => Ok(Self::Loopback(LoopbackDevice::new())),
         }
+    }
+
+    pub async fn close(self) -> crate::Result<()> {
+        Ok(())
     }
 }
