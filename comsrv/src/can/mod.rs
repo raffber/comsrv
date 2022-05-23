@@ -176,11 +176,7 @@ struct Handler {
 impl Handler {
     fn check_listener(&mut self) {
         if let Some(tx) = self.listener.as_ref() {
-            // XXX: this is a hacky way to tell if the channel has been closed.
-            // this will be fixed in tokio-0.3.x (and 1.x) series
-            // by introduction of the is_closed() function
-            if tx.send(ListenerMsg::Ping).is_err() {
-                // there was some error... drop listener and device
+            if tx.is_closed() {
                 self.listener.take();
                 self.device.take();
             }
@@ -198,6 +194,9 @@ impl IoHandler for Handler {
         // just embed bitrate into CanRequest
         // note that we don't generally support this anyways for socketcan...
         // TODO: we should support a manual drop in the root API, such that this can be worked around
+
+
+
         self.check_listener();
         if self.device.is_none() {
             self.device.replace(CanSender::new(self.addr.clone())?);
@@ -205,10 +204,11 @@ impl IoHandler for Handler {
         if self.listener.is_none() {
             let device = CanReceiver::new(self.addr.clone())?;
             let (tx, rx) = mpsc::unbounded_channel();
-            let fut = listener_task(rx, device, self.server.clone());
+            let fut = listener_task(rx, device, self.server.clone(), self.addr.clone());
             task::spawn(fut);
             self.listener.replace(tx);
         }
+
         // save because we just created it
         let device = self.device.as_ref().unwrap();
         let listener = self.listener.as_ref().unwrap();
@@ -259,7 +259,6 @@ enum ListenerMsg {
     EnableGct(bool),
     EnableRaw(bool),
     Loopback(CanMessage),
-    Ping,
 }
 
 struct Listener {
@@ -268,6 +267,7 @@ struct Listener {
     decoder: Decoder,
     server: Server,
     device: CanReceiver,
+    address: CanAddress,
 }
 
 impl Listener {
@@ -282,7 +282,6 @@ impl Listener {
             ListenerMsg::EnableRaw(en) => {
                 self.listen_raw = en;
             }
-            ListenerMsg::Ping => {}
             ListenerMsg::Loopback(msg) => self.rx(msg),
         }
     }
@@ -334,6 +333,7 @@ async fn listener_task(
     mut rx: UnboundedReceiver<ListenerMsg>,
     device: CanReceiver,
     server: Server,
+    address: CanAddress,
 ) {
     let mut listener = Listener {
         listen_gct: true,
@@ -341,6 +341,7 @@ async fn listener_task(
         decoder: Decoder::new(),
         server,
         device,
+        address,
     };
     loop {
         tokio::select! {
@@ -374,7 +375,7 @@ mod tests {
         let msg = CanMessage::Data(DataFrame {
             id: 0xABCD,
             ext_id: true,
-            data: vec![1, 2, 3, 4]
+            data: vec![1, 2, 3, 4],
         });
         let sent = instr.request(CanRequest::TxRaw(msg)).await;
         assert!(matches!(sent, Ok(CanResponse::Ok)));
