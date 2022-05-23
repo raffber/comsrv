@@ -13,6 +13,7 @@ use crate::can::gct::Decoder;
 use crate::iotask::{IoHandler, IoTask};
 use async_can::{CanFrameError, Error};
 use comsrv_protocol::{CanMessage, CanRequest, CanResponse, DataFrame, RemoteFrame, Response};
+use crate::address::Address;
 
 mod crc;
 mod device;
@@ -54,6 +55,22 @@ impl CanAddress {
             CanAddress::PCan { ifname, .. } => ifname.clone(),
             CanAddress::Socket(ifname) => ifname.clone(),
             CanAddress::Loopback => "loopback".to_string(),
+        }
+    }
+
+    pub fn bitrate(&self) -> Option<u32> {
+        match self {
+            CanAddress::PCan { ifname: _, bitrate } => Some(*bitrate),
+            _ => None
+        }
+    }
+
+    pub fn update_bitrate(&mut self, new_bitrate: u32) {
+        match self {
+            CanAddress::PCan { ifname: _, bitrate } => {
+                *bitrate = new_bitrate;
+            }
+            _ => {}
         }
     }
 }
@@ -114,7 +131,7 @@ impl From<async_can::Error> for CanError {
     }
 }
 
-impl From<async_can::CanFrameError> for CanError {
+impl From<CanFrameError> for CanError {
     fn from(x: CanFrameError) -> Self {
         let err: async_can::Error = x.into();
         err.into()
@@ -124,6 +141,26 @@ impl From<async_can::CanFrameError> for CanError {
 #[derive(Clone)]
 pub struct Instrument {
     io: IoTask<Handler>,
+}
+
+pub struct Request {
+    inner: CanRequest,
+    bitrate: Option<u32>,
+}
+
+impl Request {
+    pub fn from_request_and_address(request: CanRequest, address: Address) -> crate::Result<Request> {
+        let addr = match address {
+            Address::Can {
+                addr
+            } => addr,
+            _ => return Err(crate::Error::InvalidAddress),
+        };
+        Ok(Request {
+            inner: request,
+            bitrate: addr.bitrate(),
+        })
+    }
 }
 
 impl Instrument {
@@ -140,7 +177,7 @@ impl Instrument {
         }
     }
 
-    pub async fn request(&mut self, req: CanRequest) -> crate::Result<CanResponse> {
+    pub async fn request(&mut self, req: Request) -> crate::Result<CanResponse> {
         self.io.request(req).await
     }
 
@@ -184,20 +221,32 @@ impl Handler {
             }
         }
     }
+
+    async fn update_bitrate(&mut self, req: &Request) {
+        if let Some(bitrate) = req.bitrate {
+            if self.addr.bitrate() != req.bitrate {
+                if let Some(listener) = self.listener.take() {
+                    // TODO: close it
+                }
+                if let Some(sender) = self.device.take() {
+                    let _ = sender.close().await;
+                }
+
+                self.addr.update_bitrate(bitrate);
+            }
+        }
+    }
 }
 
 #[async_trait::async_trait]
 impl IoHandler for Handler {
-    type Request = CanRequest;
+    type Request = Request;
     type Response = CanResponse;
 
     async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
-        // TODO: this is missing reconfigurable bitrate
-        // just embed bitrate into CanRequest
-        // note that we don't generally support this anyways for socketcan...
-        // TODO: we should support a manual drop in the root API, such that this can be worked around
-
         self.check_listener().await;
+        self.update_bitrate(&req).await;
+
         if self.device.is_none() {
             self.device.replace(CanSender::new(self.addr.clone())?);
         }
@@ -213,7 +262,7 @@ impl IoHandler for Handler {
         let device = self.device.as_ref().unwrap();
         let listener = self.listener.as_ref().unwrap();
 
-        match req {
+        match req.inner {
             CanRequest::ListenRaw(en) => {
                 let _ = listener.send(ListenerMsg::EnableRaw(en));
                 Ok(CanResponse::Started(self.addr.interface()))
@@ -368,7 +417,12 @@ mod tests {
         let mut client = srv.loopback().await;
 
         let mut instr = Instrument::new(&srv, CanAddress::Loopback);
-        let resp = instr.request(CanRequest::ListenRaw(true)).await;
+
+        let req = Request {
+            inner: CanRequest::ListenRaw(true),
+            bitrate: None,
+        };
+        let resp = instr.request(req).await;
         let _expected_resp = CanResponse::Started(CanAddress::Loopback.interface());
         assert!(matches!(resp, Ok(_expected_resp)));
 
@@ -377,7 +431,11 @@ mod tests {
             ext_id: true,
             data: vec![1, 2, 3, 4],
         });
-        let sent = instr.request(CanRequest::TxRaw(msg)).await;
+        let req = Request {
+            inner: CanRequest::TxRaw(msg),
+            bitrate: None,
+        };
+        let sent = instr.request(req).await;
         assert!(matches!(sent, Ok(CanResponse::Ok)));
 
         let rx = client.next().await.unwrap();

@@ -10,6 +10,7 @@ use crate::serial::Response as SerialResponse;
 use crate::serial::{Request as SerialRequest, SerialParams};
 use crate::tcp::{TcpRequest, TcpResponse};
 use crate::{sigrok, Error};
+use crate::can::Request as InternalCanRequest;
 use comsrv_protocol::{
     ByteStreamRequest, ByteStreamResponse, CanRequest, CanResponse, ModBusRequest, ModBusResponse,
     Request, Response, ScpiRequest, ScpiResponse,
@@ -237,7 +238,8 @@ impl App {
             _ => return Err(Error::NotSupported),
         };
         self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
-        device.request(task).await
+        let request = InternalCanRequest::from_request_and_address(task, addr)?;
+        device.request(request).await
     }
 
     async fn handle_hid(
