@@ -7,13 +7,14 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task;
 
+use crate::address::Address;
 use crate::app::Server;
 use crate::can::device::{CanReceiver, CanSender};
 use crate::can::gct::Decoder;
 use crate::iotask::{IoHandler, IoTask};
 use async_can::{CanFrameError, Error};
 use comsrv_protocol::{CanMessage, CanRequest, CanResponse, DataFrame, RemoteFrame, Response};
-use crate::address::Address;
+use tokio::sync::oneshot;
 
 mod crc;
 mod device;
@@ -61,7 +62,7 @@ impl CanAddress {
     pub fn bitrate(&self) -> Option<u32> {
         match self {
             CanAddress::PCan { ifname: _, bitrate } => Some(*bitrate),
-            _ => None
+            _ => None,
         }
     }
 
@@ -149,11 +150,12 @@ pub struct Request {
 }
 
 impl Request {
-    pub fn from_request_and_address(request: CanRequest, address: Address) -> crate::Result<Request> {
+    pub fn from_request_and_address(
+        request: CanRequest,
+        address: Address,
+    ) -> crate::Result<Request> {
         let addr = match address {
-            Address::Can {
-                addr
-            } => addr,
+            Address::Can { addr } => addr,
             _ => return Err(crate::Error::InvalidAddress),
         };
         Ok(Request {
@@ -226,7 +228,10 @@ impl Handler {
         if let Some(bitrate) = req.bitrate {
             if self.addr.bitrate() != req.bitrate {
                 if let Some(listener) = self.listener.take() {
-                    // TODO: close it
+                    let (tx, rx) = oneshot::channel();
+                    if listener.send(ListenerMsg::Close(tx)).is_ok() {
+                        let _ = rx.await;
+                    } // else it's already gone
                 }
                 if let Some(sender) = self.device.take() {
                     let _ = sender.close().await;
@@ -308,6 +313,7 @@ enum ListenerMsg {
     EnableGct(bool),
     EnableRaw(bool),
     Loopback(CanMessage),
+    Close(oneshot::Sender<()>),
 }
 
 struct Listener {
@@ -315,23 +321,35 @@ struct Listener {
     listen_raw: bool,
     decoder: Decoder,
     server: Server,
-    device: CanReceiver,
+    device: Option<CanReceiver>,
     address: CanAddress,
 }
 
 impl Listener {
-    fn rx_control(&mut self, msg: ListenerMsg) {
+    async fn rx_control(&mut self, msg: ListenerMsg) -> bool {
         match msg {
             ListenerMsg::EnableGct(en) => {
                 if !self.listen_gct {
                     self.decoder.reset();
                 }
                 self.listen_gct = en;
+                true
             }
             ListenerMsg::EnableRaw(en) => {
                 self.listen_raw = en;
+                true
             }
-            ListenerMsg::Loopback(msg) => self.rx(msg),
+            ListenerMsg::Loopback(msg) => {
+                self.rx(msg);
+                true
+            }
+            ListenerMsg::Close(fut) => {
+                if let Some(device) = self.device.take() {
+                    let _ = device.close().await;
+                    let _ = fut.send(());
+                }
+                false
+            }
         }
     }
 
@@ -358,22 +376,33 @@ impl Listener {
     }
 
     async fn err(&mut self, err: CanError) -> bool {
-        let send_err = crate::Error::Can {
-            addr: self.device.address().into(),
-            err: err.clone(),
-        };
-        self.server.broadcast(send_err.into());
-        // depending on error, continue listening or quit...
-        match err {
-            CanError::Io(_)
-            | CanError::InvalidInterfaceAddress
-            | CanError::InvalidBitRate
-            | CanError::PCanError(_, _) => {
-                let tx = Response::Can(CanResponse::Stopped(self.device.address().interface()));
-                self.server.broadcast(tx);
-                false
+        if let Some(device) = &self.device {
+            let send_err = crate::Error::Can {
+                addr: device.address().into(),
+                err: err.clone(),
+            };
+            self.server.broadcast(send_err.into());
+            // depending on error, continue listening or quit...
+            match err {
+                CanError::Io(_)
+                | CanError::InvalidInterfaceAddress
+                | CanError::InvalidBitRate
+                | CanError::PCanError(_, _) => {
+                    let tx = Response::Can(CanResponse::Stopped(device.address().interface()));
+                    self.server.broadcast(tx);
+                    false
+                }
+                _ => true,
             }
-            _ => true,
+        } else {
+            false
+        }
+    }
+
+    async fn recv(&mut self) -> Option<Result<CanMessage, CanError>> {
+        match &mut self.device {
+            None => None,
+            Some(device) => Some(device.recv().await),
         }
     }
 }
@@ -389,18 +418,23 @@ async fn listener_task(
         listen_raw: true,
         decoder: Decoder::new(),
         server,
-        device,
+        device: Some(device),
         address,
     };
     loop {
         tokio::select! {
             msg = rx.recv() => match msg {
-                Some(msg) => listener.rx_control(msg),
+                Some(msg) => {
+                    if !listener.rx_control(msg).await {
+                        break;
+                    }
+                },
                 None => break
             },
-            msg = listener.device.recv() => match msg {
-                Ok(x) => listener.rx(x),
-                Err(err) => if !listener.err(err).await { break; }
+            msg = listener.recv() => match msg {
+                Some(Ok(x)) => listener.rx(x),
+                Some(Err(err)) => if !listener.err(err).await { break; },
+                None => { break },
             }
         }
     }
