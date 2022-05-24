@@ -16,6 +16,7 @@ use comsrv_protocol::{
 };
 use std::time::Duration;
 use tokio_modbus::prelude::Slave;
+use crate::bytestream::read_all;
 
 pub mod params;
 
@@ -144,6 +145,8 @@ impl IoHandler for Handler {
                 req,
                 slave_addr,
             } => {
+                let _ = read_all(&mut serial).await.unwrap();
+
                 let channel = ClonableChannel::new(serial);
                 let mut ctx =
                     tokio_modbus::client::rtu::connect_slave(channel.clone(), Slave(slave_addr))
