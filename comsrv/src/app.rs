@@ -118,6 +118,12 @@ impl App {
                 let slave_id = task.slave_id();
                 (addr, transport, slave_id)
             }
+            Address::Tcp { addr } => {
+                let addr = ModBusAddress::Tcp { addr };
+                let transport = ModBusTransport::Rtu;
+                let slave_id = task.slave_id();
+                (addr, transport, slave_id)
+            }
             _ => return Err(Error::InvalidAddress),
         };
 
