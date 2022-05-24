@@ -224,19 +224,25 @@ impl Handler {
         }
     }
 
+    async fn close_listener(&mut self) {
+        if let Some(listener) = self.listener.take() {
+            let (tx, rx) = oneshot::channel();
+            if listener.send(ListenerMsg::Close(tx)).is_ok() {
+                let _ = rx.await;
+                log::debug!("{} - Listener closed", self.addr);
+            } // else it's already gone
+        }
+    }
+
     async fn update_bitrate(&mut self, req: &Request) {
         if let Some(bitrate) = req.bitrate {
             if self.addr.bitrate() != req.bitrate {
-                if let Some(listener) = self.listener.take() {
-                    let (tx, rx) = oneshot::channel();
-                    if listener.send(ListenerMsg::Close(tx)).is_ok() {
-                        let _ = rx.await;
-                    } // else it's already gone
-                }
+                log::debug!("{} - Updating Bitrate", self.addr);
+                self.close_listener().await;
                 if let Some(sender) = self.device.take() {
                     let _ = sender.close().await;
                 }
-
+                log::debug!("{} - Sender closed", self.addr);
                 self.addr.update_bitrate(bitrate);
             }
         }
@@ -253,9 +259,11 @@ impl IoHandler for Handler {
         self.update_bitrate(&req).await;
 
         if self.device.is_none() {
+            log::debug!("{} - Initializing new Sender", self.addr);
             self.device.replace(CanSender::new(self.addr.clone())?);
         }
         if self.listener.is_none() {
+            log::debug!("{} - Initializing new Receiver", self.addr);
             let device = CanReceiver::new(self.addr.clone())?;
             let (tx, rx) = mpsc::unbounded_channel();
             let fut = listener_task(rx, device, self.server.clone(), self.addr.clone());
