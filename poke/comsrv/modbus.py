@@ -1,16 +1,30 @@
-from typing import List
+from typing import List, Optional
 
-from . import get, ComSrvError, BasePipe
+from pywsrpc.client import Client
+from . import ComSrvError, BasePipe
 
 
 class ModBusDevice(BasePipe):
+    def __init__(self, addr, station_address: int = 0, rpc: Optional[Client] = None):
+        super().__init__(addr, rpc=rpc)
+        self._station_address = station_address
+
+    @property
+    def station_address(self) -> int:
+        return self._station_address
+
+    @station_address.setter
+    def station_address(self, value):
+        self._station_address = int(value)
+
     async def write_registers(self, addr: int, data: List[int]):
         result = await self.get({
             'ModBus': {
                 'addr': self._addr,
                 'task': {'WriteRegister': {
                     'addr': addr,
-                    'data': data
+                    'data': data,
+                    'slave_id': self._station_address,
                 }},
                 'lock': self._lock,
             }
@@ -23,7 +37,8 @@ class ModBusDevice(BasePipe):
                 'addr': self._addr,
                 'task': {'WriteCoil': {
                     'addr': addr,
-                    'data': data
+                    'data': data,
+                    'slave_id': self._station_address,
                 }},
                 'lock': self._lock,
             }
@@ -37,7 +52,8 @@ class ModBusDevice(BasePipe):
                 'addr': self._addr,
                 'task': {'ReadHolding': {
                     'addr': addr,
-                    'cnt': count
+                    'cnt': count,
+                    'slave_id': self._station_address,
                 }},
                 'lock': self._lock,
             }
@@ -52,7 +68,8 @@ class ModBusDevice(BasePipe):
                 'addr': self._addr,
                 'task': {'ReadHolding': {
                     'addr': addr,
-                    'cnt': count
+                    'cnt': count,
+                    'slave_id': self._station_address,
                 }},
                 'lock': self._lock,
             }
@@ -67,7 +84,8 @@ class ModBusDevice(BasePipe):
                 'addr': self._addr,
                 'task': {'ReadDiscrete': {
                     'addr': addr,
-                    'cnt': count
+                    'cnt': count,
+                    'slave_id': self._station_address,
                 }},
                 'lock': self._lock,
             }
@@ -82,7 +100,8 @@ class ModBusDevice(BasePipe):
                 'addr': self._addr,
                 'task': {'ReadInput': {
                     'addr': addr,
-                    'cnt': count
+                    'cnt': count,
+                    'slave_id': self._station_address,
                 }},
                 'lock': self._lock,
             }
@@ -105,7 +124,8 @@ class ModBusDevice(BasePipe):
                 'addr': self._addr,
                 'task': {'CustomCommand': {
                     'code': code,
-                    'data': list(data)
+                    'data': list(data),
+                    'slave_id': self._station_address,
                 }},
                 'lock': self._lock,
             }
