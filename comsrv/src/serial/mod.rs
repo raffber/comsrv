@@ -116,7 +116,6 @@ impl IoHandler for Handler {
             }
             Some((serial, old_params)) => {
                 if old_params == new_params {
-                    log::debug!("reusing already open handle to {}", self.path);
                     (serial, false)
                 } else {
                     drop(serial);
