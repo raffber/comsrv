@@ -2,7 +2,7 @@ from typing import List, Optional
 
 import numpy as np
 
-from poke.comsrv import get_default_http_url, get, ComSrvError
+from . import get_default_http_url, get, ComSrvError
 
 
 class SigrokDevice(object):

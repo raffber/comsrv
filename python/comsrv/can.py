@@ -1,8 +1,277 @@
 from typing import Optional
 
-from poke.can import CanError, CanMessage, GctMessage
-from poke.comsrv import get_default_ws_url, ComSrvError
+from . import get_default_ws_url, ComSrvError
 from pywsrpc.client import Client
+
+from enum import Enum
+
+
+class CanError(Exception):
+    pass
+
+
+class CanMessage(object):
+    def to_comsrv(self):
+        raise NotImplementedError
+
+    @classmethod
+    def from_comsrv(cls, msg):
+        if 'Data' in msg:
+            return DataMessage.from_comsrv(msg['Data'])
+        if 'Remote' in msg:
+            return RemoteMessage.from_comsrv(msg['Remote'])
+        raise ValueError('Invalid json object')
+
+
+class DataMessage(CanMessage):
+    """
+    A single data message on the CAN bus.
+
+    Fields are the following:
+        data: bytes()
+        canid: int
+        extid: bool
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.data = bytes()
+        self.canid = 0
+        self.extid = False
+
+    def clone(self):
+        ret = DataMessage()
+        ret.data = bytes(self.data)
+        ret.canid = self.canid
+        ret.extid = self.extid
+        return ret
+
+    def to_comsrv(self):
+        return {'Data': {
+            'id': self.canid,
+            'ext_id': self.extid,
+            'data': list(self.data)
+        }}
+
+    @classmethod
+    def from_comsrv(cls, msg):
+        ret = cls()
+        ret.canid = msg['id']
+        ret.extid = msg['ext_id']
+        ret.data = msg['data']
+        return ret
+
+    def __repr__(self):
+        return '<comsrv.can.DataMessage canid={0:x} ext_id={1} data={2}>'.format(self.canid, self.extid, self.data)
+
+
+class RemoteMessage(CanMessage):
+    """
+    A remote frame on the can bus
+
+    Fields are the following:
+        dlc: int
+        canid: int
+        extid: bool
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.dlc = 0
+        self.canid = 0
+        self.time = 0
+        self.extid = False
+
+    def clone(self):
+        ret = DataMessage()
+        ret.dlc = int(self.dlc)
+        ret.canid = self.canid
+        ret.time = self.time
+        ret.extid = self.extid
+        return ret
+
+    def to_comsrv(self):
+        return {'Remote': {
+            'id': self.canid,
+            'ext_id': self.extid,
+            'dlc': self.dlc
+        }}
+
+    @classmethod
+    def from_comsrv(cls, msg):
+        ret = cls()
+        ret.canid = msg['id']
+        ret.extid = msg['ext_id']
+        ret.dlc = msg['dlc']
+        return ret
+
+
+class GctMessage(object):
+    """
+    A GCT message. This message may consist of several raw CAN messages on the bus.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.src = 0
+
+    def to_comsrv(self):
+        """
+        Encode the message to the JSON RPC format of the comsrv.
+        """
+        raise NotImplementedError
+
+    @classmethod
+    def from_comsrv(cls, msg):
+        """
+        Decode the message from the comsrv RPC format
+        :param msg: The JSON encoded message
+        """
+        if 'SysCtrl' in msg:
+            return SysCtrlMessage.from_comsrv(msg['SysCtrl'])
+        if 'MonitoringData' in msg:
+            return MonitoringData.from_comsrv(msg['MonitoringData'])
+        if 'MonitoringRequest' in msg:
+            return MonitoringRequest.from_comsrv(msg['MonitoringRequest'])
+        if 'Ddp' in msg:
+            return DdpMessage.from_comsrv(msg['Ddp'])
+        if 'Heartbeat' in msg:
+            return Heartbeat.from_comsrv(msg['Heartbeat'])
+        raise ValueError('Invalid json object')
+
+
+class SysCtrlType(Enum):
+    EMPTY = 'None'
+    VALUE = 'Value'
+    QUERY = 'Query'
+
+
+class SysCtrlMessage(GctMessage):
+    def __init__(self):
+        super().__init__()
+        self.dst = 0
+        self.cmd = 0
+        self.tp = SysCtrlType.EMPTY
+        self.data = b''
+
+    def to_comsrv(self):
+        return {'SysCtrl': {
+            'src': self.src,
+            'dst': self.dst,
+            'cmd': self.cmd,
+            'tp': self.tp.value,
+            'data': list(self.data),
+        }}
+
+    @classmethod
+    def from_comsrv(cls, msg):
+        ret = cls()
+        ret.dst = msg['dst']
+        ret.src = msg['src']
+        ret.cmd = msg['cmd']
+        tp = msg['tp']
+        if tp == 'None':
+            ret.tp = SysCtrlType.EMPTY
+        elif tp == 'Value':
+            ret.tp = SysCtrlType.VALUE
+        elif tp == 'Query':
+            ret.tp = SysCtrlType.QUERY
+        else:
+            raise ValueError('No such SysCtrl type')
+        ret.data = bytes(msg['data'])
+        return ret
+
+
+class MonitoringData(GctMessage):
+    def __init__(self):
+        super().__init__()
+        self.group_idx = 0
+        self.reading_idx = 0
+        self.data = b''
+
+    def to_comsrv(self):
+        return {'MonitoringData': {
+            'src': self.src,
+            'group_idx': self.group_idx,
+            'reading_idx': self.reading_idx,
+            'data': list(self.data),
+        }}
+
+    @classmethod
+    def from_comsrv(cls, msg):
+        ret = cls()
+        ret.src = msg['src']
+        ret.group_idx = msg['group_idx']
+        ret.reading_idx = msg['reading_idx']
+        ret.data = bytes(msg['data'])
+        return ret
+
+
+class MonitoringRequest(GctMessage):
+    def __init__(self):
+        super().__init__()
+        self.dst = 0
+        self.group_idx = 0
+        self.readings = 0
+
+    def to_comsrv(self):
+        return {'MonitoringRequest': {
+            'src': self.src,
+            'dst': self.dst,
+            'group_idx': self.group_idx,
+            'readings': self.readings,
+        }}
+
+    @classmethod
+    def from_comsrv(cls, msg):
+        ret = cls()
+        ret.src = msg['src']
+        ret.dst = msg['dst']
+        ret.group_idx = msg['group_idx']
+        ret.readings = msg['readings']
+        return ret
+
+
+class DdpMessage(GctMessage):
+    def __init__(self):
+        super().__init__()
+        self.dst = 0
+        self.data = []
+
+    def to_comsrv(self):
+        return {'Ddp': {
+            'src': self.src,
+            'dst': self.dst,
+            'data': list(self.data),
+        }}
+
+    @classmethod
+    def from_comsrv(cls, msg):
+        ret = cls()
+        ret.src = msg['src']
+        ret.dst = msg['dst']
+        ret.data = bytes(msg['data'])
+        return ret
+
+
+class Heartbeat(GctMessage):
+    def __init__(self):
+        super().__init__()
+        self.product_id = 0
+
+    def to_comsrv(self):
+        return {'Heartbeat': {
+            'src': self.src,
+            'product_id': self.product_id,
+        }}
+
+    @classmethod
+    def from_comsrv(cls, msg):
+        ret = cls()
+        ret.src = msg['src']
+        ret.product_id = msg['product_id']
+        return ret
+
 
 
 def gct_filter(msg):
@@ -82,8 +351,8 @@ class CanBus(object):
 
     async def send(self, msg, rx_reply=True):
         """
-        Send a CAN message. The message must be either of type `poke.can.CanMessage`
-        or `poke.can.GctMessage`.
+        Send a CAN message. The message must be either of type `comsrv.can.CanMessage`
+        or `comsrv.can.GctMessage`.
         Awaiting the reply from the server is not necessary and setting `rx_reply=False`
         will disable this.
 

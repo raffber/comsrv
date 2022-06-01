@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Optional
 
-from poke.comsrv import BasePipe, get_default_http_url, get, ComSrvError, HttpRpc, Rpc
+from .import BasePipe, ComSrvError, HttpRpc, Rpc
 
 
 @dataclass

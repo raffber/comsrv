@@ -1,7 +1,7 @@
 import base64
 
-from poke.comsrv import get, ComSrvError, ByteStreamPipe, BasePipe
-from poke.scpi import Pipe as ScpiPipeBase
+from . import ComSrvError, ByteStreamPipe, BasePipe
+from . import Pipe as ScpiPipeBase
 
 
 class ScpiPipe(ScpiPipeBase, BasePipe):
