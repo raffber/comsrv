@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Optional
 
-from .import BasePipe, ComSrvError, HttpRpc, Rpc
+from . import BasePipe, ComSrvError, HttpRpc, Rpc
 
 
 @dataclass

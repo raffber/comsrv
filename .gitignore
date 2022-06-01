@@ -1,3 +1,5 @@
 comsrv/target/
 comsrv_client/target/
 comsrv_protocol/target/
+venv
+__pycache__

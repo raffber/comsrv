@@ -1,10 +1,8 @@
 import base64
 
 from . import ComSrvError, ByteStreamPipe, BasePipe
-from . import Pipe as ScpiPipeBase
 
-
-class ScpiPipe(ScpiPipeBase, BasePipe):
+class ScpiPipe(BasePipe):
     @property
     def url(self):
         return self._url
@@ -55,9 +53,9 @@ class ScpiPipe(ScpiPipeBase, BasePipe):
         return base64.b64decode(data)
 
 
-class SerialScpiPipe(ScpiPipeBase):
+class SerialScpiPipe(BasePipe):
     def __init__(self, addr, rpc=None, term='\n', timeout=1.0):
-        super().__init__()
+        super().__init__(addr=addr, rpc=rpc)
         self._inner = ByteStreamPipe(addr, rpc=rpc)
         self._timeout = timeout
         self._term = term
