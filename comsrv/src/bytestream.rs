@@ -40,9 +40,7 @@ impl<'a, T: AsyncRead + Unpin> Future for ReadAll<'a, T> {
 }
 
 pub async fn read_all<T: AsyncRead + Unpin>(stream: &mut T) -> io::Result<Vec<u8>> {
-    let fut = ReadAll {
-        inner: stream
-    };
+    let fut = ReadAll { inner: stream };
     fut.await
 }
 
@@ -133,9 +131,25 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             let ret = read_to_term_timeout(stream, term, timeout_ms).await?;
             Ok(ByteStreamResponse::Data(ret))
         }
-        ByteStreamRequest::ModBusRtuDdp { timeout_ms, station_address, custom_command, sub_cmd, ddp_cmd, response, data } => {
+        ByteStreamRequest::ModBusRtuDdp {
+            timeout_ms,
+            station_address,
+            custom_command,
+            sub_cmd,
+            ddp_cmd,
+            response,
+            data,
+        } => {
             let duration = Duration::from_millis(timeout_ms as u64);
-            let fut = modbus_ddp_rtu(stream, station_address, custom_command, sub_cmd, ddp_cmd, response, data);
+            let fut = modbus_ddp_rtu(
+                stream,
+                station_address,
+                custom_command,
+                sub_cmd,
+                ddp_cmd,
+                response,
+                data,
+            );
             match timeout(duration, fut).await {
                 Ok(x) => x,
                 Err(_) => Err(crate::Error::Timeout),
@@ -243,7 +257,8 @@ async fn modbus_ddp_rtu<T: AsyncRead + AsyncWrite + Unpin>(
     sub_cmd: u8,
     mut ddp_cmd: u8,
     response: bool,
-    data: Vec<u8>) -> crate::Result<ByteStreamResponse> {
+    data: Vec<u8>,
+) -> crate::Result<ByteStreamResponse> {
     let _ = read_all(stream).await;
     if response {
         ddp_cmd |= 0x80;
@@ -262,10 +277,7 @@ async fn modbus_ddp_rtu<T: AsyncRead + AsyncWrite + Unpin>(
     stream.write(&req).await?;
     let mut data = vec![0_u8; 300];
     stream.read_exact(&mut data[0..4]).await?;
-    if data[0] != station_address
-        || data[1] != custom_cmd
-        || data[2] != sub_cmd
-    {
+    if data[0] != station_address || data[1] != custom_cmd || data[2] != sub_cmd {
         return Err(crate::Error::InvalidResponse);
     }
     if !response {

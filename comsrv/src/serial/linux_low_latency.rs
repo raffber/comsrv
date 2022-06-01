@@ -1,7 +1,9 @@
-use std::{os::{unix::prelude::AsRawFd, raw::c_schar}, mem};
+use std::{
+    mem,
+    os::{raw::c_schar, unix::prelude::AsRawFd},
+};
 
-use libc::{c_uint, c_int, c_short, c_char, c_ulong};
-
+use libc::{c_char, c_int, c_short, c_uint, c_ulong};
 
 #[repr(C)]
 struct SerialStruct {
@@ -25,7 +27,6 @@ struct SerialStruct {
     iomap_base: c_ulong,
 }
 
-
 pub(crate) fn apply_low_latency<T: AsRawFd>(serial_stream: &T) -> crate::Result<()> {
     let fd = serial_stream.as_raw_fd();
 
@@ -34,7 +35,9 @@ pub(crate) fn apply_low_latency<T: AsRawFd>(serial_stream: &T) -> crate::Result<
         let ss_ref = &mut serial_struct as *mut SerialStruct;
         let failed = libc::ioctl(fd, libc::TIOCGSERIAL, ss_ref);
         if failed != 0 {
-            return Err(crate::Error::Other("Cannot get serial info struct".to_string()));
+            return Err(crate::Error::Other(
+                "Cannot get serial info struct".to_string(),
+            ));
         }
 
         serial_struct.flags |= 1 << 13;

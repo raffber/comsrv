@@ -1,13 +1,12 @@
 use crate::Error;
 use comsrv_protocol::{ScpiRequest, ScpiResponse};
 use std::time::{Duration, Instant};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::time::{sleep, timeout};
-use tokio_serial::SerialStream;
 
 const PROLOGIX_TIMEOUT: f32 = 1.0;
 
-pub async fn init_prologix(serial: &mut SerialStream) -> crate::Result<()> {
+pub async fn init_prologix<T: AsyncRead + AsyncWrite + Unpin>(serial: &mut T) -> crate::Result<()> {
     log::debug!("Initalizing prologix.");
     write(serial, "++savecfg 0\n").await?;
     write(serial, "++auto 0\n").await?;
@@ -15,8 +14,8 @@ pub async fn init_prologix(serial: &mut SerialStream) -> crate::Result<()> {
     write(serial, "++eos 3\n").await
 }
 
-pub async fn handle_prologix_request(
-    serial: &mut SerialStream,
+pub async fn handle_prologix_request<T: AsyncRead + AsyncWrite + Unpin>(
+    serial: &mut T,
     addr: u8,
     req: ScpiRequest,
 ) -> crate::Result<ScpiResponse> {
@@ -55,7 +54,7 @@ pub async fn handle_prologix_request(
     }
 }
 
-async fn write(serial: &mut SerialStream, msg: &str) -> crate::Result<()> {
+async fn write<T: AsyncWrite + Unpin>(serial: &mut T, msg: &str) -> crate::Result<()> {
     serial
         .write(msg.as_bytes())
         .await
@@ -63,7 +62,10 @@ async fn write(serial: &mut SerialStream, msg: &str) -> crate::Result<()> {
         .map_err(Error::io)
 }
 
-async fn write_prologix(serial: &mut SerialStream, mut msg: String) -> crate::Result<()> {
+async fn write_prologix<T: AsyncWrite + Unpin>(
+    serial: &mut T,
+    mut msg: String,
+) -> crate::Result<()> {
     if !msg.ends_with('\n') {
         msg.push('\n');
     }
@@ -74,7 +76,7 @@ async fn write_prologix(serial: &mut SerialStream, mut msg: String) -> crate::Re
         .map_err(Error::io)
 }
 
-async fn read_prologix(serial: &mut SerialStream) -> crate::Result<String> {
+async fn read_prologix<T: AsyncRead + Unpin>(serial: &mut T) -> crate::Result<String> {
     let start = Instant::now();
     let mut ret = Vec::new();
     loop {

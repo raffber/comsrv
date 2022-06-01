@@ -1,22 +1,20 @@
-mod prologix;
-
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tokio_serial::{ErrorKind, SerialPortBuilderExt, SerialStream};
 
 pub use params::SerialParams;
 
+use crate::bytestream::read_all;
 use crate::clonable_channel::ClonableChannel;
 use crate::iotask::{IoHandler, IoTask};
 use crate::modbus::handle_modbus_request_timeout;
+use crate::prologix::{handle_prologix_request, init_prologix};
 use crate::serial::params::{DataBits, Parity, StopBits};
-use crate::serial::prologix::{handle_prologix_request, init_prologix};
 use comsrv_protocol::{
     ByteStreamRequest, ByteStreamResponse, ModBusRequest, ModBusResponse, ScpiRequest, ScpiResponse,
 };
 use std::time::Duration;
 use tokio_modbus::prelude::Slave;
-use crate::bytestream::read_all;
 
 pub mod params;
 

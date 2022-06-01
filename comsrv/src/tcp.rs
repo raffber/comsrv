@@ -1,3 +1,4 @@
+use crate::bytestream::read_all;
 use crate::clonable_channel::ClonableChannel;
 use crate::iotask::{IoHandler, IoTask};
 use crate::modbus::handle_modbus_request_timeout;
@@ -8,7 +9,6 @@ use std::net::SocketAddr;
 use tokio::net::TcpStream;
 use tokio::time::Duration;
 use tokio_modbus::prelude::Slave;
-use crate::bytestream::read_all;
 
 #[derive(Clone)]
 pub struct Instrument {

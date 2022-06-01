@@ -142,7 +142,6 @@ pub async fn handle_modbus_request(
     ctx: &mut Context,
     req: ModBusRequest,
 ) -> crate::Result<ModBusResponse> {
-
     if req.slave_id() != 0 {
         ctx.set_slave(Slave(req.slave_id()));
     }

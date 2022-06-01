@@ -22,6 +22,7 @@ use comsrv_protocol::Response;
 
 mod address;
 pub mod app;
+mod bytebuffer;
 mod bytestream;
 mod can;
 mod clonable_channel;
@@ -31,13 +32,13 @@ mod instrument;
 mod inventory;
 mod iotask;
 mod modbus;
+mod prologix;
 mod scpi;
 mod serial;
 mod sigrok;
 mod tcp;
 pub mod visa;
 mod vxi;
-mod bytebuffer;
 
 #[derive(Error, Debug, Clone, Serialize, Deserialize)]
 pub enum Error {

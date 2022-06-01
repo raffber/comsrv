@@ -3,6 +3,7 @@ use tokio::task;
 use wsrpc::server::{Requested, Server as WsrpcServer};
 
 use crate::address::Address;
+use crate::can::Request as InternalCanRequest;
 use crate::instrument::Instrument;
 use crate::inventory::Inventory;
 use crate::modbus::{ModBusAddress, ModBusTransport};
@@ -10,7 +11,6 @@ use crate::serial::Response as SerialResponse;
 use crate::serial::{Request as SerialRequest, SerialParams};
 use crate::tcp::{TcpRequest, TcpResponse};
 use crate::{sigrok, Error};
-use crate::can::Request as InternalCanRequest;
 use comsrv_protocol::{
     ByteStreamRequest, ByteStreamResponse, CanRequest, CanResponse, ModBusRequest, ModBusResponse,
     Request, Response, ScpiRequest, ScpiResponse,
@@ -19,7 +19,6 @@ use comsrv_protocol::{HidRequest, HidResponse};
 use std::time::Duration;
 use uuid::Uuid;
 
-
 pub type Server = WsrpcServer<Request, Response>;
 
 macro_rules! crate_version {
@@ -27,7 +26,6 @@ macro_rules! crate_version {
         env!("CARGO_PKG_VERSION")
     };
 }
-
 
 #[derive(Clone)]
 pub struct App {
@@ -49,7 +47,11 @@ impl App {
         while let Some(msg) = rx.recv().await {
             let (req, rep) = msg.split();
             let app = self.clone();
-            log::debug!("Incoming[{}]: {}", rep.request_id(),  serde_json::to_string(&req).unwrap());
+            log::debug!(
+                "Incoming[{}]: {}",
+                rep.request_id(),
+                serde_json::to_string(&req).unwrap()
+            );
             task::spawn(async move {
                 let response = app.handle_request(req).await;
                 log::debug!("Answering: {}", serde_json::to_string(&response).unwrap());
@@ -81,12 +83,8 @@ impl App {
                         .await;
                     match response {
                         Ok(SerialResponse::Scpi(resp)) => Ok(resp),
-                        Ok(_) => {
-                            Err(Error::NotSupported)
-                        }
-                        Err(x) => {
-                            Err(x)
-                        }
+                        Ok(_) => Err(Error::NotSupported),
+                        Err(x) => Err(x),
                     }
                 }
                 _ => Err(Error::NotSupported),
@@ -191,9 +189,7 @@ impl App {
                 SerialResponse::Bytes(x) => Ok(x),
                 _ => panic!("Invalid answer. This is a bug"),
             },
-            Err(x) => {
-                Err(x)
-            }
+            Err(x) => Err(x),
         }
     }
 
@@ -209,9 +205,7 @@ impl App {
             .ok_or(Error::NotSupported)?;
         match instr.request(TcpRequest::Bytes(task.clone())).await {
             Ok(TcpResponse::Bytes(x)) => Ok(x),
-            Err(x) => {
-                Err(x)
-            }
+            Err(x) => Err(x),
             _ => panic!(),
         }
     }
@@ -349,23 +343,20 @@ impl App {
             },
             Request::Version => {
                 let version = crate_version!();
-                let version: Vec<_> = version.split(".").map(|x| x.parse::<u32>().unwrap()).collect();
+                let version: Vec<_> = version
+                    .split(".")
+                    .map(|x| x.parse::<u32>().unwrap())
+                    .collect();
                 Response::Version {
                     major: version[0],
                     minor: version[1],
                     build: version[2],
                 }
             }
-            Request::ListSerialPorts => {
-                match tokio_serial::available_ports() {
-                    Ok(x) => {
-                        Response::SerialPorts(x.iter().map(|x| x.port_name.clone()).collect())
-                    }
-                    Err(err) => {
-                        crate::Error::Other(err.description).into()
-                    }
-                }
-            }
+            Request::ListSerialPorts => match tokio_serial::available_ports() {
+                Ok(x) => Response::SerialPorts(x.iter().map(|x| x.port_name.clone()).collect()),
+                Err(err) => crate::Error::Other(err.description).into(),
+            },
         }
     }
 }

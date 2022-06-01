@@ -2,8 +2,8 @@ use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncReadExt, ReadBuf};
-use tokio::sync::{mpsc, oneshot};
 use tokio::sync::mpsc::error::TryRecvError;
+use tokio::sync::{mpsc, oneshot};
 
 pub struct ByteBuffer {
     rx: mpsc::Receiver<u8>,
@@ -29,9 +29,7 @@ impl ByteBuffer {
             cancel: Some(cancel_rx),
             error: error_tx,
         };
-        tokio::spawn(async move {
-            fetcher.run().await
-        });
+        tokio::spawn(async move { fetcher.run().await });
         Self {
             rx,
             cancel: Some(cancel_tx),
@@ -45,7 +43,7 @@ impl ByteBuffer {
             match self.rx.try_recv() {
                 Ok(data) => {
                     ret.push(data);
-                },
+                }
                 Err(TryRecvError::Disconnected) => {
                     match self.error.try_recv() {
                         Ok(err) => return Err(err),
@@ -58,14 +56,10 @@ impl ByteBuffer {
                         }
                     }
                 }
-                Err(TryRecvError::Empty) => {
-                    match self.error.try_recv() {
-                        Ok(err) => {
-                            return Err(err)
-                        }
-                        Err(_) => break,
-                    }
-                }
+                Err(TryRecvError::Empty) => match self.error.try_recv() {
+                    Ok(err) => return Err(err),
+                    Err(_) => break,
+                },
             }
         }
         Ok(ret)
@@ -104,12 +98,16 @@ impl<T: AsyncRead + Unpin + Send> Fetcher<T> {
 
 impl Drop for ByteBuffer {
     fn drop(&mut self) {
-        let _  = self.cancel.take().unwrap().send(());
+        let _ = self.cancel.take().unwrap().send(());
     }
 }
 
 impl AsyncRead for ByteBuffer {
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         loop {
             match self.rx.poll_recv(cx) {
                 Poll::Ready(Some(x)) => {
@@ -117,12 +115,8 @@ impl AsyncRead for ByteBuffer {
                 }
                 Poll::Ready(None) => {
                     return match self.error.try_recv() {
-                        Ok(x) => {
-                            Poll::Ready(Err(x))
-                        }
-                        Err(_) => {
-                            Poll::Ready(Ok(()))
-                        }
+                        Ok(x) => Poll::Ready(Err(x)),
+                        Err(_) => Poll::Ready(Ok(())),
                     };
                 }
                 Poll::Pending => return Poll::Pending,

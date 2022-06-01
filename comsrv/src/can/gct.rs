@@ -48,7 +48,7 @@ impl DdpDecoderV1 {
             src: self.src_start_addr,
             dst: self.dst_addr,
             data,
-            version: 1
+            version: 1,
         })
     }
 
@@ -100,7 +100,7 @@ impl DdpDecoderV2 {
             src_start_addr: 0,
             parts: Default::default(),
             eof_received: false,
-            max_part_idx: 0
+            max_part_idx: 0,
         }
     }
 
@@ -109,7 +109,6 @@ impl DdpDecoderV2 {
         self.src_start_addr = 0;
         self.eof_received = false;
     }
-
 
     pub fn decode(&mut self, msg: DataFrame) -> Option<GctMessage> {
         let id = MessageId(msg.id);
@@ -137,14 +136,14 @@ impl DdpDecoderV2 {
             return None;
         }
         // check if we got all parts
-        for k in 0 .. (self.max_part_idx + 1) {
+        for k in 0..(self.max_part_idx + 1) {
             if self.parts.get(&k).is_none() {
-                return None
+                return None;
             }
         }
         // yes complete..., try decoding
         let mut data = Vec::with_capacity((self.max_part_idx + 1) as usize * 8);
-        for k in 0 .. (self.max_part_idx + 1) {
+        for k in 0..(self.max_part_idx + 1) {
             data.extend(self.parts.get(&k).unwrap());
         }
         self.reset();
@@ -156,7 +155,7 @@ impl DdpDecoderV2 {
             src: self.src_start_addr,
             dst: self.dst_addr,
             data: data[0..data.len() - 2].to_vec(),
-            version: 2
+            version: 2,
         })
     }
 }
@@ -170,7 +169,7 @@ impl Decoder {
     pub fn new() -> Self {
         Self {
             ddp_v1: Default::default(),
-            ddp_v2: Default::default()
+            ddp_v2: Default::default(),
         }
     }
 
@@ -193,8 +192,14 @@ impl Decoder {
             MSGTYPE_MONITORING_REQUEST => GctMessage::try_decode_monitoring_request(msg),
             MSGTYPE_DDP => {
                 let dst = id.dst();
-                let decoder_v1 = self.ddp_v1.entry(dst).or_insert_with(|| DdpDecoderV1::new(dst));
-                let decoder_v2 = self.ddp_v2.entry(dst).or_insert_with(|| DdpDecoderV2::new(dst));
+                let decoder_v1 = self
+                    .ddp_v1
+                    .entry(dst)
+                    .or_insert_with(|| DdpDecoderV1::new(dst));
+                let decoder_v2 = self
+                    .ddp_v2
+                    .entry(dst)
+                    .or_insert_with(|| DdpDecoderV2::new(dst));
                 if let Some(x) = decoder_v1.decode(&msg) {
                     Some(x)
                 } else if let Some(x) = decoder_v2.decode(msg) {
@@ -315,7 +320,12 @@ pub fn encode(msg: GctMessage) -> Result<Vec<CanMessage>, CanError> {
             });
             vec![msg]
         }
-        GctMessage::Ddp { src, dst, data, version } => {
+        GctMessage::Ddp {
+            src,
+            dst,
+            data,
+            version,
+        } => {
             if version == 0 || version == 1 {
                 encode_ddp_v1(src, dst, data)
             } else if version == 2 {
@@ -350,7 +360,7 @@ mod tests {
             src: 12,
             dst: 34,
             data: data.clone(),
-            version: 0
+            version: 0,
         };
         let raw = encode(msg).unwrap();
         let mut decoder = DdpDecoderV1::new(34);
@@ -370,7 +380,8 @@ mod tests {
             GctMessage::Ddp {
                 src,
                 dst,
-                data: rx_data, version: _,
+                data: rx_data,
+                version: _,
             } => {
                 assert_eq!(data, rx_data);
                 assert_eq!(src, 12);
