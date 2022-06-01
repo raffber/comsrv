@@ -1,6 +1,6 @@
 from typing import Union
 
-from poke.comsrv import get, ComSrvError, BasePipe
+from . import get, ComSrvError, BasePipe
 
 
 class ByteStreamPipe(BasePipe):
