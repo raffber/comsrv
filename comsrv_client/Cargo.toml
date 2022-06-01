@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-wsrpc = { path = "../wsrpc" }
+wsrpc = { git = "https://github.com/raffber/wsrpc.git", tag = "release/v1.0.0" }
 comsrv_protocol = { path = "../comsrv_protocol" }
 async-trait = "0.1.51"
 thiserror = "1"
