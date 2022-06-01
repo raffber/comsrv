@@ -3,3 +3,5 @@ comsrv_client/target/
 comsrv_protocol/target/
 venv
 __pycache__
+python/build
+*.egg-info

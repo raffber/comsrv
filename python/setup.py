@@ -6,7 +6,11 @@ with open("../README.md") as f:
 with open('requirements.txt') as f:
     data = f.read()
 
-requirements = [line.strip() for line in data.split('\n') if line.strip() != '']
+requirements = [
+    "aiohttp~=3.7",
+    "numpy~=1.22",
+    "wsrpc @ git+https://github.com/raffber/wsrpc.git@release/v1.0.0#egg=wsrpc"
+]
 
 setuptools.setup(
     name="comsrv",
