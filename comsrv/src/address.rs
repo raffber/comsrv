@@ -220,6 +220,7 @@ impl Address {
             Address::Can { addr } => HandleId::new(addr.interface()),
             Address::Sigrok { device } => HandleId::new(device.to_string()),
             Address::Hid { .. } => HandleId::new(self.clone().into()),
+            Address::Ftdi { addr } => HandleId { inner: addr.serial_number.to_lowercase() },
         }
     }
 }
@@ -249,6 +250,7 @@ impl From<Address> for String {
             Address::Can { addr } => format!("can::{}", addr),
             Address::Sigrok { device } => format!("sigrok::{}", device),
             Address::Hid { idn } => format!("hid::{:#x}::{:#x}", idn.vid(), idn.pid()),
+            Address::Ftdi { addr } => format!("ftdi::{}::{}", addr.serial_number, addr.params),
         }
     }
 }

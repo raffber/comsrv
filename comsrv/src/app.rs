@@ -353,10 +353,11 @@ impl App {
                     build: version[2],
                 }
             }
-            Request::ListSerialPorts => match tokio_serial::available_ports() {
-                Ok(x) => Response::SerialPorts(x.iter().map(|x| x.port_name.clone()).collect()),
-                Err(err) => crate::Error::Other(err.description).into(),
+            Request::ListSerialPorts => match crate::serial::list_devices().await {
+                Ok(x) => Response::SerialPorts(x),
+                Err(x) => x.into(),
             },
+            Request::ListFtdiDevices => todo!(),
         }
     }
 }

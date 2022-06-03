@@ -21,7 +21,7 @@ pub trait IoHandler: Send {
     type Response: Message;
 
     async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response>;
-    fn disconnect(&mut self) {}
+    async fn disconnect(&mut self) {}
 }
 
 /// Wraps the `Request` and provides a return path.

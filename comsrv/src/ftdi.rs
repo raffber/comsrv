@@ -8,16 +8,24 @@ use std::sync::atomic::Ordering;
 use std::task::Poll;
 use std::task::Context;
 
+use async_trait::async_trait;
 use comsrv_protocol::ByteStreamRequest;
+use comsrv_protocol::ByteStreamResponse;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::mpsc::{UnboundedSender as AsyncSender, UnboundedReceiver as AsyncReceiver};
 
+use crate::iotask::IoHandler;
+use crate::iotask::IoTask;
+use crate::serial;
 use crate::serial::SerialParams;
+use crate::tcp::TcpRequest;
+use crate::tcp::TcpResponse;
 
 
+#[derive(Hash, Clone)]
 pub struct FtdiAddress {
-    index: u8,
-    params: SerialParams,
+    pub serial_number: String,
+    pub params: SerialParams,
 }
 
 pub struct Request {
@@ -43,6 +51,10 @@ impl Bridge {
 
     }
 
+    async fn close(&mut self) {
+        todo!()
+    }
+
     fn push_to_output_buffer(&mut self, buf: &mut tokio::io::ReadBuf<'_>) -> bool {
         if !self.buffer.is_empty() {
             loop {
@@ -62,7 +74,7 @@ impl Bridge {
 
 impl AsyncRead for Bridge {
     fn poll_read(
-        self: Pin<&mut Self>,
+        mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut tokio::io::ReadBuf<'_>,
     ) -> Poll<std::io::Result<()>> {
@@ -95,7 +107,7 @@ impl AsyncWrite for Bridge {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<Result<usize, io::Error>> {
-        let lock = self.tx_error.lock().unwrap();
+        let mut lock = self.tx_error.lock().unwrap();
         if let Some(err) = lock.take() {
             return Poll::Ready(Err(err)); 
         }
@@ -126,11 +138,51 @@ impl Drop for Bridge {
 }
 
 pub struct Instrument {
-
+    inner: IoTask<Handler>,
 }
 
 impl Instrument {
+    pub fn new(addr: FtdiAddress) -> Self {
+        let handler = Handler::new(addr);
+        Self {
+            inner: IoTask::new(handler),
+        }
+    }
 
+    pub async fn request(&mut self, req: TcpRequest) -> crate::Result<TcpResponse> {
+        self.inner.request(req).await
+    }
+
+    pub fn disconnect(mut self) {
+        self.inner.disconnect()
+    }
+}
+
+struct Handler {
+    device: Option<Bridge>,
+    current_addr: FtdiAddress,
+}
+
+impl Handler {
+    fn new(addr: FtdiAddress) -> Self {
+        Self { device: None, current_addr: addr }
+    }
+}
+
+#[async_trait]
+ impl IoHandler for Handler {
+    type Request = TcpRequest;
+    type Response = TcpResponse;
+
+    async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
+        todo!() 
+    }
+
+    async fn disconnect(&mut self) {
+        if let Some(mut bridge) = self.device.take() {
+            bridge.close().await;
+        }
+    }
 }
 
 

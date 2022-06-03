@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use tokio::task;
 use tokio_serial::{ErrorKind, SerialPortBuilderExt, SerialStream};
 
 pub use params::SerialParams;
@@ -183,4 +184,16 @@ impl Instrument {
     pub fn disconnect(mut self) {
         self.inner.disconnect()
     }
+}
+
+pub async fn list_devices() -> crate::Result<Vec<String>> {
+    task::spawn_blocking(move || match tokio_serial::available_ports() {
+        Ok(x) => {
+            let ports = x.iter().map(|x| x.port_name.clone()).collect();
+            Ok(ports)
+        }
+        Err(err) => Err(crate::Error::Other(err.description).into()),
+    })
+    .await
+    .unwrap()
 }
