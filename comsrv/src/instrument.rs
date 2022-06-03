@@ -7,6 +7,7 @@ use crate::serial::Instrument as SerialInstrument;
 use crate::tcp::Instrument as TcpInstrument;
 use crate::visa::asynced::Instrument as VisaInstrument;
 use crate::vxi::Instrument as VxiInstrument;
+use crate::ftdi::Instrument as FtdiInstrument;
 
 #[derive(Clone)]
 pub enum Instrument {
@@ -17,6 +18,7 @@ pub enum Instrument {
     Vxi(VxiInstrument),
     Can(CanInstrument),
     Hid(HidInstrument),
+    Ftdi(FtdiInstrument),
 }
 
 impl Instrument {
@@ -54,6 +56,7 @@ impl Instrument {
                 return None;
             }
             Address::Hid { idn } => Instrument::Hid(HidInstrument::new(idn.clone())),
+            Address::Ftdi { addr } => Instrument::Ftdi(FtdiInstrument::new(addr.clone())),
         };
         Some(ret)
     }
@@ -67,6 +70,7 @@ impl Instrument {
             Instrument::Vxi(x) => x.disconnect(),
             Instrument::Can(x) => x.disconnect(),
             Instrument::Hid(x) => x.disconnect(),
+            Instrument::Ftdi(x) => x.disconnect(),
         }
     }
 
