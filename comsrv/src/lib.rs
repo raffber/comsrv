@@ -39,6 +39,7 @@ mod sigrok;
 mod tcp;
 pub mod visa;
 mod vxi;
+mod ftdi;
 
 #[derive(Error, Debug, Clone, Serialize, Deserialize)]
 pub enum Error {
