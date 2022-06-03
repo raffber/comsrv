@@ -223,7 +223,7 @@ impl Address {
             Address::Modbus { addr, .. } => match addr {
                 ModBusAddress::Serial { path, .. } => HandleId::new(path.to_string()),
                 ModBusAddress::Tcp { addr } => HandleId::new(addr.to_string()),
-                ModBusAddress::Ftdi { addr } => HandleId ::new(addr.serial_number.to_string()),
+                ModBusAddress::Ftdi { addr } => HandleId::new(addr.serial_number.to_string()),
             },
             Address::Vxi { addr } => HandleId::new(addr.to_string()),
             Address::Tcp { addr } => HandleId::new(addr.to_string()),

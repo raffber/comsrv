@@ -45,7 +45,9 @@ impl Display for ModBusAddress {
                 f.write_fmt(format_args!("{}::{}", path, params))
             }
             ModBusAddress::Tcp { addr } => f.write_fmt(format_args!("{}", addr)),
-            ModBusAddress::Ftdi { addr } => f.write_fmt(format_args!("{}::{}", addr.serial_number, addr.params)),
+            ModBusAddress::Ftdi { addr } => {
+                f.write_fmt(format_args!("{}::{}", addr.serial_number, addr.params))
+            }
         }
     }
 }

@@ -25,8 +25,7 @@ use tokio::sync::mpsc::{UnboundedReceiver as AsyncReceiver, UnboundedSender as A
 use crate::iotask::IoHandler;
 use crate::iotask::IoTask;
 use crate::serial::SerialParams;
-use crate::tcp::TcpRequest;
-use crate::tcp::TcpResponse;
+
 use libftd2xx::Ftdi;
 
 pub enum FtdiRequest {
@@ -122,7 +121,9 @@ impl Bridge {
                 return;
             }
         };
-        if let Err(status) = device.set_timeouts(Duration::from_millis(10), Duration::from_millis(100)) {
+        if let Err(status) =
+            device.set_timeouts(Duration::from_millis(10), Duration::from_millis(100))
+        {
             let _ = data_tx.send(Err(Self::status_to_io_error(status)));
             let _ = device.close();
             return;

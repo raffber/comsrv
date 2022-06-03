@@ -4,7 +4,7 @@ use wsrpc::server::{Requested, Server as WsrpcServer};
 
 use crate::address::Address;
 use crate::can::Request as InternalCanRequest;
-use crate::ftdi::{FtdiAddress, FtdiRequest, FtdiResponse};
+use crate::ftdi::{FtdiRequest, FtdiResponse};
 use crate::instrument::Instrument;
 use crate::inventory::Inventory;
 use crate::modbus::{ModBusAddress, ModBusTransport};
@@ -17,7 +17,7 @@ use comsrv_protocol::{
     Request, Response, ScpiRequest, ScpiResponse,
 };
 use comsrv_protocol::{HidRequest, HidResponse};
-use std::ops::Add;
+
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -193,7 +193,7 @@ impl App {
                             return Err(Error::NotSupported);
                         }
                     }
-                },
+                }
                 ModBusTransport::Tcp => return Err(Error::NotSupported),
             },
         }

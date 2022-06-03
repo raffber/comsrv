@@ -1,13 +1,13 @@
 use crate::address::Address;
 use crate::app::Server;
 use crate::can::Instrument as CanInstrument;
+use crate::ftdi::Instrument as FtdiInstrument;
 use crate::hid::Instrument as HidInstrument;
 use crate::modbus::{ModBusAddress, ModBusTcpInstrument, ModBusTransport};
 use crate::serial::Instrument as SerialInstrument;
 use crate::tcp::Instrument as TcpInstrument;
 use crate::visa::asynced::Instrument as VisaInstrument;
 use crate::vxi::Instrument as VxiInstrument;
-use crate::ftdi::Instrument as FtdiInstrument;
 
 #[derive(Clone)]
 pub enum Instrument {

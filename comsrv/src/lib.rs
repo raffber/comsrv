@@ -27,6 +27,7 @@ mod bytestream;
 mod can;
 mod clonable_channel;
 mod cobs;
+mod ftdi;
 mod hid;
 mod instrument;
 mod inventory;
@@ -39,7 +40,6 @@ mod sigrok;
 mod tcp;
 pub mod visa;
 mod vxi;
-mod ftdi;
 
 #[derive(Error, Debug, Clone, Serialize, Deserialize)]
 pub enum Error {
