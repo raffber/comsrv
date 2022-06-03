@@ -7,19 +7,20 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::task::Poll;
 use std::task::Context;
+use std::thread;
 
 use async_trait::async_trait;
 use comsrv_protocol::ByteStreamRequest;
-use comsrv_protocol::ByteStreamResponse;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::sync::mpsc;
 use tokio::sync::mpsc::{UnboundedSender as AsyncSender, UnboundedReceiver as AsyncReceiver};
 
 use crate::iotask::IoHandler;
 use crate::iotask::IoTask;
-use crate::serial;
 use crate::serial::SerialParams;
 use crate::tcp::TcpRequest;
 use crate::tcp::TcpResponse;
+use libftd2xx::Ftdi;
 
 
 #[derive(Hash, Clone)]
@@ -48,11 +49,41 @@ pub struct Bridge {
 
 impl Bridge {
     fn new(address: FtdiAddress) {
+        let cancel = Arc::new(AtomicBool::new(false));
+        let (sender_tx, sender_rx) = mpsc::unbounded_channel();
+        let (receiver_tx, receiver_rx) = mpsc::unbounded_channel();
 
+        thread::spawn(move || {
+            Self::sender(address.clone(), sender_rx)
+        });
+
+        thread::spawn(move || {
+            Self::receiver(address.clone(), receiver_tx);
+        });
+
+        Self {
+            cancel,
+            sender: sender_tx,
+            receier: receiver_rx,
+            buffer: todo!(),
+            tx_error: todo!(),
+        }
     }
 
     async fn close(&mut self) {
         todo!()
+    }
+
+    fn receiver(address: FtdiAddress, rx: AsyncSender<BridgeSendMessage>) {
+        // while let Some(add)
+    }
+
+    fn sender(address: FtdiAddress, rx: AsyncReceiver<BridgeSendMessage>) {
+        let device = Ftdi::with_serial_number(address.serial_number).unwrap();
+        while let Some(tx_msg) =  rx.blocking_recv() {
+            // TODO: send....
+        }
+        device.
     }
 
     fn push_to_output_buffer(&mut self, buf: &mut tokio::io::ReadBuf<'_>) -> bool {
