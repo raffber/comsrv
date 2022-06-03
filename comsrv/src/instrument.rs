@@ -48,6 +48,7 @@ impl Instrument {
                     ModBusTransport::Rtu => Instrument::Tcp(TcpInstrument::new(*addr)),
                     ModBusTransport::Tcp => Instrument::ModBusTcp(ModBusTcpInstrument::new(*addr)),
                 },
+                ModBusAddress::Ftdi { addr } => Instrument::Ftdi(FtdiInstrument::new(addr.clone())),
             },
             Address::Tcp { addr } => Instrument::Tcp(TcpInstrument::new(*addr)),
             Address::Vxi { addr } => Instrument::Vxi(VxiInstrument::new(*addr)),
@@ -84,6 +85,13 @@ impl Instrument {
     pub fn into_modbus_tcp(self) -> Option<ModBusTcpInstrument> {
         match self {
             Instrument::ModBusTcp(instr) => Some(instr),
+            _ => None,
+        }
+    }
+
+    pub fn into_ftdi(self) -> Option<FtdiInstrument> {
+        match self {
+            Instrument::Ftdi(instr) => Some(instr),
             _ => None,
         }
     }

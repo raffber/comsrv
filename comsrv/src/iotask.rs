@@ -60,7 +60,7 @@ impl<T: 'static + IoHandler> IoTask<T> {
                         let _ = answer.send(result);
                     }
                     RequestMsg::Drop => {
-                        handler.disconnect();
+                        handler.disconnect().await;
                         break;
                     }
                 }

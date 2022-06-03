@@ -47,8 +47,8 @@ pub enum Address {
         idn: HidIdentifier,
     },
     Ftdi {
-        addr: FtdiAddress
-    }
+        addr: FtdiAddress,
+    },
 }
 
 impl Address {
@@ -97,7 +97,7 @@ impl Address {
                 if splits.len() != 5 && splits.len() != 6 {
                     return Err(Error::InvalidAddress);
                 }
-                let (path, params) = SerialParams::from_address(&splits[2..5])?;
+                let (path, params) = SerialParams::from_address_with_path(&splits[2..5])?;
                 let slave_id: u8 = if splits.len() == 6 {
                     splits[5].parse().map_err(|_| Error::InvalidAddress)?
                 } else {
@@ -143,7 +143,7 @@ impl Address {
                 return Err(Error::InvalidAddress);
             }
             let new_splits: Vec<&str> = splits.iter().map(|x| x.as_ref()).collect();
-            let (path, params) = SerialParams::from_address(&new_splits[1..4])?;
+            let (path, params) = SerialParams::from_address_with_path(&new_splits[1..4])?;
             Ok(Address::Serial { path, params })
         } else if splits[0].to_lowercase() == "tcp" {
             // tcp::192.168.0.1:1234
@@ -186,6 +186,15 @@ impl Address {
             Ok(Address::Sigrok {
                 device: splits[1].clone(),
             })
+        } else if splits[0].to_lowercase() == "ftdi" {
+            let new_splits: Vec<&str> = splits.iter().map(|x| x.as_ref()).collect();
+            let (serial_number, params) = SerialParams::from_address_with_path(&new_splits[1..4])?;
+            Ok(Address::Ftdi {
+                addr: FtdiAddress {
+                    serial_number: serial_number,
+                    params,
+                },
+            })
         } else if splits[0].to_lowercase() == "hid" {
             if splits.len() != 3 {
                 return Err(Error::InvalidAddress);
@@ -214,13 +223,16 @@ impl Address {
             Address::Modbus { addr, .. } => match addr {
                 ModBusAddress::Serial { path, .. } => HandleId::new(path.to_string()),
                 ModBusAddress::Tcp { addr } => HandleId::new(addr.to_string()),
+                ModBusAddress::Ftdi { addr } => HandleId ::new(addr.serial_number.to_string()),
             },
             Address::Vxi { addr } => HandleId::new(addr.to_string()),
             Address::Tcp { addr } => HandleId::new(addr.to_string()),
             Address::Can { addr } => HandleId::new(addr.interface()),
             Address::Sigrok { device } => HandleId::new(device.to_string()),
             Address::Hid { .. } => HandleId::new(self.clone().into()),
-            Address::Ftdi { addr } => HandleId { inner: addr.serial_number.to_lowercase() },
+            Address::Ftdi { addr } => HandleId {
+                inner: addr.serial_number.to_lowercase(),
+            },
         }
     }
 }

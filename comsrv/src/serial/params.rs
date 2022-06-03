@@ -60,24 +60,27 @@ pub struct SerialParams {
 }
 
 impl SerialParams {
-    pub fn from_address(addr_parts: &[&str]) -> crate::Result<(String, SerialParams)> {
+    pub fn from_address_with_path(addr_parts: &[&str]) -> crate::Result<(String, SerialParams)> {
         if addr_parts.len() != 3 {
             return Err(crate::Error::InvalidAddress);
         }
         let path = addr_parts[0].into();
+        let params = Self::from_address(&addr_parts[1..])?;
+        Ok((path, params))
+    }
+
+    pub fn from_address(addr_parts: &[&str]) -> crate::Result<SerialParams> {
         let baud_rate: u32 = addr_parts[1]
             .parse()
             .map_err(|_| crate::Error::InvalidAddress)?;
         let (bits, parity, stop) = parse_serial_settings(&addr_parts[2])?;
-        Ok((
-            path,
-            SerialParams {
-                baud: baud_rate,
-                data_bits: bits,
-                stop_bits: stop,
-                parity,
-            },
-        ))
+
+        Ok(SerialParams {
+            baud: baud_rate,
+            data_bits: bits,
+            stop_bits: stop,
+            parity,
+        })
     }
 }
 

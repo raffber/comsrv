@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use async_trait::async_trait;
 use tokio_modbus::client::{tcp, Client, Context, Reader, Writer};
 
+use crate::ftdi::FtdiAddress;
 use crate::iotask::{IoHandler, IoTask};
 use crate::serial::SerialParams;
 use crate::Error;
@@ -34,6 +35,7 @@ impl Display for ModBusTransport {
 pub enum ModBusAddress {
     Serial { path: String, params: SerialParams },
     Tcp { addr: SocketAddr },
+    Ftdi { addr: FtdiAddress },
 }
 
 impl Display for ModBusAddress {
@@ -43,6 +45,7 @@ impl Display for ModBusAddress {
                 f.write_fmt(format_args!("{}::{}", path, params))
             }
             ModBusAddress::Tcp { addr } => f.write_fmt(format_args!("{}", addr)),
+            ModBusAddress::Ftdi { addr } => f.write_fmt(format_args!("{}::{}", addr.serial_number, addr.params)),
         }
     }
 }

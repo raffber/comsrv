@@ -12,6 +12,9 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use comsrv_protocol::ByteStreamRequest;
+use comsrv_protocol::ByteStreamResponse;
+use comsrv_protocol::ModBusRequest;
+use comsrv_protocol::ModBusResponse;
 use libftd2xx::FtStatus;
 use libftd2xx::FtdiCommon;
 use libftd2xx::TimeoutError;
@@ -25,6 +28,23 @@ use crate::serial::SerialParams;
 use crate::tcp::TcpRequest;
 use crate::tcp::TcpResponse;
 use libftd2xx::Ftdi;
+
+pub enum FtdiRequest {
+    ModBus {
+        params: SerialParams,
+        req: ModBusRequest,
+        slave_addr: u8,
+    },
+    Serial {
+        params: SerialParams,
+        req: ByteStreamRequest,
+    },
+}
+
+pub enum FtdiResponse {
+    Bytes(ByteStreamResponse),
+    ModBus(ModBusResponse),
+}
 
 #[derive(Hash, Clone)]
 pub struct FtdiAddress {
@@ -60,13 +80,17 @@ impl Bridge {
         thread::spawn({
             let address = address.clone();
             let sender_error = sender_error.clone();
-            move || {Self::sender(address, sender_rx, sender_error);}
+            move || {
+                Self::sender(address, sender_rx, sender_error);
+            }
         });
 
         thread::spawn({
             let address = address.clone();
             let cancel = cancel.clone();
-            move || {Self::receiver(address.clone(), receiver_tx, cancel);}
+            move || {
+                Self::receiver(address.clone(), receiver_tx, cancel);
+            }
         });
 
         Self {
@@ -98,7 +122,11 @@ impl Bridge {
                 return;
             }
         };
-        device.set_timeouts(Duration::from_millis(10), Duration::from_millis(100));
+        if let Err(status) = device.set_timeouts(Duration::from_millis(10), Duration::from_millis(100)) {
+            let _ = data_tx.send(Err(Self::status_to_io_error(status)));
+            let _ = device.close();
+            return;
+        }
         loop {
             if cancel.load(Ordering::Relaxed) {
                 break;
@@ -113,8 +141,10 @@ impl Bridge {
                         break;
                     }
                 }
-                Err(TimeoutError::Timeout { actual: bytes_read, .. }) => {
-                    let data = buf[0 .. bytes_read].to_vec();
+                Err(TimeoutError::Timeout {
+                    actual: bytes_read, ..
+                }) => {
+                    let data = buf[0..bytes_read].to_vec();
                     if data_tx.send(Ok(data)).is_err() {
                         // remote channel dropped
                         break;
@@ -127,7 +157,7 @@ impl Bridge {
                 }
             }
         }
-        device.close();
+        let _ = device.close();
     }
 
     fn sender(
@@ -148,7 +178,7 @@ impl Bridge {
             match tx_msg {
                 BridgeSendMessage::Cancel => break,
                 BridgeSendMessage::Data(data) => {
-                    if let Err(err) = device.write_all(&data) {
+                    if let Err(_err) = device.write_all(&data) {
                         let mut locked_error = error.lock().unwrap();
                         let err = io::Error::new(io::ErrorKind::TimedOut, "Write timeout occurred");
                         locked_error.replace(err);
@@ -156,7 +186,7 @@ impl Bridge {
                 }
             }
         }
-        device.close();
+        let _ = device.close();
     }
 
     fn push_to_output_buffer(&mut self, buf: &mut tokio::io::ReadBuf<'_>) -> bool {
@@ -208,7 +238,7 @@ impl AsyncRead for Bridge {
 impl AsyncWrite for Bridge {
     fn poll_write(
         self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
+        _cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<Result<usize, io::Error>> {
         let mut lock = self.sender_error.lock().unwrap();
@@ -225,7 +255,7 @@ impl AsyncWrite for Bridge {
         Poll::Ready(Ok(buf.len()))
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
         // TODO: send a flush message and send a oneshot
         // then keep polling that oneshot
         Poll::Ready(Ok(()))
@@ -233,7 +263,7 @@ impl AsyncWrite for Bridge {
 
     fn poll_shutdown(
         self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
+        _cx: &mut Context<'_>,
     ) -> Poll<Result<(), std::io::Error>> {
         let _ = self.sender.send(BridgeSendMessage::Cancel);
         self.cancel.store(true, Ordering::Relaxed);
@@ -261,7 +291,7 @@ impl Instrument {
         }
     }
 
-    pub async fn request(&mut self, req: TcpRequest) -> crate::Result<TcpResponse> {
+    pub async fn request(&mut self, req: FtdiRequest) -> crate::Result<FtdiResponse> {
         self.inner.request(req).await
     }
 
@@ -286,10 +316,10 @@ impl Handler {
 
 #[async_trait]
 impl IoHandler for Handler {
-    type Request = TcpRequest;
-    type Response = TcpResponse;
+    type Request = FtdiRequest;
+    type Response = FtdiResponse;
 
-    async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
+    async fn handle(&mut self, _req: Self::Request) -> crate::Result<Self::Response> {
         todo!()
     }
 
