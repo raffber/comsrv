@@ -21,6 +21,7 @@ use libftd2xx::TimeoutError;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{UnboundedReceiver as AsyncReceiver, UnboundedSender as AsyncSender};
+use std::sync::mpsc::{Sender as SyncSender, Receiver as SyncReceiver};
 
 use crate::iotask::IoHandler;
 use crate::iotask::IoTask;
@@ -34,10 +35,19 @@ pub enum FtdiRequest {
         req: ModBusRequest,
         slave_addr: u8,
     },
-    Serial {
+    Bytes {
         params: SerialParams,
         req: ByteStreamRequest,
     },
+}
+
+impl FtdiRequest {
+    fn params(&self) -> SerialParams {
+        match self {
+            FtdiRequest::ModBus { params, .. } => params.clone(),
+            FtdiRequest::Bytes { params, .. } => params.clone(),
+        }
+    }
 }
 
 pub enum FtdiResponse {
@@ -56,14 +66,15 @@ pub struct Request {
     params: SerialParams,
 }
 
-enum BridgeSendMessage {
+enum BridgeHandlerCommand {
     Cancel,
+    ReadSome,
     Data(Vec<u8>),
 }
 
 pub struct Bridge {
     cancel: Arc<AtomicBool>,
-    sender: AsyncSender<BridgeSendMessage>,
+    sender: SyncSender<BridgeHandlerCommand>,
     receier: AsyncReceiver<io::Result<Vec<u8>>>,
     buffer: VecDeque<u8>,
     sender_error: Arc<Mutex<Option<io::Error>>>,
@@ -72,7 +83,7 @@ pub struct Bridge {
 impl Bridge {
     fn new(address: FtdiAddress) -> Self {
         let cancel = Arc::new(AtomicBool::new(false));
-        let (sender_tx, sender_rx) = mpsc::unbounded_channel();
+        let (command_tx, command_rx) = std::sync::mpsc::channel();
         let (receiver_tx, receiver_rx) = mpsc::unbounded_channel();
         let sender_error = Arc::new(Mutex::new(None));
 
@@ -80,21 +91,13 @@ impl Bridge {
             let address = address.clone();
             let sender_error = sender_error.clone();
             move || {
-                Self::sender(address, sender_rx, sender_error);
-            }
-        });
-
-        thread::spawn({
-            let address = address.clone();
-            let cancel = cancel.clone();
-            move || {
-                Self::receiver(address.clone(), receiver_tx, cancel);
+                Self::handler_thread(address, command_rx, receiver_tx, sender_error);
             }
         });
 
         Self {
             cancel,
-            sender: sender_tx,
+            sender: command_tx,
             receier: receiver_rx,
             buffer: VecDeque::with_capacity(1024),
             sender_error: sender_error,
@@ -105,14 +108,16 @@ impl Bridge {
         io::Error::new(io::ErrorKind::Other, status.to_string())
     }
 
-    async fn close(&mut self) {
-        todo!()
+    async fn close(self) {
+        self.cancel.store(true, Ordering::Relaxed);
+        let _ = self.sender.send(BridgeHandlerCommand::Cancel);
     }
 
-    fn receiver(
+    fn handler_thread(
         address: FtdiAddress,
+        command_rx: SyncReceiver<BridgeHandlerCommand>,
         data_tx: AsyncSender<io::Result<Vec<u8>>>,
-        cancel: Arc<AtomicBool>,
+        error: Arc<Mutex<Option<io::Error>>>,
     ) {
         let mut device = match Ftdi::with_serial_number(&address.serial_number) {
             Ok(device) => device,
@@ -129,6 +134,18 @@ impl Bridge {
             return;
         }
         loop {
+            match command_rx.recv_timeout(Duration::from_millis(10)) {
+                Ok(BridgeHandlerCommand::Cancel) => {
+                    break;
+                },
+                Ok(BridgeHandlerCommand::Data(data)) => todo!(),
+                Ok(BridgeHandlerCommand::ReadSome) => todo!(),
+                Err(RecvTimeoutError::Timout) => todo!(),
+                Err(RecvTimeoutError::Disconnect) => todo!(),
+            }
+        };
+        loop {
+            
             if cancel.load(Ordering::Relaxed) {
                 break;
             }
@@ -155,35 +172,6 @@ impl Bridge {
                     let err = Self::status_to_io_error(status);
                     let _ = data_tx.send(Err(err));
                     break;
-                }
-            }
-        }
-        let _ = device.close();
-    }
-
-    fn sender(
-        address: FtdiAddress,
-        mut rx: AsyncReceiver<BridgeSendMessage>,
-        error: Arc<Mutex<Option<io::Error>>>,
-    ) {
-        let mut device = match Ftdi::with_serial_number(&address.serial_number) {
-            Ok(device) => device,
-            Err(status) => {
-                let mut locked_error = error.lock().unwrap();
-                let err = io::Error::new(io::ErrorKind::Other, status.to_string());
-                locked_error.replace(err);
-                return;
-            }
-        };
-        while let Some(tx_msg) = rx.blocking_recv() {
-            match tx_msg {
-                BridgeSendMessage::Cancel => break,
-                BridgeSendMessage::Data(data) => {
-                    if let Err(_err) = device.write_all(&data) {
-                        let mut locked_error = error.lock().unwrap();
-                        let err = io::Error::new(io::ErrorKind::TimedOut, "Write timeout occurred");
-                        locked_error.replace(err);
-                    }
                 }
             }
         }
@@ -248,7 +236,7 @@ impl AsyncWrite for Bridge {
         }
         if self
             .sender
-            .send(BridgeSendMessage::Data(buf.to_vec()))
+            .send(BridgeHandlerCommand::Data(buf.to_vec()))
             .is_err()
         {
             return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, "Disconnected")));
@@ -266,7 +254,7 @@ impl AsyncWrite for Bridge {
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
     ) -> Poll<Result<(), std::io::Error>> {
-        let _ = self.sender.send(BridgeSendMessage::Cancel);
+        let _ = self.sender.send(BridgeHandlerCommand::Cancel);
         self.cancel.store(true, Ordering::Relaxed);
         Poll::Ready(Ok(()))
     }
@@ -274,7 +262,7 @@ impl AsyncWrite for Bridge {
 
 impl Drop for Bridge {
     fn drop(&mut self) {
-        let _ = self.sender.send(BridgeSendMessage::Cancel);
+        let _ = self.sender.send(BridgeHandlerCommand::Cancel);
         self.cancel.store(true, Ordering::Relaxed);
     }
 }
@@ -320,12 +308,15 @@ impl IoHandler for Handler {
     type Request = FtdiRequest;
     type Response = FtdiResponse;
 
-    async fn handle(&mut self, _req: Self::Request) -> crate::Result<Self::Response> {
+    async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
+        let params = req.params();
+
+        
         todo!()
     }
 
     async fn disconnect(&mut self) {
-        if let Some(mut bridge) = self.device.take() {
+        if let Some(bridge) = self.device.take() {
             bridge.close().await;
         }
     }

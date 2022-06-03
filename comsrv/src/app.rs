@@ -189,7 +189,7 @@ impl App {
                         Ok(FtdiResponse::ModBus(ret)) => Ok(ret),
                         Err(x) => Err(x),
                         _ => {
-                            log::error!("SerialResponse was not ModBus but request was");
+                            log::error!("FtdiResponse was not ModBus but request was");
                             return Err(Error::NotSupported);
                         }
                     }
@@ -249,6 +249,21 @@ impl App {
         match &addr {
             Address::Serial { path: _, params } => self.handle_serial(&addr, params, task).await,
             Address::Tcp { .. } => self.handle_tcp(&addr, task).await,
+            Address::Ftdi { addr: ftdi_address } => {
+                let mut instr = self
+                    .inventory
+                    .connect(&self.server, &addr)
+                    .into_ftdi()
+                    .ok_or(Error::NotSupported)?;
+                match instr.request(FtdiRequest::Bytes {
+                    req: task,
+                    params: ftdi_address.params.clone()
+                }).await {
+                    Ok(FtdiResponse::Bytes(x)) => Ok(x),
+                    Err(x) => Err(x),
+                    _ => panic!(),
+                }
+            }
             _ => Err(Error::NotSupported),
         }
     }
