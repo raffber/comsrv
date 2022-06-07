@@ -4,7 +4,7 @@ use wsrpc::server::{Requested, Server as WsrpcServer};
 
 use crate::address::Address;
 use crate::can::Request as InternalCanRequest;
-use crate::ftdi::{FtdiRequest, FtdiResponse};
+use crate::ftdi::{FtdiRequest, FtdiResponse, self};
 use crate::instrument::Instrument;
 use crate::inventory::Inventory;
 use crate::modbus::{ModBusAddress, ModBusTransport};
@@ -400,7 +400,12 @@ impl App {
                 Ok(x) => Response::SerialPorts(x),
                 Err(x) => x.into(),
             },
-            Request::ListFtdiDevices => todo!(),
+            Request::ListFtdiDevices => {
+                match ftdi::list_ftdi().await {
+                    Ok(x) => Response::FtdiDevices(x),
+                    Err(x) => x.into(),
+                }
+            },
         }
     }
 }

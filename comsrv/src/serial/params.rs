@@ -18,8 +18,6 @@ pub enum Parity {
 
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum DataBits {
-    Five,
-    Six,
     Seven,
     Eight,
 }
@@ -33,8 +31,6 @@ pub fn parse_serial_settings(settings: &str) -> crate::Result<(DataBits, Parity,
     let data_bits = match chars[0] as char {
         '8' => DataBits::Eight,
         '7' => DataBits::Seven,
-        '6' => DataBits::Six,
-        '5' => DataBits::Five,
         _ => return Err(crate::Error::InvalidAddress),
     };
     let parity = match chars[1] as char {
@@ -133,23 +129,10 @@ impl Into<tokio_serial::Parity> for Parity {
     }
 }
 
-impl From<tokio_serial::DataBits> for DataBits {
-    fn from(x: tokio_serial::DataBits) -> Self {
-        match x {
-            tokio_serial::DataBits::Five => DataBits::Five,
-            tokio_serial::DataBits::Six => DataBits::Six,
-            tokio_serial::DataBits::Seven => DataBits::Seven,
-            tokio_serial::DataBits::Eight => DataBits::Eight,
-        }
-    }
-}
-
 #[allow(clippy::from_over_into)]
 impl Into<tokio_serial::DataBits> for DataBits {
     fn into(self) -> tokio_serial::DataBits {
         match self {
-            DataBits::Five => tokio_serial::DataBits::Five,
-            DataBits::Six => tokio_serial::DataBits::Six,
             DataBits::Seven => tokio_serial::DataBits::Seven,
             DataBits::Eight => tokio_serial::DataBits::Eight,
         }
@@ -159,8 +142,6 @@ impl Into<tokio_serial::DataBits> for DataBits {
 impl Display for DataBits {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let x = match self {
-            DataBits::Five => "5",
-            DataBits::Six => "6",
             DataBits::Seven => "7",
             DataBits::Eight => "8",
         };

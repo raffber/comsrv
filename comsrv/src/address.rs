@@ -412,7 +412,7 @@ mod tests {
             _ => panic!(),
         }
 
-        let addr = Address::parse("serial::COM1::9600::5E2").unwrap();
+        let addr = Address::parse("serial::COM1::9600::7E2").unwrap();
         match addr {
             Address::Serial { path, params } => {
                 assert_eq!(path, "COM1");
@@ -420,7 +420,7 @@ mod tests {
                     params,
                     SerialParams {
                         baud: 9600,
-                        data_bits: DataBits::Five,
+                        data_bits: DataBits::Seven,
                         stop_bits: StopBits::Two,
                         parity: Parity::Even,
                     }

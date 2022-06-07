@@ -85,6 +85,8 @@ pub enum Error {
     Sigrok(SigrokError),
     #[error("Hid error: {0}")]
     Hid(HidError),
+    #[error("No such device: {0}")]
+    NoSuchDevice(String),
     #[error("Other: {0}")]
     Other(String),
 }

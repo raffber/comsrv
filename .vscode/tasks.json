@@ -8,6 +8,13 @@
             "type": "shell",
             "command": "cd comsrv && cargo build",
             "problemMatcher": [],
+            "group": "build"
+        },
+        {
+            "label": "comsrv-check",
+            "type": "shell",
+            "command": "cd comsrv && cargo check",
+            "problemMatcher": [],
             "group": {
                 "kind": "build",
                 "isDefault": true

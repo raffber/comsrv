@@ -48,7 +48,7 @@ impl Instrument {
                     ModBusTransport::Rtu => Instrument::Tcp(TcpInstrument::new(*addr)),
                     ModBusTransport::Tcp => Instrument::ModBusTcp(ModBusTcpInstrument::new(*addr)),
                 },
-                ModBusAddress::Ftdi { addr } => Instrument::Ftdi(FtdiInstrument::new(addr.clone())),
+                ModBusAddress::Ftdi { addr } => Instrument::Ftdi(FtdiInstrument::new(&addr.serial_number)),
             },
             Address::Tcp { addr } => Instrument::Tcp(TcpInstrument::new(*addr)),
             Address::Vxi { addr } => Instrument::Vxi(VxiInstrument::new(*addr)),
@@ -57,7 +57,7 @@ impl Instrument {
                 return None;
             }
             Address::Hid { idn } => Instrument::Hid(HidInstrument::new(idn.clone())),
-            Address::Ftdi { addr } => Instrument::Ftdi(FtdiInstrument::new(addr.clone())),
+            Address::Ftdi { addr } => Instrument::Ftdi(FtdiInstrument::new(&addr.serial_number)),
         };
         Some(ret)
     }
