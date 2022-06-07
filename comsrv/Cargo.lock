@@ -64,6 +64,7 @@ dependencies = [
 [[package]]
 name = "async-ftdi"
 version = "0.1.0"
+source = "git+https://github.com/raffber/async-ftdi.git?rev=f61d5a19cf2f29e79bcc8cf443edef1d2b6cfd0a#f61d5a19cf2f29e79bcc8cf443edef1d2b6cfd0a"
 dependencies = [
  "libc",
  "libftd2xx",
