@@ -161,7 +161,11 @@ impl IoHandler for Handler {
                 .map(FtdiResponse::Bytes),
         };
 
-        self.device.replace((ftdi, params));
+        if !ret.is_err() {
+            self.device.replace((ftdi, params));
+        } else {
+            ftdi.close();
+        }
         ret
     }
 

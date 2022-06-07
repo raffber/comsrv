@@ -66,10 +66,13 @@ impl SerialParams {
     }
 
     pub fn from_address(addr_parts: &[&str]) -> crate::Result<SerialParams> {
-        let baud_rate: u32 = addr_parts[1]
+        if addr_parts.len() < 2 {
+            return Err(crate::Error::InvalidAddress);
+        }
+        let baud_rate: u32 = addr_parts[0]
             .parse()
             .map_err(|_| crate::Error::InvalidAddress)?;
-        let (bits, parity, stop) = parse_serial_settings(&addr_parts[2])?;
+        let (bits, parity, stop) = parse_serial_settings(&addr_parts[1])?;
 
         Ok(SerialParams {
             baud: baud_rate,

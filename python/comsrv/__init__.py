@@ -4,12 +4,6 @@ to instruments.
 """
 
 from math import prod
-from .hid import HidDevice, enumerate_hid_devices
-from .sigrok import SigrokDevice
-from .scpi import ScpiPipe, SerialScpiPipe
-from .can import CanBus
-from .bytestream import ByteStreamPipe
-from .modbus import ModBusDevice
 import json
 from typing import List, Union, Optional
 
@@ -87,7 +81,7 @@ class Rpc(object):
         raise NotImplementedError
 
     @classmethod
-    def make_default():
+    def make_default(cls):
         return HttpRpc()
 
 
@@ -316,3 +310,9 @@ class ComSrv(object):
         return ret
 
 
+from .hid import HidDevice, enumerate_hid_devices
+from .sigrok import SigrokDevice
+from .scpi import ScpiPipe, SerialScpiPipe
+from .can import CanBus
+from .bytestream import ByteStreamPipe
+from .modbus import ModBusDevice
