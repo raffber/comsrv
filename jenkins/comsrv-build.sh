@@ -12,18 +12,26 @@ group_id="$2"
 
 groupadd -g $group_id docker
 useradd -u $user_id -g $group_id docker 
-# echo "docker:docker" | chpasswd
-# adduser docker sudo
 
 chown -R $user_id:$group_id /cargo /home /rust
 usermod -d /home docker
 
-# echo $HOME
-# which cargo
-# cargo xwin build --target x86_64-pc-windows-msvc --release
-su - docker -c "cargo build"
+(
+cat <<'EOF'
+#!/bin/bash
 
-# echo $PATH
+set -euxfo pipefail
 
-# sudo -u docker -H echo $PATH
-# sudo -u docker -H cargo build 
+export PATH="/cargo/bin:/rust/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+cd /data/comsrv
+
+cargo build --release
+cargo xwin build --target x86_64-pc-windows-msvc --release
+EOF
+) > /home/build.sh
+
+chmod +x /home/build.sh
+
+sudo -E -u docker /home/build.sh
+
