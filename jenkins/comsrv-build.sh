@@ -1,11 +1,29 @@
 #!/bin/bash
 
+set -euxfo pipefail
+
 curdir=$(dirname "$0")
 rootdir=$(realpath "$curdir"/..)
 
-rm -rf "$rootdir"/comsrv/target
+cd "$rootdir"/comsrv
 
-docker run -v "$rootdir":/data -w /data/comsrv -u "$(id -u)":"$(id -g)" comsrv-agent cargo build --release
-docker run -v "$rootdir":/data -w /data/comsrv -u "$(id -u)":"$(id -g)" comsrv-agent cargo build --target x86_64-pc-windows-gnu --release
+user_id="$1"
+group_id="$2"
 
+groupadd -g $group_id docker
+useradd -u $user_id -g $group_id docker 
+# echo "docker:docker" | chpasswd
+# adduser docker sudo
 
+chown -R $user_id:$group_id /cargo /home /rust
+usermod -d /home docker
+
+# echo $HOME
+# which cargo
+# cargo xwin build --target x86_64-pc-windows-msvc --release
+su - docker -c "cargo build"
+
+# echo $PATH
+
+# sudo -u docker -H echo $PATH
+# sudo -u docker -H cargo build 

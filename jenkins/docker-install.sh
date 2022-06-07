@@ -14,5 +14,5 @@ apt-get install --yes build-essential libudev-dev udev pkg-config mingw-w64 libc
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
 rustup install 1.61.0
-rustup target add x86_64-pc-windows-gnu
-
+rustup target add x86_64-pc-windows-msvc
+cargo install cargo-xwin

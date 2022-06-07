@@ -64,7 +64,7 @@ dependencies = [
 [[package]]
 name = "async-ftdi"
 version = "0.1.0"
-source = "git+https://github.com/raffber/async-ftdi.git?rev=f61d5a19cf2f29e79bcc8cf443edef1d2b6cfd0a#f61d5a19cf2f29e79bcc8cf443edef1d2b6cfd0a"
+source = "git+https://github.com/raffber/async-ftdi.git?rev=1270047c11b95ae073a34508ff6db99505a40eb3#1270047c11b95ae073a34508ff6db99505a40eb3"
 dependencies = [
  "libc",
  "libftd2xx",
@@ -756,8 +756,7 @@ dependencies = [
 [[package]]
 name = "libftd2xx-ffi"
 version = "0.8.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e8cf5966ff0fce5ba34b3f5fb3fc52992608c124b020531656005738b30107a"
+source = "git+https://github.com/raffber/libftd2xx-ffi.git?rev=b14b48ce338b178f2bc25297e60f0eff5e23526c#b14b48ce338b178f2bc25297e60f0eff5e23526c"
 dependencies = [
  "cfg-if 1.0.0",
 ]
