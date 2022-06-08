@@ -7,7 +7,6 @@ use comsrv_protocol::ByteStreamResponse;
 use comsrv_protocol::FtdiDeviceInfo;
 use comsrv_protocol::ModBusRequest;
 use comsrv_protocol::ModBusResponse;
-use tokio::time::sleep;
 use tokio_modbus::client::rtu;
 use tokio_modbus::prelude::Slave;
 use std::cmp::PartialOrd;
@@ -127,16 +126,14 @@ impl IoHandler for Handler {
 
     async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
         let params = req.params();
-        let mut ftdi = if let Some((ftdi, open_params)) = self.device.take() {
+        let mut ftdi = if let Some((mut ftdi, open_params)) = self.device.take() {
             if params != open_params {
-                ftdi.close();
-                // XXX: unfortunately there is no synchroniziation on closing the handles
-                sleep(Duration::from_millis(50)).await;
-                let new_params: async_ftdi::SerialParams = params.clone().into();
-                Ftdi::open(&self.serial_number, &new_params).await?
-            } else {
-                ftdi
-            }
+                if let Err(x) = ftdi.set_params(params.clone().into()).await {
+                    ftdi.close().await;
+                    return Err(x.into()); 
+                }
+            } 
+            ftdi
         } else {
             Ftdi::open(&self.serial_number, &params.clone().into()).await?
         };
@@ -164,14 +161,14 @@ impl IoHandler for Handler {
         if !ret.is_err() {
             self.device.replace((ftdi, params));
         } else {
-            ftdi.close();
+            ftdi.close().await;
         }
         ret
     }
 
     async fn disconnect(&mut self) {
         if let Some((ftdi, ..)) = self.device.take() {
-            ftdi.close();
+            ftdi.close().await;
         }
     }
 }
