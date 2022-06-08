@@ -158,11 +158,14 @@ impl IoHandler for Handler {
                 .map(FtdiResponse::Bytes),
         };
 
-        if !ret.is_err() {
+        // don't close the device for certain error types if they are clearly related to the application
+        match ret {
+            Ok(_) | Err(crate::Error::Timeout) | Err(crate::Error::InvalidResponse) => {
             self.device.replace((ftdi, params));
-        } else {
-            ftdi.close().await;
+            },
+            Err(_) => ftdi.close().await,
         }
+
         ret
     }
 

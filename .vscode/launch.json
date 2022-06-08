@@ -13,7 +13,8 @@
             "cwd": "${workspaceFolder}/comsrv",
             "env": {
                 "RUST_LOG": "debug"
-            }
+            },
+            "preLaunchTask": "comsrv-build",
         }
 
     ]
