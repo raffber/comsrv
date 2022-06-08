@@ -7,7 +7,7 @@ newer than ubuntu 20.04.
 Build the base docker image:
 
 ```shell
-$ docker build . -t poke-agent
+$ docker build . -t comsrv-agent
 ```
 
 ## Building the comsrv
@@ -20,8 +20,3 @@ $ ./comsrv-build.sh
 
 This will build the `comsrv` and place the resulting binary in `../comsrv/target/release`.
 
-
-## Testing pokemgr
-
-Running `./test-pokemgr.sh` will spin up a docker container with a mongodb instance and run the tests
-from `pokemgr` there.

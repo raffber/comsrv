@@ -1,7 +1,7 @@
 pipeline {
     agent {
         dockerfile {
-            dir 'jenkins'
+            image 'docker.gcteu.ch/comsrv-agent'
         }
     }
     stages {
@@ -12,9 +12,8 @@ pipeline {
         }
         stage('build-artifacts') {
             steps {
-                sh 'cd comsrv && cargo build --release'
-                sh 'cd comsrv && cargo build --target x86_64-pc-windows-gnu --release'
-                archiveArtifacts(artifacts: 'comsrv/target/release/comsrv, comsrv/target/x86_64-pc-windows-gnu/release/comsrv.exe')
+                sh './jenkins/build-comsrv.sh'
+                archiveArtifacts(artifacts: 'comsrv/target/release/comsrv, comsrv/target/x86_64-pc-windows-msvc/release/comsrv.exe')
             }
         }
     }
