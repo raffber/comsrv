@@ -1,6 +1,7 @@
 import base64
 
-from . import ComSrvError, ByteStreamPipe, BasePipe
+from . import ComSrvError, BasePipe
+from .bytestream import ByteStreamPipe
 
 class ScpiPipe(BasePipe):
     @property

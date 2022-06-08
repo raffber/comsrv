@@ -44,7 +44,7 @@ class HidDevice(BasePipe):
 
 async def enumerate_hid_devices(rpc=None, timeout=1.0) -> List[HidDeviceInfo]:
     if rpc is None:
-        rpc = HttpRpc()
+        rpc = Rpc.make_default()
     result = await rpc.get({'ListHidDevices': None}, timeout)
     if 'Error' in result:
         raise ComSrvError(result['Error']['Hid'])

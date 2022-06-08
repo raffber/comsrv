@@ -3,8 +3,9 @@ This modules implements the API of the `comsrv` utility to connect
 to instruments.
 """
 
+from math import prod
 import json
-from typing import Union, Optional
+from typing import List, Union, Optional
 
 from aiohttp import ClientSession
 
@@ -79,6 +80,10 @@ class Rpc(object):
     async def get(self, data, timeout):
         raise NotImplementedError
 
+    @classmethod
+    def make_default(cls):
+        return HttpRpc()
+
 
 class HttpRpc(Rpc):
     def __init__(self, url=None):
@@ -119,9 +124,9 @@ async def get(url, data):
 class BasePipe(object):
     DEFAULT_TIMEOUT = 1.0
 
-    def __init__(self, addr, rpc: Optional[Client] = None):
+    def __init__(self, addr, rpc: Optional[Rpc] = None):
         if rpc is None:
-            rpc = HttpRpc()
+            rpc = Rpc.make_default()
         self._addr = addr
         self._lock_time = 1.0
         self._lock = None
@@ -218,12 +223,24 @@ class BasePipe(object):
         await ComSrv(rpc=self._rpc).drop(self._addr)
 
 
+class FtdiDeviceInfo(object):
+    def __init__(self, port_open: bool, vendor_id: int, product_id: int, serial_number: str, description: str) -> None:
+        self.port_open = port_open
+        self.vendor_id = vendor_id
+        self.product_id = product_id
+        self.serial_number = serial_number
+        self.description = description
+
+    def to_address(self, baudrate: int, params: str = '8N1'):
+        return 'ftdi::{}::{}::{}'.format(self.serial_number, baudrate, params)
+
+
 class ComSrv(object):
     DEFAULT_TIMEOUT = 1.0
 
     def __init__(self, rpc=None, timeout=DEFAULT_TIMEOUT):
         if rpc is None:
-            rpc = HttpRpc()
+            rpc = HttpRpc.make_default()
         self._rpc = rpc
         self._timeout = timeout
 
@@ -281,10 +298,21 @@ class ComSrv(object):
             raise ComSrvError(result['Error'])
         return result['SerialPorts']
 
+    async def list_ftdis(self) -> List[FtdiDeviceInfo]:
+        result = await self.get({
+            'ListFtdiDevices': None,
+        })
+        if 'Error' in result:
+            raise ComSrvError(result['Error'])
+        ret = []
+        for x in result['FtdiDevices']:
+            ret.append(FtdiDeviceInfo(**x))
+        return ret
 
-from .modbus import ModBusDevice
-from .bytestream import ByteStreamPipe
-from .can import CanBus
-from .scpi import ScpiPipe, SerialScpiPipe
-from .sigrok import SigrokDevice
+
 from .hid import HidDevice, enumerate_hid_devices
+from .sigrok import SigrokDevice
+from .scpi import ScpiPipe, SerialScpiPipe
+from .can import CanBus
+from .bytestream import ByteStreamPipe
+from .modbus import ModBusDevice

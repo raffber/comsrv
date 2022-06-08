@@ -1,6 +1,8 @@
-from typing import Union
+from audioop import add
+from typing import Optional, Union
 
 from . import get, ComSrvError, BasePipe
+from . import Client
 
 
 class ByteStreamPipe(BasePipe):
