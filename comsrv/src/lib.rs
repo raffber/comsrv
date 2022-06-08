@@ -27,6 +27,7 @@ mod bytestream;
 mod can;
 mod clonable_channel;
 mod cobs;
+mod ftdi;
 mod hid;
 mod instrument;
 mod inventory;
@@ -84,6 +85,8 @@ pub enum Error {
     Sigrok(SigrokError),
     #[error("Hid error: {0}")]
     Hid(HidError),
+    #[error("No such device: {0}")]
+    NoSuchDevice(String),
     #[error("Other: {0}")]
     Other(String),
 }

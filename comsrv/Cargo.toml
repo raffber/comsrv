@@ -1,6 +1,6 @@
 [package]
 name = "comsrv"
-version = "1.2.0"
+version = "1.3.0"
 authors = ["Raphael Bernhard <beraphae@gmail.com>"]
 edition = "2018"
 
@@ -28,10 +28,15 @@ async-trait = "0.1.40"
 futures = "0.3.7"
 async-vxi11 = { git = "https://github.com/raffber/async-vxi11.git", rev = "0371e960f0a3018db83fabf4d773f585959e6e06" }
 async-can = { git = "https://github.com/raffber/async-can.git", rev = "a31f726fb4dc76bb2cbb49b65d921ea134e71766" }
+async-ftdi = {git = "https://github.com/raffber/async-ftdi.git", rev = "ce9d1448c8921a20d366ab2aebc35e6ac7564eeb"}
 byteorder = "1.3"
 bitvec = "0.20.1"
 hidapi = {version = "1.2.6", default-features = false, features = ["linux-static-hidraw"] }
 comsrv_protocol = { path = "../comsrv_protocol" }
+
+[dependencies.libftd2xx]
+version = "0.32"
+features = ["static"]
 
 [profile.release]
 lto = true
@@ -41,3 +46,6 @@ debug = 0
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+[patch.crates-io]
+libftd2xx-ffi = {git = "https://github.com/raffber/libftd2xx-ffi.git", rev="b14b48ce338b178f2bc25297e60f0eff5e23526c"}

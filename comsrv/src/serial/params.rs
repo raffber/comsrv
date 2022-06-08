@@ -18,8 +18,6 @@ pub enum Parity {
 
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum DataBits {
-    Five,
-    Six,
     Seven,
     Eight,
 }
@@ -33,8 +31,6 @@ pub fn parse_serial_settings(settings: &str) -> crate::Result<(DataBits, Parity,
     let data_bits = match chars[0] as char {
         '8' => DataBits::Eight,
         '7' => DataBits::Seven,
-        '6' => DataBits::Six,
-        '5' => DataBits::Five,
         _ => return Err(crate::Error::InvalidAddress),
     };
     let parity = match chars[1] as char {
@@ -60,24 +56,30 @@ pub struct SerialParams {
 }
 
 impl SerialParams {
-    pub fn from_address(addr_parts: &[&str]) -> crate::Result<(String, SerialParams)> {
+    pub fn from_address_with_path(addr_parts: &[&str]) -> crate::Result<(String, SerialParams)> {
         if addr_parts.len() != 3 {
             return Err(crate::Error::InvalidAddress);
         }
         let path = addr_parts[0].into();
-        let baud_rate: u32 = addr_parts[1]
+        let params = Self::from_address(&addr_parts[1..])?;
+        Ok((path, params))
+    }
+
+    pub fn from_address(addr_parts: &[&str]) -> crate::Result<SerialParams> {
+        if addr_parts.len() < 2 {
+            return Err(crate::Error::InvalidAddress);
+        }
+        let baud_rate: u32 = addr_parts[0]
             .parse()
             .map_err(|_| crate::Error::InvalidAddress)?;
-        let (bits, parity, stop) = parse_serial_settings(&addr_parts[2])?;
-        Ok((
-            path,
-            SerialParams {
-                baud: baud_rate,
-                data_bits: bits,
-                stop_bits: stop,
-                parity,
-            },
-        ))
+        let (bits, parity, stop) = parse_serial_settings(&addr_parts[1])?;
+
+        Ok(SerialParams {
+            baud: baud_rate,
+            data_bits: bits,
+            stop_bits: stop,
+            parity,
+        })
     }
 }
 
@@ -130,23 +132,10 @@ impl Into<tokio_serial::Parity> for Parity {
     }
 }
 
-impl From<tokio_serial::DataBits> for DataBits {
-    fn from(x: tokio_serial::DataBits) -> Self {
-        match x {
-            tokio_serial::DataBits::Five => DataBits::Five,
-            tokio_serial::DataBits::Six => DataBits::Six,
-            tokio_serial::DataBits::Seven => DataBits::Seven,
-            tokio_serial::DataBits::Eight => DataBits::Eight,
-        }
-    }
-}
-
 #[allow(clippy::from_over_into)]
 impl Into<tokio_serial::DataBits> for DataBits {
     fn into(self) -> tokio_serial::DataBits {
         match self {
-            DataBits::Five => tokio_serial::DataBits::Five,
-            DataBits::Six => tokio_serial::DataBits::Six,
             DataBits::Seven => tokio_serial::DataBits::Seven,
             DataBits::Eight => tokio_serial::DataBits::Eight,
         }
@@ -156,8 +145,6 @@ impl Into<tokio_serial::DataBits> for DataBits {
 impl Display for DataBits {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let x = match self {
-            DataBits::Five => "5",
-            DataBits::Six => "6",
             DataBits::Seven => "7",
             DataBits::Eight => "8",
         };

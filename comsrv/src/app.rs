@@ -4,6 +4,7 @@ use wsrpc::server::{Requested, Server as WsrpcServer};
 
 use crate::address::Address;
 use crate::can::Request as InternalCanRequest;
+use crate::ftdi::{FtdiRequest, FtdiResponse, self};
 use crate::instrument::Instrument;
 use crate::inventory::Inventory;
 use crate::modbus::{ModBusAddress, ModBusTransport};
@@ -16,6 +17,7 @@ use comsrv_protocol::{
     Request, Response, ScpiRequest, ScpiResponse,
 };
 use comsrv_protocol::{HidRequest, HidResponse};
+
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -121,6 +123,12 @@ impl App {
                 let slave_id = task.slave_id();
                 (addr, transport, slave_id)
             }
+            Address::Ftdi { addr } => {
+                let addr = ModBusAddress::Ftdi { addr };
+                let transport = ModBusTransport::Rtu;
+                let slave_id = task.slave_id();
+                (addr, transport, slave_id)
+            }
             _ => return Err(Error::InvalidAddress),
         };
 
@@ -167,6 +175,26 @@ impl App {
                     let mut instr = instr.into_modbus_tcp().ok_or(Error::NotSupported)?;
                     instr.request(task, slave_id).await
                 }
+            },
+            ModBusAddress::Ftdi { addr } => match transport {
+                ModBusTransport::Rtu => {
+                    let req = FtdiRequest::ModBus {
+                        params: addr.params,
+                        req: task,
+                        slave_addr: slave_id,
+                    };
+                    let mut instr = instr.into_ftdi().ok_or(Error::NotSupported)?;
+                    let ret = instr.request(req).await;
+                    match ret {
+                        Ok(FtdiResponse::ModBus(ret)) => Ok(ret),
+                        Err(x) => Err(x),
+                        _ => {
+                            log::error!("FtdiResponse was not ModBus but request was");
+                            return Err(Error::NotSupported);
+                        }
+                    }
+                }
+                ModBusTransport::Tcp => return Err(Error::NotSupported),
             },
         }
     }
@@ -221,6 +249,21 @@ impl App {
         match &addr {
             Address::Serial { path: _, params } => self.handle_serial(&addr, params, task).await,
             Address::Tcp { .. } => self.handle_tcp(&addr, task).await,
+            Address::Ftdi { addr: ftdi_address } => {
+                let mut instr = self
+                    .inventory
+                    .connect(&self.server, &addr)
+                    .into_ftdi()
+                    .ok_or(Error::NotSupported)?;
+                match instr.request(FtdiRequest::Bytes {
+                    req: task,
+                    params: ftdi_address.params.clone()
+                }).await {
+                    Ok(FtdiResponse::Bytes(x)) => Ok(x),
+                    Err(x) => Err(x),
+                    _ => panic!(),
+                }
+            }
             _ => Err(Error::NotSupported),
         }
     }
@@ -353,9 +396,15 @@ impl App {
                     build: version[2],
                 }
             }
-            Request::ListSerialPorts => match tokio_serial::available_ports() {
-                Ok(x) => Response::SerialPorts(x.iter().map(|x| x.port_name.clone()).collect()),
-                Err(err) => crate::Error::Other(err.description).into(),
+            Request::ListSerialPorts => match crate::serial::list_devices().await {
+                Ok(x) => Response::SerialPorts(x),
+                Err(x) => x.into(),
+            },
+            Request::ListFtdiDevices => {
+                match ftdi::list_ftdi().await {
+                    Ok(x) => Response::FtdiDevices(x),
+                    Err(x) => x.into(),
+                }
             },
         }
     }

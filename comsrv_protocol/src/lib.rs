@@ -52,6 +52,7 @@ pub enum Request {
     ListSigrokDevices,
     ListSerialPorts,
     ListHidDevices,
+    ListFtdiDevices,
     ListInstruments,
     Lock {
         addr: String,
@@ -87,6 +88,7 @@ pub enum Response {
         build: u32,
     },
     SerialPorts(Vec<String>),
+    FtdiDevices(Vec<FtdiDeviceInfo>),
     Done,
 }
 
@@ -314,4 +316,13 @@ impl HidIdentifier {
     pub fn vid(&self) -> u16 {
         self.vid
     }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct FtdiDeviceInfo {
+    pub port_open: bool,
+    pub vendor_id: u16,
+    pub product_id: u16,
+    pub serial_number: String,
+    pub description: String,
 }

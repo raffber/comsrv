@@ -1,6 +1,7 @@
 /// This module implements `Address` which is used for parsing
 /// address strings of the form "serial::COM3::115200::8N1"
 use crate::can::CanAddress;
+use crate::ftdi::FtdiAddress;
 use crate::modbus::{ModBusAddress, ModBusTransport};
 use crate::serial::SerialParams;
 use crate::Error;
@@ -44,6 +45,9 @@ pub enum Address {
     },
     Hid {
         idn: HidIdentifier,
+    },
+    Ftdi {
+        addr: FtdiAddress,
     },
 }
 
@@ -93,7 +97,7 @@ impl Address {
                 if splits.len() != 5 && splits.len() != 6 {
                     return Err(Error::InvalidAddress);
                 }
-                let (path, params) = SerialParams::from_address(&splits[2..5])?;
+                let (path, params) = SerialParams::from_address_with_path(&splits[2..5])?;
                 let slave_id: u8 = if splits.len() == 6 {
                     splits[5].parse().map_err(|_| Error::InvalidAddress)?
                 } else {
@@ -139,7 +143,7 @@ impl Address {
                 return Err(Error::InvalidAddress);
             }
             let new_splits: Vec<&str> = splits.iter().map(|x| x.as_ref()).collect();
-            let (path, params) = SerialParams::from_address(&new_splits[1..4])?;
+            let (path, params) = SerialParams::from_address_with_path(&new_splits[1..4])?;
             Ok(Address::Serial { path, params })
         } else if splits[0].to_lowercase() == "tcp" {
             // tcp::192.168.0.1:1234
@@ -182,6 +186,15 @@ impl Address {
             Ok(Address::Sigrok {
                 device: splits[1].clone(),
             })
+        } else if splits[0].to_lowercase() == "ftdi" {
+            let new_splits: Vec<&str> = splits.iter().map(|x| x.as_ref()).collect();
+            let (serial_number, params) = SerialParams::from_address_with_path(&new_splits[1..4])?;
+            Ok(Address::Ftdi {
+                addr: FtdiAddress {
+                    serial_number: serial_number,
+                    params,
+                },
+            })
         } else if splits[0].to_lowercase() == "hid" {
             if splits.len() != 3 {
                 return Err(Error::InvalidAddress);
@@ -210,12 +223,16 @@ impl Address {
             Address::Modbus { addr, .. } => match addr {
                 ModBusAddress::Serial { path, .. } => HandleId::new(path.to_string()),
                 ModBusAddress::Tcp { addr } => HandleId::new(addr.to_string()),
+                ModBusAddress::Ftdi { addr } => HandleId::new(addr.serial_number.to_string()),
             },
             Address::Vxi { addr } => HandleId::new(addr.to_string()),
             Address::Tcp { addr } => HandleId::new(addr.to_string()),
             Address::Can { addr } => HandleId::new(addr.interface()),
             Address::Sigrok { device } => HandleId::new(device.to_string()),
             Address::Hid { .. } => HandleId::new(self.clone().into()),
+            Address::Ftdi { addr } => HandleId {
+                inner: addr.serial_number.to_lowercase(),
+            },
         }
     }
 }
@@ -245,6 +262,7 @@ impl From<Address> for String {
             Address::Can { addr } => format!("can::{}", addr),
             Address::Sigrok { device } => format!("sigrok::{}", device),
             Address::Hid { idn } => format!("hid::{:#x}::{:#x}", idn.vid(), idn.pid()),
+            Address::Ftdi { addr } => format!("ftdi::{}::{}", addr.serial_number, addr.params),
         }
     }
 }
@@ -394,7 +412,7 @@ mod tests {
             _ => panic!(),
         }
 
-        let addr = Address::parse("serial::COM1::9600::5E2").unwrap();
+        let addr = Address::parse("serial::COM1::9600::7E2").unwrap();
         match addr {
             Address::Serial { path, params } => {
                 assert_eq!(path, "COM1");
@@ -402,7 +420,7 @@ mod tests {
                     params,
                     SerialParams {
                         baud: 9600,
-                        data_bits: DataBits::Five,
+                        data_bits: DataBits::Seven,
                         stop_bits: StopBits::Two,
                         parity: Parity::Even,
                     }
