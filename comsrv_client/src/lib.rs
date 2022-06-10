@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use comsrv_protocol::{Request, Response};
+use protocol::FtdiDeviceInfo;
 use serde_json::{Value as JsonValue, Value};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -176,6 +177,18 @@ pub async fn list_serial_ports<T: Rpc>(rpc: &mut T) -> crate::Result<Vec<String>
         .await
     {
         Ok(Response::SerialPorts(ret)) => Ok(ret),
+        Ok(Response::Error(x)) => Err(Error::from_rpc(x)),
+        Ok(_) => Err(Error::UnexpectdResponse),
+        Err(x) => Err(x),
+    }
+}
+
+pub async fn list_ftdis<T: Rpc>(rpc: &mut T) -> crate::Result<Vec<FtdiDeviceInfo>> {
+    match rpc
+        .request(Request::ListFtdiDevices, DEFAULT_RPC_TIMEOUT.clone())
+        .await
+    {
+        Ok(Response::FtdiDevices(ret)) => Ok(ret),
         Ok(Response::Error(x)) => Err(Error::from_rpc(x)),
         Ok(_) => Err(Error::UnexpectdResponse),
         Err(x) => Err(x),
