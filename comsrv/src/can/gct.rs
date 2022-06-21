@@ -117,7 +117,7 @@ impl DdpDecoderV2 {
         }
         let type_data = id.type_data();
         let idx = (type_data & 0xFF) as u32;
-        let eof = ((type_data >> 10) & 1) > 1;
+        let eof = ((type_data >> 10) & 1) != 0;
         if idx == 0 {
             self.reset();
             self.src_start_addr = id.src();
@@ -146,13 +146,14 @@ impl DdpDecoderV2 {
         for k in 0..(self.max_part_idx + 1) {
             data.extend(self.parts.get(&k).unwrap());
         }
+        let src_addr = self.src_start_addr;
         self.reset();
 
         if data.len() < 2 || crc16(&data) != 0 {
             return None;
         }
         Some(GctMessage::Ddp {
-            src: self.src_start_addr,
+            src: src_addr,
             dst: self.dst_addr,
             data: data[0..data.len() - 2].to_vec(),
             version: 2,
@@ -200,11 +201,13 @@ impl Decoder {
                     .ddp_v2
                     .entry(dst)
                     .or_insert_with(|| DdpDecoderV2::new(dst));
-                if let Some(x) = decoder_v1.decode(&msg) {
-                    Some(x)
-                } else if let Some(x) = decoder_v2.decode(msg) {
-                    Some(x)
-                } else {
+                let msg_v1 = decoder_v1.decode(&msg);
+                let msg_v2 = decoder_v2.decode(msg);
+                if let Some(msg) = msg_v1 {
+                    Some(msg)
+                } else if let Some(msg) = msg_v2 {
+                    Some(msg)
+                }  else {
                     None
                 }
             }

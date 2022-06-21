@@ -206,6 +206,10 @@ class MonitoringData(GctMessage):
         ret.data = bytes(msg['data'])
         return ret
 
+    def __repr__(self):
+        return '<comsrv.can.MonitoringData src={:x} group={} readings={} data={}>'.format(self.src, self.group_idx,
+                                                                                          self.reading_idx, self.data)
+
 
 class MonitoringRequest(GctMessage):
     def __init__(self):
@@ -231,15 +235,21 @@ class MonitoringRequest(GctMessage):
         ret.readings = msg['readings']
         return ret
 
+    def __repr__(self):
+        return '<comsrv.can.MonitoringData dst={:x} group={} readings={}>'.format(self.dst, self.group_idx,
+                                                                                  self.readings)
+
 
 class DdpMessage(GctMessage):
-    def __init__(self):
+    def __init__(self, version=1):
         super().__init__()
         self.dst = 0
         self.data = []
+        self.version = version
 
     def to_comsrv(self):
         return {'Ddp': {
+            'version': self.version,
             'src': self.src,
             'dst': self.dst,
             'data': list(self.data),
@@ -251,7 +261,12 @@ class DdpMessage(GctMessage):
         ret.src = msg['src']
         ret.dst = msg['dst']
         ret.data = bytes(msg['data'])
+        ret.version = msg.get('version', 1)
         return ret
+
+    def __repr__(self):
+        return '<comsrv.can.DdpMessage v={} src={:x} dst={:x} data={}>'.format(self.version, self.src, self.dst,
+                                                                               self.data)
 
 
 class Heartbeat(GctMessage):
@@ -271,7 +286,6 @@ class Heartbeat(GctMessage):
         ret.src = msg['src']
         ret.product_id = msg['product_id']
         return ret
-
 
 
 def gct_filter(msg):
