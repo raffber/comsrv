@@ -207,7 +207,7 @@ impl Decoder {
                     Some(msg)
                 } else if let Some(msg) = msg_v2 {
                     Some(msg)
-                }  else {
+                } else {
                     None
                 }
             }
@@ -239,10 +239,13 @@ fn encode_ddp_v1(src: u8, dst: u8, mut data: Vec<u8>) -> Vec<CanMessage> {
 }
 
 fn encode_ddp_v2(src: u8, dst: u8, mut data: Vec<u8>) -> Vec<CanMessage> {
+    if data.len() == 0 {
+        return vec![];
+    }
     let crc = crc16(&data);
     data.push((crc >> 8) as u8);
     data.push((crc & 0xFF_u16) as u8);
-    let max_idx = data.len() / 8;
+    let max_idx = (data.len() - 1) / 8;
     let mut ret = Vec::with_capacity(max_idx + 1);
     for (idx, chunk) in data.chunks(8).enumerate() {
         let mut type_data = idx & 0xFF;
