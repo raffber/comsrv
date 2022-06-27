@@ -16,9 +16,10 @@ use wsrpc::client::ClientError;
 
 pub mod bytestream;
 pub mod can;
+pub mod gctcan;
 pub mod http;
-pub mod ws;
 pub mod modbus;
+pub mod ws;
 
 pub use comsrv_protocol as protocol;
 
@@ -60,6 +61,18 @@ impl Error {
             }
             _ => Error::UnexpectdResponse,
         }
+    }
+}
+
+impl From<String> for Error {
+    fn from(x: String) -> Self {
+        crate::Error::Other(x)
+    }
+}
+
+impl From<&str> for Error {
+    fn from(x: &str) -> Self {
+        crate::Error::Other(x.to_string())
     }
 }
 
