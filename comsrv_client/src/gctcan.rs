@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use comsrv_protocol::GctMessage;
+use comsrv_protocol::{GctMessage, SysCtrlType};
 
 use crate::can::{CanBus, Message};
 
@@ -12,7 +12,16 @@ pub struct MonitorIndex {
 
 impl MonitorIndex {
     pub fn new(group_index: u8, reading_index: u8) -> anyhow::Result<Self> {
-        todo!()
+        if group_index > 31 {
+            anyhow::bail!("Invalid group index {}. Must be <= 31.", group_index);
+        }
+        if reading_index > 63 {
+            anyhow::bail!("Invalid reading index {}. Must be <= 63.", reading_index);
+        }
+        Ok(MonitorIndex {
+            group_index,
+            reading_index,
+        })
     }
 
     fn group_index(&self) -> u8 {
@@ -41,7 +50,10 @@ pub struct NodeId(u8);
 
 impl NodeId {
     pub fn new(node_id: u8) -> anyhow::Result<NodeId> {
-        todo!()
+        if node_id >= 0x7F || node_id == 0 {
+            anyhow::bail!("Invalid node_id: {}. Must be > 0 and < 0x7F", node_id);
+        }
+        Ok(NodeId(node_id))
     }
 
     pub fn broadcast_address() -> u8 {
@@ -159,23 +171,102 @@ impl GctCan {
         }
     }
 
-    pub async fn sysctrl_write(index: u8) -> crate::Result<()> {
-        todo!()
+    pub async fn sysctrl_write(
+        &mut self,
+        cmd: u16,
+        destination: NodeId,
+        data: Vec<u8>,
+    ) -> crate::Result<()> {
+        let msg = GctMessage::SysCtrl {
+            src: self.controller_node_id.0,
+            dst: destination.0,
+            cmd,
+            tp: comsrv_protocol::SysCtrlType::None,
+            data,
+        };
+        self.bus.send(Message::Gct(msg)).await
     }
 
-    pub async fn sysctrl_read_no_timeout(index: u8) -> crate::Result<Vec<u8>> {
-        todo!()
+    pub async fn sysctrl_read_no_timeout(
+        &mut self,
+        cmd: u16,
+        destination: NodeId,
+    ) -> crate::Result<Vec<u8>> {
+        self.sysctrl_write_read_no_timeout(cmd, destination, vec![])
+            .await
     }
 
-    pub async fn sysctrl_write_read_no_timeout(index: u8) -> crate::Result<Vec<u8>> {
-        todo!()
+    pub async fn sysctrl_write_read_no_timeout(
+        &mut self,
+        cmd: u16,
+        destination: NodeId,
+        data: Vec<u8>,
+    ) -> crate::Result<Vec<u8>> {
+        let msg = GctMessage::SysCtrl {
+            src: self.controller_node_id.0,
+            dst: destination.0,
+            cmd,
+            tp: comsrv_protocol::SysCtrlType::Query,
+            data,
+        };
+        let mut subscription = self
+            .bus
+            .subscribe({
+                let ref_cmd = cmd;
+                let destination = destination;
+                move |x| match x {
+                    Message::Gct(GctMessage::SysCtrl {
+                        src,
+                        dst: _,
+                        cmd,
+                        tp,
+                        data,
+                    }) => {
+                        if src == destination.0 && cmd == ref_cmd && tp == SysCtrlType::Value {
+                            Some(data)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                }
+            })
+            .await;
+        self.bus.clone().send(Message::Gct(msg)).await?;
+        if let Some(x) = subscription.recv().await {
+            Ok(x)
+        } else {
+            Err(crate::Error::EndpointHangUp)
+        }
     }
 
-    pub async fn sysctrl_read(index: u8, timeout: Duration) -> crate::Result<Vec<u8>> {
-        todo!()
+    pub async fn sysctrl_read(
+        &mut self,
+        cmd: u16,
+        destination: NodeId,
+        timeout: Duration,
+    ) -> crate::Result<Vec<u8>> {
+        match tokio::time::timeout(timeout, self.sysctrl_read_no_timeout(cmd, destination)).await {
+            Ok(x) => x,
+            Err(_) => Err(crate::Error::Timeout),
+        }
     }
 
-    pub async fn sysctrl_write_read(index: u8, timeout: Duration) -> crate::Result<Vec<u8>> {
-        todo!()
+    pub async fn sysctrl_write_read(
+        &mut self,
+        cmd: u16,
+        destination: NodeId,
+        data: Vec<u8>,
+        timeout: Duration,
+    ) -> crate::Result<Vec<u8>> {
+        match tokio::time::timeout(
+            timeout,
+            self.sysctrl_write_read_no_timeout(cmd, destination, data),
+        )
+        .await
+        {
+            Ok(x) => x,
+            Err(_) => Err(crate::Error::Timeout),
+        }
     }
 }

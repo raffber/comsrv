@@ -57,7 +57,7 @@ pub enum CanResponse {
     Gct(GctMessage),
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum SysCtrlType {
     Value,
     Query,
@@ -69,7 +69,6 @@ mod default {
         *x == 0 || *x == 1
     }
 }
-
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum GctMessage {
@@ -96,7 +95,10 @@ pub enum GctMessage {
         src: u8,
         dst: u8,
         data: Vec<u8>,
-        #[serde(skip_serializing_if = "default::is_zero_or_one", default = "Default::default")]
+        #[serde(
+            skip_serializing_if = "default::is_zero_or_one",
+            default = "Default::default"
+        )]
         version: u32,
     },
     Heartbeat {
@@ -113,7 +115,7 @@ pub const MSGTYPE_MONITORING_REQUEST: u8 = 8;
 pub const MSGTYPE_DDP: u8 = 12;
 pub const MSGTYPE_HEARTBEAT: u8 = 14;
 pub const MAX_DDP_DATA_LEN_V1: usize = 61; // 8 message * 8bytes - crc - cmd
-pub const MAX_DDP_DATA_LEN_V2: usize = 8*256 - 3; // 256 message * 8bytes - crc - cmd
+pub const MAX_DDP_DATA_LEN_V2: usize = 8 * 256 - 3; // 256 message * 8bytes - crc - cmd
 
 impl GctMessage {
     pub fn validate(&self) -> Result<(), ()> {
@@ -141,7 +143,12 @@ impl GctMessage {
                 group_idx,
                 ..
             } => *src < BROADCAST_ADDR && *dst <= BROADCAST_ADDR && *group_idx < 32,
-            GctMessage::Ddp { src, dst, data, version } => {
+            GctMessage::Ddp {
+                src,
+                dst,
+                data,
+                version,
+            } => {
                 let addr_ok = *src < BROADCAST_ADDR && *dst <= BROADCAST_ADDR;
                 if *version == 0 || *version == 1 {
                     addr_ok && data.len() <= MAX_DDP_DATA_LEN_V1
