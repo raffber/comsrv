@@ -5,8 +5,8 @@ use comsrv_protocol::Request;
 use comsrv_protocol::{CanMessage, CanResponse, GctMessage, Response};
 use std::time::Duration;
 use tokio::sync::mpsc::error::TrySendError;
-use tokio::sync::mpsc::{channel, Receiver};
-use tokio::task;
+use tokio::sync::mpsc::{channel, Receiver, UnboundedReceiver, Sender};
+use tokio::{task, select};
 
 const CHANNEL_CAPACITY: usize = 1000;
 
@@ -61,24 +61,11 @@ impl CanBus {
     ) -> Receiver<U> {
         let client = self.rpc.client.clone();
         let (tx, rx) = channel(CHANNEL_CAPACITY);
-        let mut notifications = client.notifications();
+        let notifications = client.notifications();
         task::spawn(async move {
-            while let Some(x) = notifications.recv().await {
-                let msg = match x {
-                    Response::Can(CanResponse::Raw(CanMessage::Data(msg))) => Message::RawData(msg),
-                    Response::Can(CanResponse::Raw(CanMessage::Remote(msg))) => {
-                        Message::RawRemote(msg)
-                    }
-                    Response::Can(CanResponse::Gct(msg)) => Message::Gct(msg),
-                    _ => continue,
-                };
-                if let Some(x) = filter(msg) {
-                    match tx.try_send(x) {
-                        Ok(_) => {}
-                        Err(TrySendError::Full(_)) => continue,
-                        Err(TrySendError::Closed(_)) => break,
-                    }
-                }
+            select! {
+                _ = subscriber_task(&tx, notifications, filter) => {},
+                _ = tx.closed() => {}
             }
         });
         rx
@@ -101,4 +88,24 @@ impl CanBus {
             Err(x) => Err(x),
         }
     }
+}
+
+async fn subscriber_task<U: 'static + Send, T: Fn(Message) -> Option<U> + Send + 'static>(tx: &Sender<U>, mut notifications: UnboundedReceiver<Response>, filter: T) {
+            while let Some(x) = notifications.recv().await {
+                let msg = match x {
+                    Response::Can(CanResponse::Raw(CanMessage::Data(msg))) => Message::RawData(msg),
+                    Response::Can(CanResponse::Raw(CanMessage::Remote(msg))) => {
+                        Message::RawRemote(msg)
+                    }
+                    Response::Can(CanResponse::Gct(msg)) => Message::Gct(msg),
+                    _ => continue,
+                };
+                if let Some(x) = filter(msg) {
+                    match tx.try_send(x) {
+                        Ok(_) => {}
+                        Err(TrySendError::Full(_)) => continue,
+                        Err(TrySendError::Closed(_)) => break,
+                    }
+                }
+            }
 }
