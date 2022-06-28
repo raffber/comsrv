@@ -62,17 +62,29 @@ impl NodeId {
 }
 
 #[derive(Clone)]
-pub struct GctCan {
+pub struct GctCanDevice {
     bus: CanBus,
     controller_node_id: NodeId,
 }
 
-impl GctCan {
+impl GctCanDevice {
     pub fn new(bus: CanBus, controller_node_id: NodeId) -> Self {
         Self {
             bus,
             controller_node_id,
         }
+    }
+
+    pub fn can_bus(&self) -> &CanBus {
+        &self.bus
+    }
+
+    pub fn can_bus_mut(&mut self) -> &mut CanBus {
+        &mut self.bus
+    }
+
+    pub fn controller_node_id(&self) -> NodeId {
+        self.controller_node_id
     }
 
     pub async fn monitor_request_no_timeout(
