@@ -61,6 +61,12 @@ impl NodeId {
     }
 }
 
+impl Into<u8> for NodeId {
+    fn into(self) -> u8 {
+        self.0
+    }
+}
+
 #[derive(Clone)]
 pub struct GctCanDevice {
     bus: CanBus,
