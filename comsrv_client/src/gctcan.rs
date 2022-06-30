@@ -24,12 +24,16 @@ impl MonitorIndex {
         })
     }
 
-    fn group_index(&self) -> u8 {
+    pub fn group_index(&self) -> u8 {
         self.group_index
     }
 
-    fn reading_index(&self) -> u8 {
+    pub fn reading_index(&self) -> u8 {
         self.reading_index
+    }
+
+    pub fn get_combined(&self) -> u16 {
+        ((self.group_index as u16) << 6) + (self.reading_index as u16)
     }
 }
 
