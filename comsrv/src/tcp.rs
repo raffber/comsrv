@@ -67,18 +67,39 @@ impl IoHandler for Handler {
     type Response = TcpResponse;
 
     async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
-        let stream = if let Some(stream) = self.stream.take() {
-            stream
-        } else {
-            TcpStream::connect(&self.addr.clone())
-                .await
-                .map_err(Error::io)?
+        let mut tries = 0;
+        let err = loop {
+            tries += 1;
+            let stream = if let Some(stream) = self.stream.take() {
+                stream
+            } else {
+                match TcpStream::connect(&self.addr.clone())
+                    .await
+                    .map_err(Error::io)
+                {
+                    Ok(stream) => stream,
+                    Err(x) => {
+                        if !x.should_retry() || tries > 3 {
+                            break x;
+                        }
+                        continue;
+                    }
+                }
+            };
+            let (ret, stream) = self.handle_request(stream, req.clone()).await;
+            match ret {
+                Ok(ret) => {
+                    self.stream.replace(stream);
+                    return Ok(ret);
+                }
+                Err(x) => {
+                    if !x.should_retry() || tries > 3 {
+                        break x;
+                    }
+                }
+            }
         };
-        let (ret, stream) = self.handle_request(stream, req.clone()).await;
-        if ret.is_ok() {
-            self.stream.replace(stream);
-        }
-        ret
+        Err(err)
     }
 }
 
