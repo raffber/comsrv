@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 use uuid::Uuid;
 use std::fmt::{Debug, Formatter};
 pub use can::{
@@ -140,6 +140,20 @@ pub enum ByteStreamRequest {
         response: bool,
         data: Vec<u8>,
     },
+}
+
+impl ByteStreamRequest {
+    pub fn timeout(&self) -> Option<Duration> {
+        match self {
+            ByteStreamRequest::ReadToTerm { timeout_ms, .. } => Some(Duration::from_millis(*timeout_ms as u64)),
+            ByteStreamRequest::ReadExact { timeout_ms , ..} => Some(Duration::from_millis(*timeout_ms as u64)),
+            ByteStreamRequest::CobsQuery { timeout_ms, ..} => Some(Duration::from_millis(*timeout_ms as u64)),
+            ByteStreamRequest::ReadLine { timeout_ms, .. } => Some(Duration::from_millis(*timeout_ms as u64)),
+            ByteStreamRequest::QueryLine { timeout_ms, .. } => Some(Duration::from_millis(*timeout_ms as u64)),
+            ByteStreamRequest::ModBusRtuDdp { timeout_ms, ..} => Some(Duration::from_millis(*timeout_ms as u64)),
+            _ => None
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]

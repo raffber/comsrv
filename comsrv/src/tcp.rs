@@ -5,9 +5,10 @@ use crate::modbus::handle_modbus_request_timeout;
 use crate::Error;
 use async_trait::async_trait;
 use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse, ModBusRequest, ModBusResponse};
+
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
-use tokio::time::Duration;
+use tokio::time::{Duration, timeout};
 use tokio_modbus::prelude::Slave;
 
 #[derive(Clone)]
@@ -24,6 +25,16 @@ struct Handler {
 pub enum TcpRequest {
     Bytes(ByteStreamRequest),
     ModBus { slave_id: u8, req: ModBusRequest },
+}
+
+impl TcpRequest {
+    fn timeout(&self) -> Duration {
+        let default_timeout = Duration::from_millis(1000);
+        match self {
+            TcpRequest::Bytes(x) => x.timeout().unwrap_or(default_timeout),
+            TcpRequest::ModBus { ..} => default_timeout,
+        } 
+    }
 }
 
 pub enum TcpResponse {
@@ -61,6 +72,19 @@ impl Handler {
     }
 }
 
+async fn connect_tcp_stream(addr: SocketAddr, connection_timeout: Duration) -> crate::Result<TcpStream> {
+    let fut = async move {
+        TcpStream::connect(&addr)
+            .await
+            .map_err(Error::io)
+    };
+    match timeout(connection_timeout, fut).await {
+        Ok(Ok(x)) => Ok(x),
+        Ok(Err(x)) => Err(x),
+        Err(_) => Err(crate::Error::Timeout)
+    }
+}
+
 #[async_trait]
 impl IoHandler for Handler {
     type Request = TcpRequest;
@@ -73,10 +97,8 @@ impl IoHandler for Handler {
             let stream = if let Some(stream) = self.stream.take() {
                 stream
             } else {
-                match TcpStream::connect(&self.addr.clone())
-                    .await
-                    .map_err(Error::io)
-                {
+                let addr = self.addr.clone();
+                match connect_tcp_stream(addr, req.timeout()).await {
                     Ok(stream) => stream,
                     Err(x) => {
                         if !x.should_retry() || tries > 3 {
