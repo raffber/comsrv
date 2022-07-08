@@ -142,7 +142,7 @@ impl IoHandler for Handler {
             FtdiRequest::ModBus {
                 req, slave_addr, ..
             } => {
-                let _ = read_all(&mut ftdi).await.unwrap();
+                let _ = read_all(&mut ftdi).await;
 
                 let channel = ClonableChannel::new(ftdi);
                 let mut ctx = rtu::connect_slave(channel.clone(), Slave(slave_addr)).await?;
