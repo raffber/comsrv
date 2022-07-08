@@ -19,6 +19,20 @@
  * Collect issues about error reporting
  * Collect requirements and implement based on requirements
  * Think about how to handle the `check_alive()` issue for scpi instruments.
+ * An instrument should just be the address of the handle: i.e. Handle <-> Address
+ * Instrument request is then:
+```
+{
+    "instrument": {
+        "Serial": {
+            "address": "/dev/ttyUSB0",
+            "params": "8E1",
+            "baud": 115200,
+        }
+    },
+}
+
+```
 
 ## Open Questions
 
