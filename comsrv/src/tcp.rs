@@ -5,11 +5,14 @@ use crate::modbus::handle_modbus_request_timeout;
 use crate::Error;
 use async_trait::async_trait;
 use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse, ModBusRequest, ModBusResponse};
+use tokio::task;
 
 use std::net::SocketAddr;
 use tokio::net::TcpStream;
-use tokio::time::{Duration, timeout};
+use tokio::time::{Duration, timeout, sleep, Instant};
 use tokio_modbus::prelude::Slave;
+
+const DROP_DELAY: Duration = Duration::from_secs(100);
 
 #[derive(Clone)]
 pub struct Instrument {
@@ -19,12 +22,14 @@ pub struct Instrument {
 struct Handler {
     addr: SocketAddr,
     stream: Option<TcpStream>,
+    last_request: Instant,
 }
 
 #[derive(Clone)]
 pub enum TcpRequest {
     Bytes(ByteStreamRequest),
     ModBus { slave_id: u8, req: ModBusRequest },
+    DropCheck,
 }
 
 impl TcpRequest {
@@ -33,6 +38,7 @@ impl TcpRequest {
         match self {
             TcpRequest::Bytes(x) => x.timeout().unwrap_or(default_timeout),
             TcpRequest::ModBus { ..} => default_timeout,
+            TcpRequest::DropCheck => default_timeout,
         } 
     }
 }
@@ -40,6 +46,7 @@ impl TcpRequest {
 pub enum TcpResponse {
     Bytes(ByteStreamResponse),
     ModBus(ModBusResponse),
+    Nope,
 }
 
 impl Handler {
@@ -68,6 +75,7 @@ impl Handler {
                     Err(err) => (Err(err), cloned.take().unwrap()),
                 }
             }
+            _ => {unreachable!()}
         }
     }
 }
@@ -91,6 +99,14 @@ impl IoHandler for Handler {
     type Response = TcpResponse;
 
     async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
+        if let TcpRequest::DropCheck = &req {
+            let now = Instant::now();
+            if now - self.last_request > DROP_DELAY {
+                self.stream.take();
+            }
+            return Ok(TcpResponse::Nope);
+        }
+        self.last_request = Instant::now();
         let mut tries = 0;
         let err = loop {
             tries += 1;
@@ -127,14 +143,20 @@ impl IoHandler for Handler {
 
 impl Instrument {
     pub fn new(addr: SocketAddr) -> Self {
-        let handler = Handler { stream: None, addr };
+        let handler = Handler { stream: None, addr, last_request: Instant::now() };
         Self {
             inner: IoTask::new(handler),
         }
     }
 
     pub async fn request(&mut self, req: TcpRequest) -> crate::Result<TcpResponse> {
-        self.inner.request(req).await
+        let ret = self.inner.request(req).await;
+        let mut copy = self.clone();
+        task::spawn(async move {
+            sleep(DROP_DELAY + Duration::from_millis(100)).await;
+            let _ = copy.inner.request(TcpRequest::DropCheck).await;
+        });
+        ret
     }
 
     pub fn disconnect(mut self) {
