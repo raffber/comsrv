@@ -113,6 +113,8 @@ pub enum CanError {
     DataTooLong,
     #[error("Message is not valid")]
     InvalidMessage,
+    #[error("Other: {0}")]
+    Other(String),
 }
 
 impl From<async_can::Error> for CanError {
@@ -128,6 +130,9 @@ impl From<async_can::Error> for CanError {
             Error::TransmitQueueFull => CanError::TransmitQueueFull,
             Error::IdTooLong => CanError::IdTooLong,
             Error::DataTooLong => CanError::DataTooLong,
+            Error::PCanUnknownInterfaceType(x) => CanError::Other(format!("Unknown interface type: {}", x)),
+            Error::PCanOtherError(code, desc) => CanError::PCanError(code, desc),
+            Error::Other(x) => CanError::Other(x),
         }
     }
 }
