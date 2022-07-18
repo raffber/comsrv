@@ -170,7 +170,7 @@ impl Instrument {
         let handler = Handler {
             addr,
             server: server.clone(),
-            device: None,
+            sender: None,
             listener: None,
             loopback: false,
         };
@@ -207,7 +207,7 @@ impl Instrument {
 struct Handler {
     addr: CanAddress,
     server: Server,
-    device: Option<CanSender>,
+    sender: Option<CanSender>,
     listener: Option<UnboundedSender<ListenerMsg>>,
     loopback: bool,
 }
@@ -217,7 +217,7 @@ impl Handler {
         if let Some(tx) = self.listener.as_ref() {
             if tx.is_closed() {
                 self.listener.take();
-                if let Some(device) = self.device.take() {
+                if let Some(device) = self.sender.take() {
                     let _ = device.close().await;
                 }
             }
@@ -239,11 +239,57 @@ impl Handler {
             if self.addr.bitrate() != req.bitrate {
                 log::debug!("{} - Updating Bitrate", self.addr);
                 self.close_listener().await;
-                if let Some(sender) = self.device.take() {
+                if let Some(sender) = self.sender.take() {
                     let _ = sender.close().await;
                 }
                 log::debug!("{} - Sender closed", self.addr);
                 self.addr.update_bitrate(bitrate);
+            }
+        }
+    }
+
+    async fn handle_request(&mut self, req: &Request) -> crate::Result<CanResponse> {
+        // save because we just created it
+        let device = self.sender.as_ref().unwrap();
+        let listener = self.listener.as_ref().unwrap();
+
+        match &req.inner {
+            CanRequest::ListenRaw(en) => {
+                let _ = listener.send(ListenerMsg::EnableRaw(*en));
+                Ok(CanResponse::Started(self.addr.interface()))
+            }
+            CanRequest::StopAll => {
+                let _ = listener.send(ListenerMsg::EnableRaw(false));
+                let _ = listener.send(ListenerMsg::EnableGct(false));
+                Ok(CanResponse::Stopped(self.addr.interface()))
+            }
+            CanRequest::TxRaw(msg) => {
+                if self.loopback {
+                    let _ = listener.send(ListenerMsg::Loopback(msg.clone()));
+                }
+                device.send(msg.clone()).await?;
+                Ok(CanResponse::Ok)
+            }
+            CanRequest::ListenGct(en) => {
+                let _ = listener.send(ListenerMsg::EnableGct(*en));
+                Ok(CanResponse::Started(self.addr.interface()))
+            }
+            CanRequest::TxGct(msg) => {
+                let msgs = gct::encode(msg.clone()).map_err(|err| crate::Error::Can {
+                    addr: self.addr.interface(),
+                    err,
+                })?;
+                for msg in msgs {
+                    if self.loopback {
+                        let _ = listener.send(ListenerMsg::Loopback(msg.clone()));
+                    }
+                    device.send(msg).await?;
+                }
+                Ok(CanResponse::Ok)
+            }
+            CanRequest::EnableLoopback(en) => {
+                self.loopback = *en;
+                Ok(CanResponse::Ok)
             }
         }
     }
@@ -258,9 +304,9 @@ impl IoHandler for Handler {
         self.check_listener().await;
         self.update_bitrate(&req).await;
 
-        if self.device.is_none() {
+        if self.sender.is_none() {
             log::debug!("{} - Initializing new Sender", self.addr);
-            self.device.replace(CanSender::new(self.addr.clone())?);
+            self.sender.replace(CanSender::new(self.addr.clone())?);
         }
         if self.listener.is_none() {
             log::debug!("{} - Initializing new Receiver", self.addr);
@@ -270,50 +316,25 @@ impl IoHandler for Handler {
             task::spawn(fut);
             self.listener.replace(tx);
         }
-
-        // save because we just created it
-        let device = self.device.as_ref().unwrap();
-        let listener = self.listener.as_ref().unwrap();
-
-        match req.inner {
-            CanRequest::ListenRaw(en) => {
-                let _ = listener.send(ListenerMsg::EnableRaw(en));
-                Ok(CanResponse::Started(self.addr.interface()))
-            }
-            CanRequest::StopAll => {
-                let _ = listener.send(ListenerMsg::EnableRaw(false));
-                let _ = listener.send(ListenerMsg::EnableGct(false));
-                Ok(CanResponse::Stopped(self.addr.interface()))
-            }
-            CanRequest::TxRaw(msg) => {
-                if self.loopback {
-                    let _ = listener.send(ListenerMsg::Loopback(msg.clone()));
+        let mut retries = 0;
+        let ret = loop {
+            let ret = self.handle_request(&req).await;
+            if let Err(err) = ret {
+                retries += 1;
+                if retries > 3 {
+                    break err;
                 }
-                device.send(msg).await?;
-                Ok(CanResponse::Ok)
-            }
-            CanRequest::ListenGct(en) => {
-                let _ = listener.send(ListenerMsg::EnableGct(en));
-                Ok(CanResponse::Started(self.addr.interface()))
-            }
-            CanRequest::TxGct(msg) => {
-                let msgs = gct::encode(msg).map_err(|err| crate::Error::Can {
-                    addr: self.addr.interface(),
-                    err,
-                })?;
-                for msg in msgs {
-                    if self.loopback {
-                        let _ = listener.send(ListenerMsg::Loopback(msg.clone()));
-                    }
-                    device.send(msg).await?;
+                if err.should_retry() {
+                    self.sender.take();
+                    self.listener.take();
+                } else {
+                    break err;
                 }
-                Ok(CanResponse::Ok)
+            } else {
+                return ret;
             }
-            CanRequest::EnableLoopback(en) => {
-                self.loopback = en;
-                Ok(CanResponse::Ok)
-            }
-        }
+        };
+        Err(ret)
     }
 }
 
