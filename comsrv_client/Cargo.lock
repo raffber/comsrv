@@ -163,10 +163,12 @@ dependencies = [
 name = "comsrv_protocol"
 version = "1.3.0"
 dependencies = [
+ "anyhow",
  "base64",
  "byteorder",
  "serde",
  "serde_json",
+ "thiserror",
  "uuid",
 ]
 
