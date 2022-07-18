@@ -3,6 +3,7 @@ This modules implements the API of the `comsrv` utility to connect
 to instruments.
 """
 
+from enum import Enum
 from math import prod
 import json
 from typing import List, Union, Optional
@@ -233,6 +234,25 @@ class FtdiDeviceInfo(object):
 
     def to_address(self, baudrate: int, params: str = '8N1'):
         return 'ftdi::{}::{}::{}'.format(self.serial_number, baudrate, params)
+    
+class CanDriverType(Enum):
+    PCAN = 'pcan'
+    SOCKETCAN = 'socket'
+
+class CanDevice(object):
+    def __init__(self, interface_name: str, driver_type: CanDriverType) -> None:
+        self.driver_type = driver_type
+        self.interface_name = interface_name
+
+    def to_address(self, bitrate=None):
+        if self.driver_type == CanDriverType.PCAN:
+            if bitrate is None:
+                raise ValueError('Bitrate must be provided for PCAN devices')
+            assert bitrate is not None
+            return 'can::pcan::{}::{}'.format(self.interface_name, bitrate)
+        elif self.driver_type == CanDriverType.SOCKETCAN:
+            return 'can::socket::{}'.format(self.interface_name)
+        raise ValueError('Unknown driver type')
 
 
 class ComSrv(object):
@@ -307,6 +327,21 @@ class ComSrv(object):
         ret = []
         for x in result['FtdiDevices']:
             ret.append(FtdiDeviceInfo(**x))
+        return ret
+
+    async def list_can_devices(self) -> List[CanDevice]:
+        result = await self.get({
+            'ListCanDevices': None,
+        })
+        if 'Error' in result:
+            raise ComSrvError(result['Error'])
+        ret = []
+        for x in result['CanDevices']:
+            if x['driver_type'] == 'SocketCAN':
+                driver_type = CanDriverType.SOCKETCAN
+            elif x['driver_type'] == 'PCAN':
+                driver_type = CanDriverType.PCAN
+            ret.append(CanDevice(x['interface_name'], driver_type=driver_type))
         return ret
 
 

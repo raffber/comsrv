@@ -4,7 +4,7 @@ use wsrpc::server::{Requested, Server as WsrpcServer};
 
 use crate::address::Address;
 use crate::can::Request as InternalCanRequest;
-use crate::ftdi::{FtdiRequest, FtdiResponse, self};
+use crate::ftdi::{self, FtdiRequest, FtdiResponse};
 use crate::instrument::Instrument;
 use crate::inventory::Inventory;
 use crate::modbus::{ModBusAddress, ModBusTransport};
@@ -13,8 +13,8 @@ use crate::serial::{Request as SerialRequest, SerialParams};
 use crate::tcp::{TcpRequest, TcpResponse};
 use crate::{sigrok, Error};
 use comsrv_protocol::{
-    ByteStreamRequest, ByteStreamResponse, CanRequest, CanResponse, ModBusRequest, ModBusResponse,
-    Request, Response, ScpiRequest, ScpiResponse,
+    ByteStreamRequest, ByteStreamResponse, CanDeviceInfo, CanRequest, CanResponse, ModBusRequest,
+    ModBusResponse, Request, Response, ScpiRequest, ScpiResponse, CanDriverType,
 };
 use comsrv_protocol::{HidRequest, HidResponse};
 
@@ -255,10 +255,13 @@ impl App {
                     .connect(&self.server, &addr)
                     .into_ftdi()
                     .ok_or(Error::NotSupported)?;
-                match instr.request(FtdiRequest::Bytes {
-                    req: task,
-                    params: ftdi_address.params.clone()
-                }).await {
+                match instr
+                    .request(FtdiRequest::Bytes {
+                        req: task,
+                        params: ftdi_address.params.clone(),
+                    })
+                    .await
+                {
                     Ok(FtdiResponse::Bytes(x)) => Ok(x),
                     Err(x) => Err(x),
                     _ => panic!(),
@@ -400,11 +403,26 @@ impl App {
                 Ok(x) => Response::SerialPorts(x),
                 Err(x) => x.into(),
             },
-            Request::ListFtdiDevices => {
-                match ftdi::list_ftdi().await {
-                    Ok(x) => Response::FtdiDevices(x),
-                    Err(x) => x.into(),
+            Request::ListFtdiDevices => match ftdi::list_ftdi().await {
+                Ok(x) => Response::FtdiDevices(x),
+                Err(x) => x.into(),
+            },
+            Request::ListCanDevices => match async_can::list_devices().await {
+                Ok(x) => {
+                    #[cfg(target_os = "linux")]
+                    let driver_type = CanDriverType::SocketCAN;
+                    #[cfg(target_os = "windows")]
+                    let driver_type = CanDriverType::PCAN;
+                    let ret = x
+                        .iter()
+                        .map(|y| CanDeviceInfo {
+                            interface_name: y.interface_name.clone(),
+                            driver_type: driver_type.clone(),
+                        })
+                        .collect();
+                    Response::CanDevices(ret)
                 }
+                Err(_) => todo!(),
             },
         }
     }

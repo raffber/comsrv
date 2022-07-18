@@ -53,6 +53,7 @@ pub enum Request {
     ListSerialPorts,
     ListHidDevices,
     ListFtdiDevices,
+    ListCanDevices,
     ListInstruments,
     Lock {
         addr: String,
@@ -89,6 +90,7 @@ pub enum Response {
     },
     SerialPorts(Vec<String>),
     FtdiDevices(Vec<FtdiDeviceInfo>),
+    CanDevices(Vec<CanDeviceInfo>),
     Done,
 }
 
@@ -96,6 +98,18 @@ impl Debug for Response {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(&serde_json::to_string(self).unwrap())
     }
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub enum CanDriverType {
+    SocketCAN,
+    PCAN,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct CanDeviceInfo {
+    pub interface_name: String,
+    pub driver_type: CanDriverType,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
