@@ -101,8 +101,15 @@ impl Debug for Response {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+pub enum CanDriverType {
+    SocketCAN,
+    PCAN,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
 pub struct CanDeviceInfo {
     pub interface_name: String,
+    pub driver_type: CanDriverType,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

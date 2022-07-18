@@ -14,7 +14,7 @@ use crate::tcp::{TcpRequest, TcpResponse};
 use crate::{sigrok, Error};
 use comsrv_protocol::{
     ByteStreamRequest, ByteStreamResponse, CanDeviceInfo, CanRequest, CanResponse, ModBusRequest,
-    ModBusResponse, Request, Response, ScpiRequest, ScpiResponse,
+    ModBusResponse, Request, Response, ScpiRequest, ScpiResponse, CanDriverType,
 };
 use comsrv_protocol::{HidRequest, HidResponse};
 
@@ -409,10 +409,15 @@ impl App {
             },
             Request::ListCanDevices => match async_can::list_devices().await {
                 Ok(x) => {
+                    #[cfg(target_os = "linux")]
+                    let driver_type = CanDriverType::SocketCAN;
+                    #[cfg(target_os = "windows")]
+                    let driver_type = CanDriverType::PCAN;
                     let ret = x
                         .iter()
                         .map(|y| CanDeviceInfo {
                             interface_name: y.interface_name.clone(),
+                            driver_type: driver_type.clone(),
                         })
                         .collect();
                     Response::CanDevices(ret)
