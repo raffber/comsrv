@@ -7,12 +7,12 @@ pub struct SerialOptions {
     pub auto_drop: Option<Duration>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Hash, PartialEq, Eq)]
 pub struct FtdiAddress {
     pub port: String,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Hash, PartialEq, Eq)]
 pub struct SerialAddress {
     pub port: String,
 }
@@ -23,7 +23,7 @@ pub struct SerialPortConfig {
     pub baudrate: u32,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Hash, PartialEq, Eq)]
 pub struct TcpAddress {
     pub url: String,
     pub port: u16,

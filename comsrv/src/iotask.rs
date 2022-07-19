@@ -19,7 +19,7 @@ pub struct IoContext<T: IoHandler> {
 
 impl<T: IoHandler> IoContext<T> {
     fn send(&mut self, req: T::Request) {
-        self.tx.send(RequestMsg::Task { req, answer: None })
+        let _ = self.tx.send(RequestMsg::Task { req, answer: None });
     }
 }
 

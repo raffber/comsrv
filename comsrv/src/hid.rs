@@ -1,42 +1,31 @@
-use crate::iotask::{IoHandler, IoTask};
+use std::sync::Arc;
+
+use crate::iotask::{IoHandler, IoTask, IoContext};
 use async_trait::async_trait;
-use comsrv_protocol::{HidDeviceInfo, HidIdentifier, HidRequest, HidResponse};
-use hidapi::{HidApi, HidDevice as HidApiDevice, HidError as HidApiError, HidResult};
+use comsrv_protocol::{HidDeviceInfo, HidIdentifier, HidRequest, HidResponse, TransportError};
+use hidapi::{HidApi, HidResult, HidError};
+use hidapi::HidDevice as HidApiDevice;
 use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::fmt::{Display, Formatter};
+
 use tokio::task;
 
 lazy_static! {
     static ref HID_API: HidResult<HidApi> = HidApi::new();
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HidError(String);
-
-impl Display for HidError {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{:?}", self.0)
+fn get_hidapi() -> crate::Result<&'static HidApi> {
+    match HID_API.as_ref() {
+        Ok(api) => Ok(api),
+        Err(x) => {
+            let err: anyhow::Error = x.into();
+            Err(crate::Error::transport(err))
+        }
     }
 }
 
-impl From<HidApiError> for HidError {
-    fn from(x: HidApiError) -> Self {
-        HidError(x.to_string())
-    }
-}
-
-impl From<HidError> for crate::Error {
-    fn from(x: HidError) -> Self {
-        crate::Error::Hid(x)
-    }
-}
-
-impl From<&HidApiError> for HidError {
-    fn from(x: &HidApiError) -> Self {
-        HidError(x.to_string())
-    }
+fn to_error(x: HidError) -> crate::Error {
+    let err: anyhow::Error = x.into();
+    crate::Error::Transport(TransportError::Other(Arc::new(err))) 
 }
 
 struct Handler {
@@ -45,10 +34,7 @@ struct Handler {
 }
 
 fn open_device(idn: &HidIdentifier) -> crate::Result<HidApiDevice> {
-    match HID_API.as_ref() {
-        Ok(api) => Ok(api.open(idn.vid, idn.pid)?),
-        Err(x) => Err(crate::Error::Hid(x.into())),
-    }
+    get_hidapi()?.open(idn.vid, idn.pid).map_err(to_error)
 }
 
 #[async_trait]
@@ -56,7 +42,7 @@ impl IoHandler for Handler {
     type Request = HidRequest;
     type Response = HidResponse;
 
-    async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
+    async fn handle(&mut self, ctx: &mut IoContext<Self>, req: Self::Request) -> crate::Result<Self::Response> {
         let device = self.device.take();
         let idn = self.idn.clone();
         let (device, result) = task::spawn_blocking(move || handle_blocking(device, &idn, req))
@@ -93,23 +79,25 @@ fn handle_request(
     req: HidRequest,
 ) -> crate::Result<HidResponse> {
     match req {
-        HidRequest::Write { data } => Ok(device.write(&data).map(|_| HidResponse::Ok)?),
+        HidRequest::Write { data } => {
+            device.write(&data).map(|_| HidResponse::Ok).map_err(to_error)
+        }
         HidRequest::Read { timeout_ms } => {
             let mut buf = [0u8; 64];
             device
                 .read_timeout(&mut buf, timeout_ms)
-                .map_err(|x| x.into())
+                .map_err(to_error)
                 .and_then(|x| {
                     if x == 0 {
-                        return Err(crate::Error::Timeout);
+                        return Err(crate::Error::protocol_timeout());
                     }
                     Ok(HidResponse::Data(buf[0..x].to_vec()))
                 })
         }
         HidRequest::GetInfo => {
-            let mfr = device.get_manufacturer_string()?;
-            let product = device.get_product_string()?;
-            let serial_number = device.get_serial_number_string()?;
+            let mfr = device.get_manufacturer_string().map_err(to_error)?;
+            let product = device.get_product_string().map_err(to_error)?;
+            let serial_number = device.get_serial_number_string().map_err(to_error)?;
             Ok(HidResponse::Info(HidDeviceInfo {
                 idn: idn.clone(),
                 manufacturer: mfr,
@@ -127,13 +115,13 @@ pub struct Instrument {
 }
 
 impl Instrument {
-    pub fn new(idn: HidIdentifier) -> Instrument {
+    pub fn new(idn: &HidIdentifier) -> Instrument {
         let handler = Handler {
             device: None,
             idn: idn.clone(),
         };
         Self {
-            idn,
+            idn: idn.clone(),
             inner: IoTask::new(handler),
         }
     }
@@ -147,11 +135,16 @@ impl Instrument {
     }
 }
 
+impl crate::inventory::Instrument for Instrument {
+    type Address = HidIdentifier;
+
+    fn connect(server: &crate::app::Server, addr: &Self::Address) -> Self {
+        Instrument::new(addr)
+    }
+}
+
 fn list_devices_blocking() -> crate::Result<Vec<HidDeviceInfo>> {
-    let api = match HID_API.as_ref() {
-        Ok(api) => Ok(api),
-        Err(x) => Err(crate::Error::Hid(x.into())),
-    }?;
+    let api = get_hidapi()?;
     let ret = api
         .device_list()
         .map(|device| {

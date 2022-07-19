@@ -6,13 +6,13 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
+use std::fmt::Debug;
+use std::hash::Hash;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::time::sleep;
 use uuid::Uuid;
-use std::hash::Hash;
-use std::fmt::Debug;
 
 use crate::app::Server;
 
@@ -42,12 +42,15 @@ impl Lock {
         let _ = self.unlock.send(()).await;
     }
 }
-
-trait Instrument: 'static + Clone + Send {}
-impl<T: 'static + Clone + Send> Instrument for T {}
-
-trait InstrumentAddress: 'static + Clone + Send + Hash + PartialEq + Eq + Debug {}
+pub trait InstrumentAddress: 'static + Clone + Send + Hash + PartialEq + Eq + Debug {}
 impl<T: 'static + Clone + Send + Hash + PartialEq + Eq + Debug> InstrumentAddress for T {}
+
+pub trait Instrument: 'static + Clone + Send {
+    type Address: InstrumentAddress;
+
+    fn connect(server: &Server, addr: &Self::Address) -> Self;
+}
+
 
 /// Contains an instrument which can be locked
 #[derive(Clone)]
@@ -56,21 +59,23 @@ struct LockableInstrument<T: Instrument> {
     lock: Option<Lock>,
 }
 
-struct InventoryShared<T: Instrument, A: InstrumentAddress> {
-    instruments: HashMap<A, LockableInstrument<T>>,
-    locks: HashMap<Uuid, A>,
+struct InventoryShared<T: Instrument> {
+    instruments: HashMap<T::Address, LockableInstrument<T>>,
+    locks: HashMap<Uuid, T::Address>,
 }
 
 /// A collect of instruments, public API of this module
 #[derive(Clone)]
-pub struct Inventory<T: Instrument, Address: InstrumentAddress>(Arc<Mutex<InventoryShared<T, Address>>>);
+pub struct Inventory<T: Instrument>(
+    Arc<Mutex<InventoryShared<T>>>,
+);
 
 /// The `Inventory` type allows storing and retrieving instruments.
 /// Also, access to instruments may be locked for a given amount of time. During this time, only
 /// the task accesssing the instrument has access to the instrument.
 ///
 /// `Inventory` as well as `Instrument` are `Clone + Send` and can thus be shared between threads.
-impl<T: Instrument, Address: InstrumentAddress> Inventory<T, Address> {
+impl<T: Instrument> Inventory<T> {
     /// Create a new inventory
     pub fn new() -> Self {
         let inner = InventoryShared {
@@ -87,31 +92,29 @@ impl<T: Instrument, Address: InstrumentAddress> Inventory<T, Address> {
     /// # Panics
     ///
     /// This function panics if the there is no `Instrument` associated with the given address type.
-    pub fn connect<C: FnOnce(&Address) -> T>(&self, addr: &Address, constructor: C) -> T {
-        log::debug!("Opening instrument: {}", addr);
+    pub fn connect(&self, server: &Server, addr: &T::Address) -> T {
+        log::debug!("Opening instrument: {:?}", addr);
         let mut inner = self.0.lock().unwrap();
 
         if let Some(ret) = inner.instruments.get(addr) {
             return ret.instr.clone();
         }
-        let ret = constructor(addr);
+        let ret = T::connect(server, addr);
 
         let instr = LockableInstrument {
             instr: ret.clone(),
             lock: None,
         };
-        inner.instruments.insert(addr, instr);
+        inner.instruments.insert(addr.clone(), instr);
         ret
     }
 
     /// If there is instrument connected to the given address, this instrument is disconnected and
     /// dropped from the `Inventory`.
-    pub fn disconnect(&self, addr: &Address) {
-        log::debug!("Dropping instrument: {}", addr);
+    pub fn disconnect(&self, addr: &T::Address) {
+        log::debug!("Dropping instrument: {:?}", addr);
         let mut inner = self.0.lock().unwrap();
-        if let Some(x) = inner.instruments.remove(addr) {
-            x.instr.disconnect();
-        }
+        inner.instruments.remove(addr);
     }
 
     /// Drops all instruments
@@ -124,15 +127,15 @@ impl<T: Instrument, Address: InstrumentAddress> Inventory<T, Address> {
     /// Return a list of keys of instruments.
     pub fn list(&self) -> Vec<String> {
         let inner = self.0.lock().unwrap();
-        inner.instruments.keys().map(|x| x.to_string()).collect()
+        inner.instruments.keys().map(|x| format!("{:?}", x)).collect()
     }
 
     /// Wait for the lock on a given instrument. If a `lock_id` is provided and matches the
     /// lock which is currently held, access to the `Instrument` is granted.
-    pub async fn wait_for_lock(&self, addr: &Address, lock_id: Option<&Uuid>) {
+    pub async fn wait_for_lock(&self, addr: &T::Address, lock_id: Option<&Uuid>) {
         let mutex = {
             let inner = self.0.lock().unwrap();
-            match inner.instruments.get(&addr.handle_id()) {
+            match inner.instruments.get(&addr) {
                 Some(LockableInstrument {
                     instr: _,
                     lock: Some(lock),
@@ -156,13 +159,13 @@ impl<T: Instrument, Address: InstrumentAddress> Inventory<T, Address> {
     /// newly created lock. If a lock is still present on the address, the lock is removed and
     /// unlocked.
     /// If this behavior is undesirable, call wait_for_lock() before calling this function.
-    pub async fn lock(&self, server: &Server, addr: &Address, timeout: Duration) -> Uuid {
+    pub async fn lock(&self, server: &Server, addr: &T::Address, timeout: Duration) -> Uuid {
         let ret = Uuid::new_v4();
 
         let (lock, mut unlock) = {
             let mut inner = self.0.lock().unwrap();
             let (lock, unlock) = Lock::new(ret);
-            match inner.instruments.get_mut(&addr.handle_id()) {
+            match inner.instruments.get_mut(&addr) {
                 Some(mut instr) => {
                     if let Some(old_lock) = instr.lock.take() {
                         tokio::task::spawn(async move {
@@ -225,7 +228,7 @@ impl<T: Instrument, Address: InstrumentAddress> Inventory<T, Address> {
     }
 }
 
-impl<T: Instrument, A: InstrumentAddress> Default for Inventory<T, A> {
+impl<T: Instrument> Default for Inventory<T> {
     fn default() -> Self {
         Self::new()
     }

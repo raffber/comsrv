@@ -83,6 +83,12 @@ impl From<io::Error> for TransportError {
     }
 }
 
+impl From<anyhow::Error> for TransportError {
+    fn from(x: anyhow::Error) -> Self {
+        TransportError::Other(Arc::new(x))
+    }
+}
+
 #[derive(Error, Clone, Debug, Serialize, Deserialize)]
 pub enum ProtocolError {
     #[error("IO Error: {0:?}")]
@@ -112,6 +118,12 @@ impl From<io::Error> for ProtocolError {
     }
 }
 
+impl From<anyhow::Error> for ProtocolError {
+    fn from(x: anyhow::Error) -> Self {
+        ProtocolError::Other(Arc::new(x))
+    }
+}
+
 #[derive(Error, Debug, Clone, Serialize, Deserialize)]
 pub enum Error {
     #[error("Transport Error {0}")]
@@ -134,6 +146,23 @@ pub enum Error {
         Arc<anyhow::Error>),
 }
 
+impl Error {
+    pub fn transport<T: Into<TransportError>>(err: T) -> Self {
+        Self::Transport(err.into())
+    }
+
+    pub fn protocol<T: Into<ProtocolError>>(err: T) -> Self {
+        Self::Protocol(err.into())
+    }
+
+    pub fn protocol_timeout() -> Self {
+        Error::Protocol(ProtocolError::Timeout)
+    }
+
+    pub fn should_retry(&self) -> bool {
+        matches!(self, Error::Protocol(_))
+    }
+}
 
 impl Into<Response> for Error {
     fn into(self) -> Response {

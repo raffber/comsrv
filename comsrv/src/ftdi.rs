@@ -1,16 +1,13 @@
-use std::time::Duration;
-
 use async_ftdi::Ftdi;
 use async_trait::async_trait;
 use comsrv_protocol::ByteStreamRequest;
 use comsrv_protocol::ByteStreamResponse;
+use comsrv_protocol::FtdiAddress;
 use comsrv_protocol::FtdiDeviceInfo;
-use comsrv_protocol::ModBusResponse;
+
 use comsrv_protocol::SerialOptions;
 use comsrv_protocol::SerialPortConfig;
 use std::cmp::PartialOrd;
-use tokio_modbus::client::rtu;
-use tokio_modbus::prelude::Slave;
 
 use crate::iotask::IoContext;
 use crate::iotask::IoHandler;
@@ -72,6 +69,15 @@ impl Into<async_ftdi::SerialParams> for SerialParams {
     }
 }
 
+impl crate::inventory::Instrument for Instrument {
+    type Address = FtdiAddress;
+
+    fn connect(server: &crate::app::Server, addr: &Self::Address) -> Self {
+        Self::new(&addr.port)
+    }
+}
+
+
 struct Handler {
     device: Option<(Ftdi, SerialParams)>,
     serial_number: String,
@@ -109,36 +115,15 @@ impl IoHandler for Handler {
             Ftdi::open(&self.serial_number, &params.clone().into()).await?
         };
 
-        bytestra
-
-        let ret = match req {
-            FtdiRequest::ModBus {
-                req, slave_addr, ..
-            } => {
-                let _ = read_all(&mut ftdi).await;
-
-                let channel = ClonableChannel::new(ftdi);
-                let mut ctx = rtu::connect_slave(channel.clone(), Slave(slave_addr)).await?;
-                let timeout = Duration::from_millis(1000);
-                let ret = handle_modbus_request_timeout(&mut ctx, req, timeout)
-                    .await
-                    .map(FtdiResponse::ModBus);
-                ftdi = channel.take().unwrap();
-                ret
+        let ret = crate::bytestream::handle(&mut ftdi, req.request).await;
+        match &ret {
+            Ok(_) | Err(crate::Error::Protocol(_)) => {
+                self.device.replace(ftdi);
             }
-            FtdiRequest::Bytes { req, .. } => bytestream::handle(&mut ftdi, req)
-                .await
-                .map(FtdiResponse::Bytes),
-        };
-
-        // don't close the device for certain error types if they are clearly related to the application
-        match ret {
-            Ok(_) | Err(crate::Error::Timeout) | Err(crate::Error::InvalidResponse) => {
-                self.device.replace((ftdi, params));
+            Err(_) => {
+                ftdi.close();
             }
-            Err(_) => ftdi.close().await,
         }
-
         ret
     }
 
@@ -163,6 +148,7 @@ pub async fn list_ftdi() -> crate::Result<Vec<FtdiDeviceInfo>> {
     let mut ret: Vec<_> = Ftdi::list_devices()
         .await?
         .drain(..)
+        .filter(|x| !x.serial_number.trim().is_empty())
         .map(from_async_ftdi_info)
         .collect();
     ret.sort_by(|x, y| x.serial_number.partial_cmp(&y.serial_number).unwrap());
