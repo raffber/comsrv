@@ -21,8 +21,10 @@ pub mod bytestream;
 pub mod scpi;
 pub mod hid;
 pub mod sigrok;
-
 mod util;
+
+pub use crate::error::{Error, TransportError, ProtocolError};
+
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Duration {

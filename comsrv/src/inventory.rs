@@ -45,6 +45,9 @@ impl Lock {
 trait Instrument: 'static + Clone + Send {}
 impl<T: 'static + Clone + Send> Instrument for T {}
 
+trait InstrumentAddress: 'static + Clone + Send + Hash + PartialEq + Eq + Debug {}
+impl<T: 'static + Clone + Send + Hash + PartialEq + Eq + Debug> InstrumentAddress for T {}
+
 /// Contains an instrument which can be locked
 #[derive(Clone)]
 struct LockableInstrument<T: Instrument> {
@@ -52,21 +55,21 @@ struct LockableInstrument<T: Instrument> {
     lock: Option<Lock>,
 }
 
-struct InventoryShared<T: Instrument> {
-    instruments: HashMap<HandleId, LockableInstrument<T>>,
+struct InventoryShared<T: Instrument, A: InstrumentAddress> {
+    instruments: HashMap<A, LockableInstrument<T>>,
     locks: HashMap<Uuid, HandleId>,
 }
 
 /// A collect of instruments, public API of this module
 #[derive(Clone)]
-pub struct Inventory<T: Instrument>(Arc<Mutex<InventoryShared<T>>>);
+pub struct Inventory<T: Instrument, Address: InstrumentAddress>(Arc<Mutex<InventoryShared<T, Address>>>);
 
 /// The `Inventory` type allows storing and retrieving instruments.
 /// Also, access to instruments may be locked for a given amount of time. During this time, only
 /// the task accesssing the instrument has access to the instrument.
 ///
 /// `Inventory` as well as `Instrument` are `Clone + Send` and can thus be shared between threads.
-impl<T: Instrument> Inventory<T> {
+impl<T: Instrument, Address: InstrumentAddress> Inventory<T, Address> {
     /// Create a new inventory
     pub fn new() -> Self {
         let inner = InventoryShared {
@@ -83,24 +86,26 @@ impl<T: Instrument> Inventory<T> {
     /// # Panics
     ///
     /// This function panics if the there is no `Instrument` associated with the given address type.
-    pub fn connect(&self, server: &Server, instr: T) -> T {
+    pub fn connect<C: FnOnce(&Address) -> T>(&self, addr: &A, constructor: C) -> T {
         log::debug!("Opening instrument: {} with {:?}", addr, addr.handle_id());
         let mut inner = self.0.lock().unwrap();
-        if let Some(ret) = inner.instruments.get(&addr.handle_id()) {
+
+        if let Some(ret) = inner.instruments.get(addr) {
             return ret.instr.clone();
         }
-        let ret = Instrument::connect(&server, addr).unwrap();
+        let ret = C(addr);
+
         let instr = LockableInstrument {
             instr: ret.clone(),
             lock: None,
         };
-        inner.instruments.insert(addr.handle_id(), instr);
+        inner.instruments.insert(addr, instr);
         ret
     }
 
     /// If there is instrument connected to the given address, this instrument is disconnected and
     /// dropped from the `Inventory`.
-    pub fn disconnect(&self, addr: &Address) {
+    pub fn disconnect(&self, addr: &A) {
         log::debug!("Dropping instrument: {} with {:?}", addr, addr.handle_id());
         let mut inner = self.0.lock().unwrap();
         if let Some(x) = inner.instruments.remove(&addr.handle_id()) {

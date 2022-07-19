@@ -18,21 +18,14 @@ use visa::VisaError;
 use crate::can::CanError;
 use crate::hid::HidError;
 use crate::sigrok::SigrokError;
-use comsrv_protocol::Response;
+pub use comsrv_protocol::{Response, Request, Error};
 
-mod address;
 pub mod app;
-mod bytebuffer;
-mod bytestream;
 mod can;
-mod clonable_channel;
-mod cobs;
 mod ftdi;
 mod hid;
-mod instrument;
 mod inventory;
 mod iotask;
-mod modbus;
 mod prologix;
 mod scpi;
 mod serial;
@@ -41,81 +34,7 @@ mod tcp;
 pub mod visa;
 mod vxi;
 
-#[derive(Error, Debug, Clone, Serialize, Deserialize)]
-pub enum Error {
-    #[error("Error while communicating with device: {0}")]
-    Visa(VisaError),
-    #[error("IO Error occurred: {0}")]
-    #[serde(
-        serialize_with = "serialize::io_error",
-        deserialize_with = "deserialize::io_error"
-    )]
-    Io(Arc<io::Error>),
-    #[error("Instrument is disconnected")]
-    Disconnected,
-    #[error("Operation not supported")]
-    NotSupported,
-    #[error("Cannot decode: {0}")]
-    #[serde(
-        serialize_with = "serialize::utf8_error",
-        deserialize_with = "deserialize::utf8_error"
-    )]
-    DecodeError(FromUtf8Error),
-    #[error("Invalid binary header")]
-    InvalidBinaryHeader,
-    #[error("String message not terminated")]
-    NotTerminated,
-    #[error("Invalid request data")]
-    InvalidRequest,
-    #[error("Invalid response data was received from client device")]
-    InvalidResponse,
-    #[error("Invalid Address")]
-    InvalidAddress,
-    #[error("Timeout Occurred")]
-    Timeout,
-    #[error("Vxi11 Error")]
-    #[serde(
-        serialize_with = "serialize::vxi_error",
-        deserialize_with = "deserialize::vxi_error"
-    )]
-    Vxi(Arc<async_vxi11::Error>),
-    #[error("CAN Error from [{addr}]: {err}")]
-    Can { addr: String, err: CanError },
-    #[error("Sigrok error: {0}")]
-    Sigrok(SigrokError),
-    #[error("Hid error: {0}")]
-    Hid(HidError),
-    #[error("No such device: {0}")]
-    NoSuchDevice(String),
-    #[error("Other: {0}")]
-    Other(String),
-}
 
-impl Error {
-    pub fn io(err: io::Error) -> Error {
-        Error::Io(Arc::new(err))
-    }
-
-    pub fn vxi(err: async_vxi11::Error) -> Error {
-        match err {
-            async_vxi11::Error::Io(x) => Error::io(x),
-            x => Error::Vxi(Arc::new(x)),
-        }
-    }
-
-    pub fn should_retry(&self) -> bool {
-        match self {
-            Error::Io(err) => {
-                err.kind() == io::ErrorKind::ConnectionReset
-                    || err.kind() == io::ErrorKind::ConnectionAborted
-                    || err.kind() == io::ErrorKind::BrokenPipe
-                    || err.kind() == io::ErrorKind::TimedOut
-                    || err.kind() == io::ErrorKind::UnexpectedEof
-            }
-            _ => false,
-        }
-    }
-}
 
 impl Into<Response> for Error {
     fn into(self) -> Response {
