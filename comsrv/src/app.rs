@@ -16,10 +16,7 @@ use comsrv_protocol::{
     ByteStreamRequest, ByteStreamResponse, CanDeviceInfo, CanRequest, CanResponse, ModBusRequest,
     ModBusResponse, OldRequest, Response, ScpiRequest, ScpiResponse, CanDriverType, Request,
 };
-use comsrv_protocol::{HidRequest, HidResponse};
-
-use std::time::Duration;
-use uuid::Uuid;
+use std::sync::Arc;
 
 pub type Server = WsrpcServer<OldRequest, Response>;
 
@@ -29,10 +26,20 @@ macro_rules! crate_version {
     };
 }
 
+pub struct Inventories {
+
+}
+
+impl Inventories {
+    fn new() -> Self {
+        todo!()
+    }
+}
+
 #[derive(Clone)]
 pub struct App {
     pub server: Server,
-    pub inventory: Inventory,
+    pub inventories: Arc<Inventories>,
 }
 
 impl App {
@@ -40,7 +47,7 @@ impl App {
         let (server, rx) = Server::new();
         let app = App {
             server,
-            inventory: Inventory::new(),
+            inventories: Inventories::new(),
         };
         (app, rx)
     }

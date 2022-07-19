@@ -1,19 +1,14 @@
-use bytestream::{ByteStreamRequest, ByteStreamResponse};
-use can::{CanInstrument, CanDeviceInfo};
-use hid::{HidInstrument, HidRequest, HidResponse};
-use scpi::{ScpiInstrument, ScpiRequest, ScpiResponse};
 use serde::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
-use sigrok::{SigrokResponse, SigrokRequest, SigrokInstrument};
 use uuid::Uuid;
 use std::fmt::{Debug, Formatter};
-pub use can::{
-    CanMessage, CanRequest, CanResponse, DataFrame, GctMessage, MessageId, RemoteFrame,
-    SysCtrlType, BROADCAST_ADDR, MSGTYPE_DDP, MSGTYPE_HEARTBEAT, MSGTYPE_MONITORING_DATA,
-    MSGTYPE_MONITORING_REQUEST, MSGTYPE_SYSCTRL,
-};
 
-pub use bytestream::ByteStreamInstrument;
+pub use can::*;
+pub use error::*;
+pub use bytestream::*;
+pub use scpi::*;
+pub use hid::*;
+pub use sigrok::*;
+
 
 pub mod can;
 pub mod error;
@@ -91,7 +86,7 @@ pub enum Request {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Response {
-    Error(JsonValue),
+    Error(Error),
     Instruments(Vec<Instrument>),
     Scpi(ScpiResponse),
     Bytes(ByteStreamResponse),
@@ -114,13 +109,4 @@ impl Debug for Response {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(&serde_json::to_string(self).unwrap())
     }
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct FtdiDeviceInfo {
-    pub port_open: bool,
-    pub vendor_id: u16,
-    pub product_id: u16,
-    pub serial_number: String,
-    pub description: String,
 }

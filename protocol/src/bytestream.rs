@@ -167,3 +167,12 @@ pub enum ModBusResponse {
     Data(Vec<u8>),
     Custom { code: u8, data: Vec<u8> },
 }
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct FtdiDeviceInfo {
+    pub port_open: bool,
+    pub vendor_id: u16,
+    pub product_id: u16,
+    pub serial_number: String,
+    pub description: String,
+}

@@ -10,14 +10,7 @@ use std::io;
 use std::string::FromUtf8Error;
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
-use visa::VisaError;
-
-use crate::can::CanError;
-use crate::hid::HidError;
-use crate::sigrok::SigrokError;
 pub use comsrv_protocol::{Response, Request, Error};
 
 pub mod app;
@@ -35,19 +28,6 @@ pub mod visa;
 mod vxi;
 
 
-
-impl Into<Response> for Error {
-    fn into(self) -> Response {
-        let ret = serde_json::to_value(self).unwrap();
-        Response::Error(ret)
-    }
-}
-
-impl From<io::Error> for Error {
-    fn from(err: io::Error) -> Self {
-        Error::io(err)
-    }
-}
 
 pub type Result<T> = std::result::Result<T, Error>;
 

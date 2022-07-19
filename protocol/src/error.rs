@@ -4,6 +4,8 @@ use std::{io, sync::Arc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::Response;
+
 #[derive(Serialize, Deserialize)]
 struct AnyHowError {
     description: String,
@@ -133,3 +135,8 @@ pub enum Error {
 }
 
 
+impl Into<Response> for Error {
+    fn into(self) -> Response {
+        Response::Error(self)
+    }
+}
