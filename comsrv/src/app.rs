@@ -43,7 +43,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new() -> (Self, UnboundedReceiver<Requested<OldRequest, Response>>) {
+    pub fn new() -> (Self, UnboundedReceiver<Requested<Request, Response>>) {
         let (server, rx) = Server::new();
         let app = App {
             server,
@@ -52,7 +52,7 @@ impl App {
         (app, rx)
     }
 
-    pub async fn run(&self, mut rx: UnboundedReceiver<Requested<OldRequest, Response>>) {
+    pub async fn run(&self, mut rx: UnboundedReceiver<Requested<Request, Response>>) {
         while let Some(msg) = rx.recv().await {
             let (req, rep) = msg.split();
             let app = self.clone();

@@ -49,7 +49,6 @@ fn main() {
 
         let url = format!("0.0.0.0:{}", port);
         let http_addr: SocketAddr = format!("0.0.0.0:{}", port + 1).parse().unwrap();
-        app.server.enable_broadcast_reqrep(true);
         println!("Listening on ws://{}", url);
         app.server.listen_ws(url).await;
         println!("Listening on http://{}", http_addr);
