@@ -1,19 +1,19 @@
 use serde::{Serialize, Deserialize};
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct HidInstrument {
     pub address: HidIdentifier,
 
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum HidRequest {
     Write { data: Vec<u8> },
     Read { timeout_ms: i32 },
     GetInfo,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum HidResponse {
     Ok,
     Data(Vec<u8>),
@@ -21,7 +21,7 @@ pub enum HidResponse {
     List(Vec<HidDeviceInfo>),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct HidDeviceInfo {
     pub idn: HidIdentifier,
     pub manufacturer: Option<String>,
@@ -29,7 +29,7 @@ pub struct HidDeviceInfo {
     pub serial_number: Option<String>,
 }
 
-#[derive(Hash, Clone, Serialize, Deserialize)]
+#[derive(Hash, Clone, Serialize, Deserialize, Debug)]
 pub struct HidIdentifier {
     pub pid: u16,
     pub vid: u16,

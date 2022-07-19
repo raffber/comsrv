@@ -5,7 +5,6 @@
 /// `IoTask<T: IoHandler>` which implements `Send + Clone` and is thus sharable between threads.
 use crate::Error;
 use async_trait::async_trait;
-use comsrv_protocol::Response;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task;
 
@@ -14,11 +13,11 @@ pub trait Message: 'static + Send {}
 
 impl<T: 'static + Send> Message for T {}
 
-pub struct IoContext<Request: Message, Response: Message> {
-    tx: mpsc::UnboundedSender<RequestMsg<T>>,
+pub struct IoContext<Request: Message> {
+    tx: mpsc::UnboundedSender<RequestMsg<Request>>,
 }
 
-impl<Request: Message, Response: Message> IoContext<Request, Response> {
+impl<Request: Message> IoContext<Request> {
     fn send(&mut self, req: Request) {
         self.tx.send(RequestMsg::Task { req, answer: None })
     }

@@ -1,35 +1,35 @@
 use crate::Duration;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SerialOptions {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub auto_drop: Option<Duration>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FtdiAddress {
     pub port: String,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SerialAddress {
     pub port: String,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SerialPortConfig {
     pub config: String,
     pub baudrate: u32,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TcpAddress {
     pub url: String,
     pub port: u16,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SerialInstrument {
     pub address: SerialAddress,
     pub port_config: SerialPortConfig,
@@ -37,7 +37,7 @@ pub struct SerialInstrument {
     pub options: Option<SerialOptions>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FtdiInstrument {
     pub address: FtdiAddress,
     pub port_config: SerialPortConfig,
@@ -45,7 +45,7 @@ pub struct FtdiInstrument {
     pub options: Option<SerialOptions>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TcpOptions {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub auto_drop: Option<Duration>,
@@ -53,27 +53,27 @@ pub struct TcpOptions {
     pub connection_timeout: Option<Duration>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TcpInstrument {
     pub address: TcpAddress,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub options: Option<TcpOptions>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ByteStreamInstrument {
     Serial(SerialInstrument),
     Ftdi(FtdiInstrument),
     Tcp(TcpInstrument),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ModBusProtocol {
     Tcp,
     Rtu,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ByteStreamRequest {
     Write(Vec<u8>),
     ReadToTerm {
@@ -113,7 +113,7 @@ pub enum ByteStreamRequest {
     },
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ModBusRequest {
     Ddp {
         sub_cmd: u8,
@@ -151,7 +151,7 @@ pub enum ModBusRequest {
     },
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ByteStreamResponse {
     Done,
     Data(Vec<u8>),
@@ -159,7 +159,7 @@ pub enum ByteStreamResponse {
     ModBus(ModBusResponse),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ModBusResponse {
     Done,
     Number(Vec<u16>),
@@ -168,7 +168,7 @@ pub enum ModBusResponse {
     Custom { code: u8, data: Vec<u8> },
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FtdiDeviceInfo {
     pub port_open: bool,
     pub vendor_id: u16,

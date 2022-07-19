@@ -3,7 +3,7 @@ use std::thread;
 
 use tokio::sync::oneshot;
 
-use crate::visa::Instrument as BlockingInstrument;
+use crate::visa::blocking::Instrument as BlockingInstrument;
 use crate::Error;
 use comsrv_protocol::{ScpiRequest, ScpiResponse};
 

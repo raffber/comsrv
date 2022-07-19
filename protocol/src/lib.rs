@@ -21,13 +21,13 @@ mod util;
 pub use crate::error::{Error, TransportError, ProtocolError};
 
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Duration {
     pub micros: u32,
     pub seconds: u32,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Instrument {
     ByteStream(ByteStreamInstrument),
     Scpi(ScpiInstrument),
@@ -35,7 +35,7 @@ pub enum Instrument {
     Hid(HidInstrument),
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Request {
     ByteStream {
         instrument: ByteStreamInstrument,
@@ -84,7 +84,7 @@ pub enum Request {
     Shutdown,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Response {
     Error(Error),
     Instruments(Vec<Instrument>),
@@ -103,10 +103,4 @@ pub enum Response {
     FtdiDevices(Vec<FtdiDeviceInfo>),
     CanDevices(Vec<CanDeviceInfo>),
     Done,
-}
-
-impl Debug for Response {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&serde_json::to_string(self).unwrap())
-    }
 }

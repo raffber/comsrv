@@ -6,7 +6,7 @@ extern crate dlopen_derive;
 #[macro_use]
 extern crate lazy_static;
 
-pub use comsrv_protocol::{Response, Request, Error};
+pub use comsrv_protocol::{Response, Request};
 
 pub mod app;
 mod can;

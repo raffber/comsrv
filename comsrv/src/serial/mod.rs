@@ -33,11 +33,6 @@ pub enum Request {
         params: SerialParams,
         req: ByteStreamRequest,
     },
-    ModBus {
-        params: SerialParams,
-        req: ModBusRequest,
-        slave_addr: u8,
-    },
 }
 
 impl Request {

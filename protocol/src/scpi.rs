@@ -2,22 +2,22 @@ use serde::{Deserialize, Serialize};
 
 use crate::bytestream::SerialAddress;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct VxiInstrument {
     address: String, 
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct VisaInstrument {
     address: String,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PrologixInstrument {
     address: SerialAddress,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ScpiInstrument {
     Vxi(VxiInstrument),
     Visa(VisaInstrument),

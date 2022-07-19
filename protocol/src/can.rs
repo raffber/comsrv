@@ -13,13 +13,13 @@ pub enum CanInstrument {
     },
 }
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub enum CanDriverType {
     SocketCAN,
     PCAN,
 }
 
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct CanDeviceInfo {
     pub interface_name: String,
     pub driver_type: CanDriverType,
@@ -61,7 +61,7 @@ pub struct RemoteFrame {
     pub dlc: u8,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum CanRequest {
     ListenRaw(bool),
     ListenGct(bool),
@@ -71,7 +71,7 @@ pub enum CanRequest {
     TxGct(GctMessage),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum CanResponse {
     Started(String),
     Stopped(String),

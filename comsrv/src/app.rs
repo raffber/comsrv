@@ -3,7 +3,7 @@ use tokio::task;
 use wsrpc::server::{Requested, Server as WsrpcServer};
 
 use crate::address::Address;
-use crate::can::Request as InternalCanRequest;
+use crate::can::{Request as InternalCanRequest, CanAddress};
 use crate::ftdi::{self, FtdiRequest, FtdiResponse};
 use crate::instrument::Instrument;
 use crate::inventory::Inventory;
@@ -14,7 +14,8 @@ use crate::tcp::{TcpRequest, TcpResponse};
 use crate::{sigrok, Error};
 use comsrv_protocol::{
     ByteStreamRequest, ByteStreamResponse, CanDeviceInfo, CanRequest, CanResponse, ModBusRequest,
-    ModBusResponse, OldRequest, Response, ScpiRequest, ScpiResponse, CanDriverType, Request,
+    ModBusResponse, OldRequest, Response, ScpiRequest, ScpiResponse, CanDriverType, Request, SerialAddress, FtdiAddress, TcpAddress, ByteStreamInstrument,
+    CanInstrument, ScpiInstrument, PrologixInstrument
 };
 use std::sync::Arc;
 
@@ -27,8 +28,12 @@ macro_rules! crate_version {
 }
 
 pub struct Inventories {
-    serial_instruments: Inventory<serial::Instrument>,
-    can_instruments: Inventories<can::Instrument>,
+    serial: Inventory<serial::Instrument, SerialAddress>,
+    can: Inventory<can::Instrument, CanAddress>,
+    ftdi: Inventory<ftdi::Instrument, FtdiAddress>,
+    tcp: Inventory<tcp::Instrument, TcpAddress>,
+    visa: Inventory<visa::Instrument, String>,
+    vxi: Inventory<vxi::Instrument, String>,
 }
 
 impl Inventories {
@@ -72,9 +77,16 @@ impl App {
 
     async fn handle(&self, req: Request) -> Response {
         match req {
-            Request::ByteStream { instrument, request, lock } => todo!(),
-            Request::Can { instrument, request, lock } => todo!(),
-            Request::Scpi { instrument, request } => todo!(),
+            Request::ByteStream { instrument: ByteStreamInstrument::Ftdi(instr), request, lock } => {
+                let instr = self.inventories.ftdi.connect(&instr.address, || ftdi::Instrument::new(&instr.address.port));
+            },
+            Request::ByteStream { instrument: ByteStreamInstrument::Serial(instr), request, lock } => todo!(),
+            Request::ByteStream { instrument: ByteStreamInstrument::Tcp(instr), request, lock } => todo!(),
+            Request::Can { instrument: CanInstrument::PCan { address, baudrate },  request, lock } => todo!(),
+            Request::Can { instrument: CanInstrument::SocketCan { interface },  request, lock } => todo!(),
+            Request::Scpi { instrument: ScpiInstrument::PrologixSerial(instr), request } => todo!(),
+            Request::Scpi { instrument: ScpiInstrument::Visa(instr), request } => todo!(),
+            Request::Scpi { instrument: ScpiInstrument::Vxi(instr), request } => todo!(),
             Request::Sigrok { instrument, request } => todo!(),
             Request::Hid { instrument, request, lock } => todo!(),
             Request::Connect { instrument, timeout } => todo!(),
