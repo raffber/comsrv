@@ -62,21 +62,6 @@ pub struct Handler {
     path: String,
 }
 
-impl From<tokio_serial::Error> for crate::Error {
-    fn from(x: tokio_serial::Error) -> Self {
-        match x.kind {
-            ErrorKind::NoDevice => crate::Error::InvalidRequest,
-            ErrorKind::InvalidInput => crate::Error::InvalidRequest,
-            ErrorKind::Unknown => crate::Error::NotSupported,
-            ErrorKind::Io(io) => {
-                let desc = format!("{:?}", io);
-                let io_err = std::io::Error::new(io, desc.as_str());
-                crate::Error::io(io_err)
-            }
-        }
-    }
-}
-
 async fn open_serial_port(path: &str, params: &SerialParams) -> crate::Result<SerialStream> {
     let serial_stream = tokio_serial::new(path, params.baud)
         .parity(params.parity.into())

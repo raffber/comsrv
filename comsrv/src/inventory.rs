@@ -11,9 +11,10 @@ use tokio::sync::oneshot;
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::time::sleep;
 use uuid::Uuid;
+use std::hash::Hash;
+use std::fmt::Debug;
 
 use crate::app::Server;
-use crate::instrument::Instrument;
 
 /// Used to lock/unlock an instrument. Allows waiting
 /// for the lock because internally an AsyncMutex is used.
@@ -51,13 +52,13 @@ impl<T: 'static + Clone + Send + Hash + PartialEq + Eq + Debug> InstrumentAddres
 /// Contains an instrument which can be locked
 #[derive(Clone)]
 struct LockableInstrument<T: Instrument> {
-    instr: Instrument,
+    instr: T,
     lock: Option<Lock>,
 }
 
 struct InventoryShared<T: Instrument, A: InstrumentAddress> {
     instruments: HashMap<A, LockableInstrument<T>>,
-    locks: HashMap<Uuid, HandleId>,
+    locks: HashMap<Uuid, A>,
 }
 
 /// A collect of instruments, public API of this module
@@ -86,14 +87,14 @@ impl<T: Instrument, Address: InstrumentAddress> Inventory<T, Address> {
     /// # Panics
     ///
     /// This function panics if the there is no `Instrument` associated with the given address type.
-    pub fn connect<C: FnOnce(&Address) -> T>(&self, addr: &A, constructor: C) -> T {
-        log::debug!("Opening instrument: {} with {:?}", addr, addr.handle_id());
+    pub fn connect<C: FnOnce(&Address) -> T>(&self, addr: &Address, constructor: C) -> T {
+        log::debug!("Opening instrument: {}", addr);
         let mut inner = self.0.lock().unwrap();
 
         if let Some(ret) = inner.instruments.get(addr) {
             return ret.instr.clone();
         }
-        let ret = C(addr);
+        let ret = constructor(addr);
 
         let instr = LockableInstrument {
             instr: ret.clone(),
@@ -105,10 +106,10 @@ impl<T: Instrument, Address: InstrumentAddress> Inventory<T, Address> {
 
     /// If there is instrument connected to the given address, this instrument is disconnected and
     /// dropped from the `Inventory`.
-    pub fn disconnect(&self, addr: &A) {
-        log::debug!("Dropping instrument: {} with {:?}", addr, addr.handle_id());
+    pub fn disconnect(&self, addr: &Address) {
+        log::debug!("Dropping instrument: {}", addr);
         let mut inner = self.0.lock().unwrap();
-        if let Some(x) = inner.instruments.remove(&addr.handle_id()) {
+        if let Some(x) = inner.instruments.remove(addr) {
             x.instr.disconnect();
         }
     }
@@ -224,7 +225,7 @@ impl<T: Instrument, Address: InstrumentAddress> Inventory<T, Address> {
     }
 }
 
-impl Default for Inventory {
+impl<T: Instrument, A: InstrumentAddress> Default for Inventory<T, A> {
     fn default() -> Self {
         Self::new()
     }

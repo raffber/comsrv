@@ -104,3 +104,12 @@ pub enum Response {
     CanDevices(Vec<CanDeviceInfo>),
     Done,
 }
+
+impl From<std::result::Result<Response, Error>> for Response {
+    fn from(x: std::result::Result<Response, Error>) -> Self {
+        match x {
+            Ok(x) => x,
+            Err(e) => Response::Error(e),
+        } 
+    }
+}

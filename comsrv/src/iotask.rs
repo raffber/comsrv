@@ -13,12 +13,12 @@ pub trait Message: 'static + Send {}
 
 impl<T: 'static + Send> Message for T {}
 
-pub struct IoContext<Request: Message> {
-    tx: mpsc::UnboundedSender<RequestMsg<Request>>,
+pub struct IoContext<T: IoHandler> {
+    tx: mpsc::UnboundedSender<RequestMsg<T>>,
 }
 
-impl<Request: Message> IoContext<Request> {
-    fn send(&mut self, req: Request) {
+impl<T: IoHandler> IoContext<T> {
+    fn send(&mut self, req: T::Request) {
         self.tx.send(RequestMsg::Task { req, answer: None })
     }
 }
@@ -26,13 +26,13 @@ impl<Request: Message> IoContext<Request> {
 /// Defines an actor interface. Can be wrapped in `IoTask` to produce a `Send`-able and `Clone`-able
 /// type to communicate with the actor.
 #[async_trait]
-pub trait IoHandler: Send {
+pub trait IoHandler: Send + Sized {
     type Request: Message;
     type Response: Message;
 
     async fn handle(
         &mut self,
-        ctx: &mut IoContext<Self::Request, Self::Response>,
+        ctx: &mut IoContext<Self>,
         req: Self::Request,
     ) -> crate::Result<Self::Response>;
 

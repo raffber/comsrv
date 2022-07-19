@@ -33,12 +33,6 @@ impl From<HidError> for crate::Error {
     }
 }
 
-impl From<HidApiError> for crate::Error {
-    fn from(x: HidApiError) -> Self {
-        crate::Error::Hid(x.into())
-    }
-}
-
 impl From<&HidApiError> for HidError {
     fn from(x: &HidApiError) -> Self {
         HidError(x.to_string())

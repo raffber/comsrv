@@ -5,53 +5,25 @@ use async_trait::async_trait;
 use comsrv_protocol::ByteStreamRequest;
 use comsrv_protocol::ByteStreamResponse;
 use comsrv_protocol::FtdiDeviceInfo;
-use comsrv_protocol::ModBusRequest;
 use comsrv_protocol::ModBusResponse;
+use comsrv_protocol::SerialOptions;
+use comsrv_protocol::SerialPortConfig;
+use std::cmp::PartialOrd;
 use tokio_modbus::client::rtu;
 use tokio_modbus::prelude::Slave;
-use std::cmp::PartialOrd;
 
-use crate::bytestream;
-use crate::bytestream::read_all;
-use crate::clonable_channel::ClonableChannel;
+use crate::iotask::IoContext;
 use crate::iotask::IoHandler;
 use crate::iotask::IoTask;
-use crate::modbus::handle_modbus_request_timeout;
 use crate::serial::params::DataBits;
 use crate::serial::params::Parity;
 use crate::serial::params::StopBits;
 use crate::serial::SerialParams;
 
-pub enum FtdiRequest {
-    ModBus {
-        params: SerialParams,
-        req: ModBusRequest,
-        slave_addr: u8,
-    },
-    Bytes {
-        params: SerialParams,
-        req: ByteStreamRequest,
-    },
-}
-
-impl FtdiRequest {
-    fn params(&self) -> SerialParams {
-        match self {
-            FtdiRequest::ModBus { params, .. } => params.clone(),
-            FtdiRequest::Bytes { params, .. } => params.clone(),
-        }
-    }
-}
-
-pub enum FtdiResponse {
-    Bytes(ByteStreamResponse),
-    ModBus(ModBusResponse),
-}
-
-#[derive(Hash, Clone)]
-pub struct FtdiAddress {
-    pub serial_number: String,
-    pub params: SerialParams,
+pub struct FtdiRequest {
+    request: ByteStreamRequest,
+    port_config: SerialPortConfig,
+    options: Option<SerialOptions>,
 }
 
 #[derive(Clone)]
@@ -67,18 +39,13 @@ impl Instrument {
         }
     }
 
-    pub async fn request(&mut self, req: FtdiRequest) -> crate::Result<FtdiResponse> {
+    pub async fn request(&mut self, req: FtdiRequest) -> crate::Result<ByteStreamResponse> {
         self.inner.request(req).await
     }
 
     pub fn disconnect(mut self) {
         self.inner.disconnect()
     }
-}
-
-pub struct Request {
-    request: ByteStreamRequest,
-    params: SerialParams,
 }
 
 impl Into<async_ftdi::SerialParams> for SerialParams {
@@ -122,21 +89,27 @@ impl Handler {
 #[async_trait]
 impl IoHandler for Handler {
     type Request = FtdiRequest;
-    type Response = FtdiResponse;
+    type Response = ByteStreamResponse;
 
-    async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
+    async fn handle(
+        &mut self,
+        ctx: &mut IoContext<Self>,
+        req: Self::Request,
+    ) -> crate::Result<Self::Response> {
         let params = req.params();
         let mut ftdi = if let Some((mut ftdi, open_params)) = self.device.take() {
             if params != open_params {
                 if let Err(x) = ftdi.set_params(params.clone().into()).await {
                     ftdi.close().await;
-                    return Err(x.into()); 
+                    return Err(x.into());
                 }
-            } 
+            }
             ftdi
         } else {
             Ftdi::open(&self.serial_number, &params.clone().into()).await?
         };
+
+        bytestra
 
         let ret = match req {
             FtdiRequest::ModBus {
@@ -161,8 +134,8 @@ impl IoHandler for Handler {
         // don't close the device for certain error types if they are clearly related to the application
         match ret {
             Ok(_) | Err(crate::Error::Timeout) | Err(crate::Error::InvalidResponse) => {
-            self.device.replace((ftdi, params));
-            },
+                self.device.replace((ftdi, params));
+            }
             Err(_) => ftdi.close().await,
         }
 

@@ -2,24 +2,22 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task;
 use wsrpc::server::{Requested, Server as WsrpcServer};
 
-use crate::address::Address;
-use crate::can::{Request as InternalCanRequest, CanAddress};
-use crate::ftdi::{self, FtdiRequest, FtdiResponse};
-use crate::instrument::Instrument;
+
+use crate::serial;
+use crate::can;
+use crate::ftdi;
+use crate::tcp;
+use crate::visa;
+use crate::vxi;
+
 use crate::inventory::Inventory;
-use crate::modbus::{ModBusAddress, ModBusTransport};
-use crate::serial::Response as SerialResponse;
-use crate::serial::{Request as SerialRequest, SerialParams};
-use crate::tcp::{TcpRequest, TcpResponse};
-use crate::{sigrok, Error};
 use comsrv_protocol::{
-    ByteStreamRequest, ByteStreamResponse, CanDeviceInfo, CanRequest, CanResponse, ModBusRequest,
-    ModBusResponse, OldRequest, Response, ScpiRequest, ScpiResponse, CanDriverType, Request, SerialAddress, FtdiAddress, TcpAddress, ByteStreamInstrument,
-    CanInstrument, ScpiInstrument, PrologixInstrument
+    Response, Request, SerialAddress, FtdiAddress, TcpAddress, ByteStreamInstrument,
+    CanInstrument, ScpiInstrument
 };
 use std::sync::Arc;
 
-pub type Server = WsrpcServer<OldRequest, Response>;
+pub type Server = WsrpcServer<Request, Response>;
 
 macro_rules! crate_version {
     () => {
@@ -29,7 +27,8 @@ macro_rules! crate_version {
 
 pub struct Inventories {
     serial: Inventory<serial::Instrument, SerialAddress>,
-    can: Inventory<can::Instrument, CanAddress>,
+    pcan: Inventory<can::Instrument, String>,
+    socket_can: Inventory<can::Instrument, String>,
     ftdi: Inventory<ftdi::Instrument, FtdiAddress>,
     tcp: Inventory<tcp::Instrument, TcpAddress>,
     visa: Inventory<visa::Instrument, String>,
@@ -79,6 +78,7 @@ impl App {
         match req {
             Request::ByteStream { instrument: ByteStreamInstrument::Ftdi(instr), request, lock } => {
                 let instr = self.inventories.ftdi.connect(&instr.address, || ftdi::Instrument::new(&instr.address.port));
+                instr.request(req)
             },
             Request::ByteStream { instrument: ByteStreamInstrument::Serial(instr), request, lock } => todo!(),
             Request::ByteStream { instrument: ByteStreamInstrument::Tcp(instr), request, lock } => todo!(),
