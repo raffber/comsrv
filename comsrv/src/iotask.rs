@@ -5,6 +5,7 @@
 /// `IoTask<T: IoHandler>` which implements `Send + Clone` and is thus sharable between threads.
 use crate::Error;
 use async_trait::async_trait;
+use comsrv_protocol::Response;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task;
 
@@ -13,6 +14,16 @@ pub trait Message: 'static + Send {}
 
 impl<T: 'static + Send> Message for T {}
 
+pub struct IoContext<Request: Message, Response: Message> {
+    tx: mpsc::UnboundedSender<RequestMsg<T>>,
+}
+
+impl<Request: Message, Response: Message> IoContext<Request, Response> {
+    fn send(&mut self, req: Request) {
+        self.tx.send(RequestMsg::Task { req, answer: None })
+    }
+}
+
 /// Defines an actor interface. Can be wrapped in `IoTask` to produce a `Send`-able and `Clone`-able
 /// type to communicate with the actor.
 #[async_trait]
@@ -20,7 +31,12 @@ pub trait IoHandler: Send {
     type Request: Message;
     type Response: Message;
 
-    async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response>;
+    async fn handle(
+        &mut self,
+        ctx: &mut IoContext<Self::Request, Self::Response>,
+        req: Self::Request,
+    ) -> crate::Result<Self::Response>;
+
     async fn disconnect(&mut self) {}
 }
 
@@ -29,7 +45,7 @@ pub trait IoHandler: Send {
 enum RequestMsg<T: IoHandler> {
     Task {
         req: T::Request,
-        answer: oneshot::Sender<crate::Result<T::Response>>,
+        answer: Option<oneshot::Sender<crate::Result<T::Response>>>,
     },
     Drop,
 }
@@ -52,12 +68,18 @@ impl<T: 'static + IoHandler> IoTask<T> {
     /// Wrap the given `IoHandler` actor in an `IoTask`.
     pub fn new(mut handler: T) -> Self {
         let (tx, mut rx) = mpsc::unbounded_channel::<RequestMsg<T>>();
+        let copy_tx = tx.clone();
         task::spawn(async move {
+            let mut ctx = IoContext {
+                tx: copy_tx.clone(),
+            };
             while let Some(x) = rx.recv().await {
                 match x {
                     RequestMsg::Task { req, answer } => {
-                        let result = handler.handle(req).await;
-                        let _ = answer.send(result);
+                        let result = handler.handle(&mut ctx, req).await;
+                        if let Some(answer) = answer {
+                            let _ = answer.send(result);
+                        }
                     }
                     RequestMsg::Drop => {
                         handler.disconnect().await;
@@ -78,7 +100,10 @@ impl<T: 'static + IoHandler> IoTask<T> {
     /// returns `Err(Error::Disconnected)`.
     pub async fn request(&mut self, req: T::Request) -> crate::Result<T::Response> {
         let (tx, rx) = oneshot::channel();
-        let msg = RequestMsg::Task { req, answer: tx };
+        let msg = RequestMsg::Task {
+            req,
+            answer: Some(tx),
+        };
         self.tx.send(msg).map_err(|_| Error::Disconnected)?;
         let ret = rx.await.map_err(|_| Error::Disconnected)?;
         ret

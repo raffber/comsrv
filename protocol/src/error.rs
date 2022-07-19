@@ -66,6 +66,13 @@ pub enum TransportError {
         )]
         Arc<io::Error>,
     ),
+    #[error("Other Error: {0}")]
+    Other(
+        #[serde(
+            serialize_with = "serialize_anyhow_error",
+            deserialize_with = "deserialize_anyhow_error"
+        )]
+        Arc<anyhow::Error>)
 }
 
 impl From<io::Error> for TransportError {
@@ -88,6 +95,13 @@ pub enum ProtocolError {
     Timeout,
     #[error("Unexpected Response: {0}")]
     UnexpectedResponse(String),
+    #[error("Other Error: {0}")]
+    Other(
+        #[serde(
+            serialize_with = "serialize_anyhow_error",
+            deserialize_with = "deserialize_anyhow_error"
+        )]
+        Arc<anyhow::Error>)
 }
 
 impl From<io::Error> for ProtocolError {

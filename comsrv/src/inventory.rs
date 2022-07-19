@@ -12,7 +12,6 @@ use tokio::sync::Mutex as AsyncMutex;
 use tokio::time::sleep;
 use uuid::Uuid;
 
-use crate::address::{Address, HandleId};
 use crate::app::Server;
 use crate::instrument::Instrument;
 
@@ -43,28 +42,31 @@ impl Lock {
     }
 }
 
+trait Instrument: 'static + Clone + Send {}
+impl<T: 'static + Clone + Send> Instrument for T {}
+
 /// Contains an instrument which can be locked
 #[derive(Clone)]
-struct LockableInstrument {
+struct LockableInstrument<T: Instrument> {
     instr: Instrument,
     lock: Option<Lock>,
 }
 
-struct InventoryShared {
-    instruments: HashMap<HandleId, LockableInstrument>,
+struct InventoryShared<T: Instrument> {
+    instruments: HashMap<HandleId, LockableInstrument<T>>,
     locks: HashMap<Uuid, HandleId>,
 }
 
 /// A collect of instruments, public API of this module
 #[derive(Clone)]
-pub struct Inventory(Arc<Mutex<InventoryShared>>);
+pub struct Inventory<T: Instrument>(Arc<Mutex<InventoryShared<T>>>);
 
 /// The `Inventory` type allows storing and retrieving instruments.
 /// Also, access to instruments may be locked for a given amount of time. During this time, only
 /// the task accesssing the instrument has access to the instrument.
 ///
 /// `Inventory` as well as `Instrument` are `Clone + Send` and can thus be shared between threads.
-impl Inventory {
+impl<T: Instrument> Inventory<T> {
     /// Create a new inventory
     pub fn new() -> Self {
         let inner = InventoryShared {
@@ -81,7 +83,7 @@ impl Inventory {
     /// # Panics
     ///
     /// This function panics if the there is no `Instrument` associated with the given address type.
-    pub fn connect(&self, server: &Server, addr: &Address) -> Instrument {
+    pub fn connect(&self, server: &Server, instr: T) -> T {
         log::debug!("Opening instrument: {} with {:?}", addr, addr.handle_id());
         let mut inner = self.0.lock().unwrap();
         if let Some(ret) = inner.instruments.get(&addr.handle_id()) {

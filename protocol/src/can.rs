@@ -3,6 +3,29 @@ use serde::{Deserialize, Serialize};
 use std::iter::repeat;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum CanInstrument {
+    PCan {
+        address: String,
+        baudrate: u32,
+    },
+    SocketCan {
+        interface: String,
+    },
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub enum CanDriverType {
+    SocketCAN,
+    PCAN,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct CanDeviceInfo {
+    pub interface_name: String,
+    pub driver_type: CanDriverType,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum CanMessage {
     Data(DataFrame),
     Remote(RemoteFrame),

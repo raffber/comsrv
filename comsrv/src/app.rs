@@ -14,14 +14,14 @@ use crate::tcp::{TcpRequest, TcpResponse};
 use crate::{sigrok, Error};
 use comsrv_protocol::{
     ByteStreamRequest, ByteStreamResponse, CanDeviceInfo, CanRequest, CanResponse, ModBusRequest,
-    ModBusResponse, Request, Response, ScpiRequest, ScpiResponse, CanDriverType,
+    ModBusResponse, OldRequest, Response, ScpiRequest, ScpiResponse, CanDriverType,
 };
 use comsrv_protocol::{HidRequest, HidResponse};
 
 use std::time::Duration;
 use uuid::Uuid;
 
-pub type Server = WsrpcServer<Request, Response>;
+pub type Server = WsrpcServer<OldRequest, Response>;
 
 macro_rules! crate_version {
     () => {
@@ -36,7 +36,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new() -> (Self, UnboundedReceiver<Requested<Request, Response>>) {
+    pub fn new() -> (Self, UnboundedReceiver<Requested<OldRequest, Response>>) {
         let (server, rx) = Server::new();
         let app = App {
             server,
@@ -45,7 +45,7 @@ impl App {
         (app, rx)
     }
 
-    pub async fn run(&self, mut rx: UnboundedReceiver<Requested<Request, Response>>) {
+    pub async fn run(&self, mut rx: UnboundedReceiver<Requested<OldRequest, Response>>) {
         while let Some(msg) = rx.recv().await {
             let (req, rep) = msg.split();
             let app = self.clone();
@@ -307,44 +307,44 @@ impl App {
         self.server.shutdown().await;
     }
 
-    async fn handle_request(&self, req: Request) -> Response {
+    async fn handle_request(&self, req: OldRequest) -> Response {
         match req {
-            Request::Scpi { addr, task, lock } => match self.handle_scpi(addr, task, lock).await {
+            OldRequest::Scpi { addr, task, lock } => match self.handle_scpi(addr, task, lock).await {
                 Ok(result) => Response::Scpi(result),
                 Err(err) => err.into(),
             },
-            Request::ListInstruments => Response::Instruments(self.inventory.list()),
-            Request::ModBus { addr, task, lock } => {
+            OldRequest::ListInstruments => Response::Instruments(self.inventory.list()),
+            OldRequest::ModBus { addr, task, lock } => {
                 match self.handle_modbus(addr, task, lock).await {
                     Ok(result) => Response::ModBus(result),
                     Err(err) => err.into(),
                 }
             }
-            Request::Bytes { addr, task, lock } => match self.handle_bytes(&addr, task, lock).await
+            OldRequest::Bytes { addr, task, lock } => match self.handle_bytes(&addr, task, lock).await
             {
                 Ok(result) => Response::Bytes(result),
                 Err(err) => err.into(),
             },
-            Request::Can { addr, task, lock } => match self.handle_can(&addr, task, lock).await {
+            OldRequest::Can { addr, task, lock } => match self.handle_can(&addr, task, lock).await {
                 Ok(result) => Response::Can(result),
                 Err(err) => err.into(),
             },
-            Request::DropAll => {
+            OldRequest::DropAll => {
                 self.inventory.disconnect_all();
                 Response::Done
             }
-            Request::Shutdown => {
+            OldRequest::Shutdown => {
                 self.shutdown().await;
                 Response::Done
             }
-            Request::Drop(addr) => match Address::parse(&addr) {
+            OldRequest::Drop(addr) => match Address::parse(&addr) {
                 Ok(addr) => {
                     self.inventory.disconnect(&addr);
                     Response::Done
                 }
                 Err(err) => err.into(),
             },
-            Request::Sigrok { addr, task } => {
+            OldRequest::Sigrok { addr, task } => {
                 let addr = match Address::parse(&addr) {
                     Ok(addr) => addr,
                     Err(err) => return err.into(),
@@ -358,11 +358,11 @@ impl App {
                     Err(err) => err.into(),
                 }
             }
-            Request::ListSigrokDevices => match sigrok::list().await {
+            OldRequest::ListSigrokDevices => match sigrok::list().await {
                 Ok(resp) => Response::Sigrok(resp),
                 Err(err) => err.into(),
             },
-            Request::Lock { addr, timeout_ms } => {
+            OldRequest::Lock { addr, timeout_ms } => {
                 let addr = match Address::parse(&addr) {
                     Ok(addr) => addr,
                     Err(err) => return err.into(),
@@ -375,19 +375,19 @@ impl App {
                     lock_id: ret,
                 }
             }
-            Request::Unlock(id) => {
+            OldRequest::Unlock(id) => {
                 self.inventory.unlock(id).await;
                 Response::Done
             }
-            Request::Hid { addr, task, lock } => match self.handle_hid(&addr, task, lock).await {
+            OldRequest::Hid { addr, task, lock } => match self.handle_hid(&addr, task, lock).await {
                 Ok(x) => Response::Hid(x),
                 Err(x) => x.into(),
             },
-            Request::ListHidDevices => match crate::hid::list_devices().await {
+            OldRequest::ListHidDevices => match crate::hid::list_devices().await {
                 Ok(result) => Response::Hid(HidResponse::List(result)),
                 Err(x) => x.into(),
             },
-            Request::Version => {
+            OldRequest::Version => {
                 let version = crate_version!();
                 let version: Vec<_> = version
                     .split(".")
@@ -399,15 +399,15 @@ impl App {
                     build: version[2],
                 }
             }
-            Request::ListSerialPorts => match crate::serial::list_devices().await {
+            OldRequest::ListSerialPorts => match crate::serial::list_devices().await {
                 Ok(x) => Response::SerialPorts(x),
                 Err(x) => x.into(),
             },
-            Request::ListFtdiDevices => match ftdi::list_ftdi().await {
+            OldRequest::ListFtdiDevices => match ftdi::list_ftdi().await {
                 Ok(x) => Response::FtdiDevices(x),
                 Err(x) => x.into(),
             },
-            Request::ListCanDevices => match async_can::list_devices().await {
+            OldRequest::ListCanDevices => match async_can::list_devices().await {
                 Ok(x) => {
                     #[cfg(target_os = "linux")]
                     let driver_type = CanDriverType::SocketCAN;
