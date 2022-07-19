@@ -27,6 +27,12 @@ pub struct Duration {
     pub seconds: u32,
 }
 
+impl Into<std::time::Duration> for Duration {
+    fn into(self) -> std::time::Duration {
+        std::time::Duration::from_micros((self.seconds as u64 * 1000000_u64) + (self.micros as u64))
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Instrument {
     ByteStream(ByteStreamInstrument),
@@ -52,6 +58,10 @@ pub enum Request {
     Scpi {
         instrument: ScpiInstrument,
         request: ScpiRequest,
+    },
+    Prologix {
+        instrument: PrologixInstrument,
+        request: PrologixRequest,
     },
     Sigrok {
         instrument: SigrokInstrument,

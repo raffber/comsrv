@@ -2,6 +2,17 @@ use byteorder::{ByteOrder, LittleEndian};
 use serde::{Deserialize, Serialize};
 use std::iter::repeat;
 
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, Hash, PartialEq)]
+pub enum CanAddress {
+    PCan {
+        address: String,
+    }, 
+    SocketCan {
+        interface: String,
+    },
+    Loopback
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum CanInstrument {
     PCan {
@@ -11,6 +22,17 @@ pub enum CanInstrument {
     SocketCan {
         interface: String,
     },
+    Loopback,
+}
+
+impl From<CanInstrument> for CanAddress {
+    fn from(x: CanInstrument) -> Self {
+        match x {
+            CanInstrument::PCan { address, ..} => CanAddress::PCan { address },
+            CanInstrument::SocketCan { interface } => CanAddress::SocketCan { interface },
+            CanInstrument::Loopback => CanAddress::Loopback,
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]

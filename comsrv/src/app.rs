@@ -26,13 +26,13 @@ macro_rules! crate_version {
 }
 
 pub struct Inventories {
-    serial: Inventory<serial::Instrument, SerialAddress>,
-    pcan: Inventory<can::Instrument, String>,
-    socket_can: Inventory<can::Instrument, String>,
-    ftdi: Inventory<ftdi::Instrument, FtdiAddress>,
-    tcp: Inventory<tcp::Instrument, TcpAddress>,
-    visa: Inventory<visa::Instrument, String>,
-    vxi: Inventory<vxi::Instrument, String>,
+    serial: Inventory<serial::Instrument>,
+    pcan: Inventory<can::Instrument>,
+    socket_can: Inventory<can::Instrument>,
+    ftdi: Inventory<ftdi::Instrument>,
+    tcp: Inventory<tcp::Instrument>,
+    visa: Inventory<visa::Instrument>,
+    vxi: Inventory<vxi::Instrument>,
 }
 
 impl Inventories {
@@ -67,17 +67,17 @@ impl App {
                 serde_json::to_string(&req).unwrap()
             );
             task::spawn(async move {
-                let response = app.handle(req).await;
+                let response = app.handle(req).await.into();
                 log::debug!("Answering: {}", serde_json::to_string(&response).unwrap());
                 rep.answer(response);
             });
         }
     }
 
-    async fn handle(&self, req: Request) -> Response {
+    async fn handle(&self, req: Request) -> crate::Result<Response> {
         match req {
             Request::ByteStream { instrument: ByteStreamInstrument::Ftdi(instr), request, lock } => {
-                let instr = self.inventories.ftdi.connect(&instr.address, || ftdi::Instrument::new(&instr.address.port));
+                let instr = self.inventories.ftdi.connect(&self.server, &instr.address)?;
                 instr.request(req)
             },
             Request::ByteStream { instrument: ByteStreamInstrument::Serial(instr), request, lock } => todo!(),
@@ -101,6 +101,7 @@ impl App {
             Request::DropAll => todo!(),
             Request::Version => todo!(),
             Request::Shutdown => todo!(),
+            Request::Prologix { instrument, request } => todo!(),
         }
     }
 }

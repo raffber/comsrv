@@ -23,7 +23,7 @@ pub enum SigrokError {
 pub async fn read(device: String, req: SigrokRequest) -> crate::Result<SigrokResponse> {
     let ret = task::spawn_blocking(|| do_read(device, req))
         .await
-        .map_err(|_| crate::Error::Disconnected)?;
+        .map_err(|x| crate::Error::Internal(x.into()))?;
     ret.map(SigrokResponse::Data)
 }
 

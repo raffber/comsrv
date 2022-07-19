@@ -1,19 +1,13 @@
-use std::fmt;
-use std::fmt::Display;
-
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task;
 
-use crate::address::Address;
 use crate::app::Server;
 use crate::can::device::{CanReceiver, CanSender};
 use crate::can::gct::Decoder;
 use crate::iotask::{IoHandler, IoTask};
-use async_can::{CanFrameError, Error};
-use comsrv_protocol::{CanMessage, CanRequest, CanResponse, DataFrame, RemoteFrame, Response};
+use async_can::CanFrameError;
+use comsrv_protocol::{CanMessage, CanRequest, CanResponse, DataFrame, RemoteFrame, Response, CanAddress};
 use tokio::sync::oneshot;
 
 mod crc;
@@ -43,107 +37,6 @@ pub fn into_async_can_message(msg: CanMessage) -> Result<async_can::Message, Can
     }
 }
 
-#[derive(Clone, Hash)]
-pub enum CanAddress {
-    PCan { ifname: String, bitrate: u32 },
-    Socket(String),
-    Loopback,
-}
-
-impl CanAddress {
-    pub fn interface(&self) -> String {
-        match self {
-            CanAddress::PCan { ifname, .. } => ifname.clone(),
-            CanAddress::Socket(ifname) => ifname.clone(),
-            CanAddress::Loopback => "loopback".to_string(),
-        }
-    }
-
-    pub fn bitrate(&self) -> Option<u32> {
-        match self {
-            CanAddress::PCan { ifname: _, bitrate } => Some(*bitrate),
-            _ => None,
-        }
-    }
-
-    pub fn update_bitrate(&mut self, new_bitrate: u32) {
-        match self {
-            CanAddress::PCan { ifname: _, bitrate } => {
-                *bitrate = new_bitrate;
-            }
-            _ => {}
-        }
-    }
-}
-
-impl From<CanAddress> for String {
-    fn from(addr: CanAddress) -> Self {
-        match addr {
-            CanAddress::PCan { ifname, bitrate } => format!("pcan::{}::{}", ifname, bitrate),
-            CanAddress::Socket(x) => format!("socket::{}", x),
-            CanAddress::Loopback => "loopback".to_string(),
-        }
-    }
-}
-
-impl Display for CanAddress {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let x: String = self.clone().into();
-        f.write_str(&x)
-    }
-}
-
-#[derive(Debug, Error, Clone, Serialize, Deserialize)]
-pub enum CanError {
-    #[error("IO Error: {0}")]
-    Io(String),
-    #[error("Invalid interface address")]
-    InvalidInterfaceAddress,
-    #[error("Invalid bit rate")]
-    InvalidBitRate,
-    #[error("PCan error {0}: {1}")]
-    PCanError(u32, String),
-    #[error("Error in CAN bus: {0}")]
-    BusError(async_can::BusError),
-    #[error("Transmit Queue full")]
-    TransmitQueueFull,
-    #[error("Id is too long")]
-    IdTooLong,
-    #[error("Data is too long")]
-    DataTooLong,
-    #[error("Message is not valid")]
-    InvalidMessage,
-    #[error("Other: {0}")]
-    Other(String),
-}
-
-impl From<async_can::Error> for CanError {
-    fn from(err: async_can::Error) -> Self {
-        match err {
-            Error::Io(err) => CanError::Io(format!("{}", err)),
-            Error::InvalidInterfaceAddress => CanError::InvalidInterfaceAddress,
-            Error::InvalidBitRate => CanError::InvalidBitRate,
-            Error::PCanInitFailed(code, desc) => CanError::PCanError(code, desc),
-            Error::PCanWriteFailed(code, desc) => CanError::PCanError(code, desc),
-            Error::PCanReadFailed(code, desc) => CanError::PCanError(code, desc),
-            Error::BusError(err) => CanError::BusError(err),
-            Error::TransmitQueueFull => CanError::TransmitQueueFull,
-            Error::IdTooLong => CanError::IdTooLong,
-            Error::DataTooLong => CanError::DataTooLong,
-            Error::PCanUnknownInterfaceType(x) => CanError::Other(format!("Unknown interface type: {}", x)),
-            Error::PCanOtherError(code, desc) => CanError::PCanError(code, desc),
-            Error::Other(x) => CanError::Other(x),
-        }
-    }
-}
-
-impl From<CanFrameError> for CanError {
-    fn from(x: CanFrameError) -> Self {
-        let err: async_can::Error = x.into();
-        err.into()
-    }
-}
-
 #[derive(Clone)]
 pub struct Instrument {
     io: IoTask<Handler>,
@@ -154,24 +47,8 @@ pub struct Request {
     bitrate: Option<u32>,
 }
 
-impl Request {
-    pub fn from_request_and_address(
-        request: CanRequest,
-        address: Address,
-    ) -> crate::Result<Request> {
-        let addr = match address {
-            Address::Can { addr } => addr,
-            _ => return Err(crate::Error::InvalidAddress),
-        };
-        Ok(Request {
-            inner: request,
-            bitrate: addr.bitrate(),
-        })
-    }
-}
-
 impl Instrument {
-    pub fn new(server: &Server, addr: CanAddress) -> Self {
+    pub fn new(server: &Server, addr: &CanAddress) -> Self {
         let handler = Handler {
             addr,
             server: server.clone(),
@@ -191,21 +68,13 @@ impl Instrument {
     pub fn disconnect(mut self) {
         self.io.disconnect();
     }
+}
 
-    pub fn check_disconnect(&self, err: &crate::Error) -> bool {
-        match &err {
-            crate::Error::Io(_) | crate::Error::Disconnected => true,
-            crate::Error::Can { addr: _, err } => {
-                matches!(
-                    err,
-                    CanError::Io(_)
-                        | CanError::InvalidInterfaceAddress
-                        | CanError::InvalidBitRate
-                        | CanError::PCanError(_, _)
-                )
-            }
-            _ => false,
-        }
+impl crate::inventory::Instrument for Instrument {
+    type Address = CanAddress;
+
+    fn connect(server: &Server, addr: &Self::Address) -> crate::Result<Self> {
+        Ok(Instrument::new(server, addr))
     }
 }
 
@@ -356,7 +225,7 @@ struct Listener {
     decoder: Decoder,
     server: Server,
     device: Option<CanReceiver>,
-    address: CanAddress,
+    address: String,
 }
 
 impl Listener {
@@ -409,7 +278,7 @@ impl Listener {
         }
     }
 
-    async fn err(&mut self, err: CanError) -> bool {
+    async fn err(&mut self, err: crate::Error) -> bool {
         if let Some(device) = &self.device {
             let send_err = crate::Error::Can {
                 addr: device.address().into(),
@@ -418,10 +287,7 @@ impl Listener {
             self.server.broadcast(send_err.into());
             // depending on error, continue listening or quit...
             match err {
-                CanError::Io(_)
-                | CanError::InvalidInterfaceAddress
-                | CanError::InvalidBitRate
-                | CanError::PCanError(_, _) => {
+                crate::Error::Transport(x) => {
                     let tx = Response::Can(CanResponse::Stopped(device.address().interface()));
                     self.server.broadcast(tx);
                     false
@@ -433,7 +299,7 @@ impl Listener {
         }
     }
 
-    async fn recv(&mut self) -> Option<Result<CanMessage, CanError>> {
+    async fn recv(&mut self) -> Option<crate::Result<CanMessage>> {
         match &mut self.device {
             None => None,
             Some(device) => Some(device.recv().await),
@@ -445,7 +311,7 @@ async fn listener_task(
     mut rx: UnboundedReceiver<ListenerMsg>,
     device: CanReceiver,
     server: Server,
-    address: CanAddress,
+    address: String,
 ) {
     let mut listener = Listener {
         listen_gct: true,
@@ -484,7 +350,7 @@ mod tests {
 
         let mut client = srv.loopback().await;
 
-        let mut instr = Instrument::new(&srv, CanAddress::Loopback);
+        let mut instr = Instrument::new(&srv, &CanAddress::Loopback);
 
         let req = Request {
             inner: CanRequest::ListenRaw(true),

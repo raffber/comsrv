@@ -18,10 +18,15 @@ pub struct PrologixInstrument {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct PrologixRequest {
+    addr: u8,
+    request: ScpiRequest,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ScpiInstrument {
     Vxi(VxiInstrument),
     Visa(VisaInstrument),
-    PrologixSerial(PrologixInstrument),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

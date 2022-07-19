@@ -38,6 +38,14 @@ impl Instrument {
     }
 }
 
+impl crate::inventory::Instrument for Instrument {
+    type Address = String;
+
+    fn connect(server: &crate::app::Server, addr: &Self::Address) -> Self {
+        todo!()
+    }
+}
+
 struct Handler {
     addr: IpAddr,
     client: Option<CoreClient>,

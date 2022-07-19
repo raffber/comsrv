@@ -138,8 +138,8 @@ impl Instrument {
 impl crate::inventory::Instrument for Instrument {
     type Address = HidIdentifier;
 
-    fn connect(server: &crate::app::Server, addr: &Self::Address) -> Self {
-        Instrument::new(addr)
+    fn connect(server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
+        Ok(Instrument::new(addr))
     }
 }
 

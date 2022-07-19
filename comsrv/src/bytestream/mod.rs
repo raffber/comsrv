@@ -5,11 +5,14 @@ use std::task::{Context, Poll};
 /// This module implements a request handler for handling operation on a bytesstream-like
 /// instrument, for example TCP streams or serial ports
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
-use tokio::time::{timeout, Duration};
+use tokio::time::Duration;
+use tokio::time;
 
-use crate::cobs::{cobs_decode, cobs_encode};
 use crate::Error;
+use cobs::{cobs_decode, cobs_encode};
 use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse};
+
+mod cobs;
 
 struct ReadAll<'a, T: AsyncRead + Unpin> {
     inner: &'a mut T,
@@ -56,11 +59,11 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
                 .map_err(Error::io)?;
             Ok(ByteStreamResponse::Done)
         }
-        ByteStreamRequest::ReadExact { count, timeout_ms } => {
+        ByteStreamRequest::ReadExact { count, timeout } => {
             log::debug!("read exactly {} bytes", count);
             let mut data = vec![0; count as usize];
             let fut = AsyncReadExt::read_exact(stream, data.as_mut_slice());
-            let _ = match timeout(Duration::from_millis(timeout_ms as u64), fut).await {
+            let _ = match timeout(timeout.into(), fut).await {
                 Ok(x) => Ok(x?),
                 Err(_) => Err(Error::Timeout),
             }?;
@@ -70,7 +73,7 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             log::debug!("read up to {} bytes", count);
             let mut data = vec![0; count as usize];
             let fut = AsyncReadExt::read(stream, &mut data);
-            let num_read = match timeout(Duration::from_micros(100), fut).await {
+            let num_read = match time::timeout(Duration::from_micros(100), fut).await {
                 Ok(x) => x?,
                 Err(_) => 0,
             };
@@ -87,17 +90,15 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             AsyncWriteExt::write_all(stream, &data).await?;
             Ok(ByteStreamResponse::Done)
         }
-        ByteStreamRequest::CobsRead(timeout_ms) => {
-            let duration = Duration::from_millis(timeout_ms as u64);
-            match timeout(duration, cobs_read(stream)).await {
+        ByteStreamRequest::CobsRead(timeout) => {
+            match time::timeout(timeout.into(), cobs_read(stream)).await {
                 Ok(x) => x,
                 Err(_) => Err(crate::Error::Timeout),
             }
         }
-        ByteStreamRequest::CobsQuery { data, timeout_ms } => {
+        ByteStreamRequest::CobsQuery { data, timeout } => {
             read_all(stream).await?;
-            let duration = Duration::from_millis(timeout_ms as u64);
-            match timeout(duration, cobs_query(stream, data)).await {
+            match time::timeout(timeout.into(), cobs_query(stream, data)).await {
                 Ok(x) => x,
                 Err(_) => Err(crate::Error::Timeout),
             }
@@ -108,53 +109,30 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             AsyncWriteExt::write_all(stream, line.as_bytes()).await?;
             Ok(ByteStreamResponse::Done)
         }
-        ByteStreamRequest::ReadLine { timeout_ms, term } => {
+        ByteStreamRequest::ReadLine { timeout, term } => {
             check_term(term)?;
-            let ret = read_to_term_timeout(stream, term, timeout_ms).await?;
+            let ret = read_to_term_timeout(stream, term, timeout.into()).await?;
             let ret = String::from_utf8(ret).map_err(crate::Error::DecodeError)?;
             Ok(ByteStreamResponse::String(ret))
         }
         ByteStreamRequest::QueryLine {
             mut line,
-            timeout_ms,
+            timeout,
             term,
         } => {
             read_all(stream).await?;
             check_term(term)?;
             line.push(term as char);
             AsyncWriteExt::write_all(stream, line.as_bytes()).await?;
-            let ret = read_to_term_timeout(stream, term, timeout_ms).await?;
+            let ret = read_to_term_timeout(stream, term, timeout.into()).await?;
             let ret = String::from_utf8(ret).map_err(crate::Error::DecodeError)?;
             Ok(ByteStreamResponse::String(ret))
         }
-        ByteStreamRequest::ReadToTerm { term, timeout_ms } => {
-            let ret = read_to_term_timeout(stream, term, timeout_ms).await?;
+        ByteStreamRequest::ReadToTerm { term, timeout } => {
+            let ret = read_to_term_timeout(stream, term, timeout.into()).await?;
             Ok(ByteStreamResponse::Data(ret))
         }
-        ByteStreamRequest::ModBusRtuDdp {
-            timeout_ms,
-            station_address,
-            custom_command,
-            sub_cmd,
-            ddp_cmd,
-            response,
-            data,
-        } => {
-            let duration = Duration::from_millis(timeout_ms as u64);
-            let fut = modbus_ddp_rtu(
-                stream,
-                station_address,
-                custom_command,
-                sub_cmd,
-                ddp_cmd,
-                response,
-                data,
-            );
-            match timeout(duration, fut).await {
-                Ok(x) => x,
-                Err(_) => Err(crate::Error::Timeout),
-            }
-        }
+        ByteStreamRequest::ModBus { timeout, station_address, protocol, request } => todo!()
     }
 }
 
@@ -166,11 +144,10 @@ async fn pop<T: AsyncRead + Unpin>(stream: &mut T) -> crate::Result<u8> {
 async fn read_to_term_timeout<T: AsyncReadExt + Unpin>(
     stream: &mut T,
     term: u8,
-    timeout_ms: u32,
+    timeout: std::time::Duration,
 ) -> crate::Result<Vec<u8>> {
-    let duration = Duration::from_millis(timeout_ms as u64);
     let fut = read_to_term(stream, term);
-    match timeout(duration, fut).await {
+    match time::timeout(timeout, fut).await {
         Ok(x) => x,
         Err(_) => Err(crate::Error::Timeout),
     }
@@ -223,11 +200,7 @@ async fn cobs_query<T: AsyncRead + AsyncWrite + Unpin>(
     stream: &mut T,
     data: Vec<u8>,
 ) -> crate::Result<ByteStreamResponse> {
-    let mut garbage = Vec::new();
-    let fut = stream.read_buf(&mut garbage);
-    if let Ok(x) = timeout(Duration::from_micros(100), fut).await {
-        x?;
-    };
+    read_all(stream).await;
     let data = cobs_encode(&data);
     AsyncWriteExt::write_all(stream, &data)
         .await

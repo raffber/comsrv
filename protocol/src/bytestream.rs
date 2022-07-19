@@ -87,7 +87,7 @@ pub enum ByteStreamRequest {
     ReadUpTo(u32),
     ReadAll,
     CobsWrite(Vec<u8>),
-    CobsRead(u32),
+    CobsRead(Duration),
     CobsQuery {
         data: Vec<u8>,
         timeout: Duration,

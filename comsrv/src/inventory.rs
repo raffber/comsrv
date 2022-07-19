@@ -48,7 +48,7 @@ impl<T: 'static + Clone + Send + Hash + PartialEq + Eq + Debug> InstrumentAddres
 pub trait Instrument: 'static + Clone + Send {
     type Address: InstrumentAddress;
 
-    fn connect(server: &Server, addr: &Self::Address) -> Self;
+    fn connect(server: &Server, addr: &Self::Address) -> crate::Result<Self>;
 }
 
 
@@ -92,12 +92,12 @@ impl<T: Instrument> Inventory<T> {
     /// # Panics
     ///
     /// This function panics if the there is no `Instrument` associated with the given address type.
-    pub fn connect(&self, server: &Server, addr: &T::Address) -> T {
+    pub fn connect(&self, server: &Server, addr: &T::Address) -> crate::Result<T> {
         log::debug!("Opening instrument: {:?}", addr);
         let mut inner = self.0.lock().unwrap();
 
         if let Some(ret) = inner.instruments.get(addr) {
-            return ret.instr.clone();
+            return Ok(ret.instr.clone());
         }
         let ret = T::connect(server, addr);
 
@@ -159,7 +159,7 @@ impl<T: Instrument> Inventory<T> {
     /// newly created lock. If a lock is still present on the address, the lock is removed and
     /// unlocked.
     /// If this behavior is undesirable, call wait_for_lock() before calling this function.
-    pub async fn lock(&self, server: &Server, addr: &T::Address, timeout: Duration) -> Uuid {
+    pub async fn lock(&self, server: &Server, addr: &T::Address, timeout: Duration) -> crate::Result<Uuid> {
         let ret = Uuid::new_v4();
 
         let (lock, mut unlock) = {
@@ -176,7 +176,7 @@ impl<T: Instrument> Inventory<T> {
                     instr.lock = Some(lock.clone());
                 }
                 None => {
-                    let instr = Instrument::connect(&server, addr).unwrap();
+                    let instr = Instrument::connect(&server, addr)?;
                     let instr = LockableInstrument {
                         instr,
                         lock: Some(lock.clone()),
@@ -208,7 +208,7 @@ impl<T: Instrument> Inventory<T> {
             inv.unlock(lock_id).await;
         });
         let _ = rx.await;
-        ret
+        Ok(ret)
     }
 
     /// Unlock an instrument.

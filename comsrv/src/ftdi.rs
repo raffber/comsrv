@@ -72,8 +72,8 @@ impl Into<async_ftdi::SerialParams> for SerialParams {
 impl crate::inventory::Instrument for Instrument {
     type Address = FtdiAddress;
 
-    fn connect(server: &crate::app::Server, addr: &Self::Address) -> Self {
-        Self::new(&addr.port)
+    fn connect(server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
+        Ok(Self::new(&addr.port))
     }
 }
 
