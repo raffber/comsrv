@@ -27,7 +27,8 @@ macro_rules! crate_version {
 }
 
 pub struct Inventories {
-
+    serial_instruments: Inventory<serial::Instrument>,
+    can_instruments: Inventories<can::Instrument>,
 }
 
 impl Inventories {
@@ -70,7 +71,24 @@ impl App {
     }
 
     async fn handle(&self, req: Request) -> Response {
-
-        todo!()
+        match req {
+            Request::ByteStream { instrument, request, lock } => todo!(),
+            Request::Can { instrument, request, lock } => todo!(),
+            Request::Scpi { instrument, request } => todo!(),
+            Request::Sigrok { instrument, request } => todo!(),
+            Request::Hid { instrument, request, lock } => todo!(),
+            Request::Connect { instrument, timeout } => todo!(),
+            Request::ListSigrokDevices => todo!(),
+            Request::ListSerialPorts => todo!(),
+            Request::ListHidDevices => todo!(),
+            Request::ListFtdiDevices => todo!(),
+            Request::ListCanDevices => todo!(),
+            Request::ListConnectedInstruments => todo!(),
+            Request::Lock { addr, timeout_ms } => todo!(),
+            Request::Unlock(_) => todo!(),
+            Request::DropAll => todo!(),
+            Request::Version => todo!(),
+            Request::Shutdown => todo!(),
+        }
     }
 }

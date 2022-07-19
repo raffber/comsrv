@@ -26,3 +26,12 @@ pub use comsrv_protocol as protocol;
 
 pub type Error = comsrv_protocol::Error;
 pub type Result<T> = std::result::Result<T, comsrv_protocol::Error>;
+
+impl From<Result<Response>> for Response {
+    fn from(x: Result<Response>) -> Self {
+        match x {
+            Ok(x) => x,
+            Err(e) => Response::Error(e),
+        } 
+    }
+}
