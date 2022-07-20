@@ -1,25 +1,23 @@
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use uuid::Uuid;
-use std::fmt::{Debug, Formatter};
 
+pub use bytestream::*;
 pub use can::*;
 pub use error::*;
-pub use bytestream::*;
-pub use scpi::*;
 pub use hid::*;
+pub use scpi::*;
 pub use sigrok::*;
 
-
+pub mod bytestream;
 pub mod can;
 pub mod error;
-pub mod bytestream;
-pub mod scpi;
 pub mod hid;
+pub mod scpi;
 pub mod sigrok;
 mod util;
 
-pub use crate::error::{Error, TransportError, ProtocolError};
-
+pub use crate::error::{Error, ProtocolError, TransportError};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Duration {
@@ -58,10 +56,14 @@ pub enum Request {
     Scpi {
         instrument: ScpiInstrument,
         request: ScpiRequest,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        lock: Option<Uuid>,
     },
     Prologix {
         instrument: PrologixInstrument,
         request: PrologixRequest,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        lock: Option<Uuid>,
     },
     Sigrok {
         instrument: SigrokInstrument,
@@ -102,7 +104,10 @@ pub enum Response {
     Bytes(ByteStreamResponse),
     Can(CanResponse),
     Sigrok(SigrokResponse),
-    Locked { instrument: Instrument, lock_id: Uuid },
+    Locked {
+        instrument: Instrument,
+        lock_id: Uuid,
+    },
     Hid(HidResponse),
     Version {
         major: u32,
@@ -120,6 +125,6 @@ impl From<std::result::Result<Response, Error>> for Response {
         match x {
             Ok(x) => x,
             Err(e) => Response::Error(e),
-        } 
+        }
     }
 }

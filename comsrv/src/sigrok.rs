@@ -5,23 +5,10 @@ use anyhow::anyhow;
 use bitvec::order::Lsb0;
 use bitvec::vec::BitVec;
 use comsrv_protocol::{SigrokAcquire, SigrokData, SigrokDevice, SigrokRequest, SigrokResponse};
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use tokio::task;
 
-#[derive(Error, Debug, Clone, Serialize, Deserialize)]
-pub enum SigrokError {
-    #[error("Unexpected output: {code}")]
-    UnexpectedOutput {
-        code: i32,
-        stdout: String,
-        stderr: String,
-    },
-    #[error("Invalid Output")]
-    InvalidOutput,
-}
-
-pub async fn read(device: String, req: SigrokRequest) -> crate::Result<SigrokResponse> {
+pub async fn read(device: &str, req: SigrokRequest) -> crate::Result<SigrokResponse> {
+    let device = device.to_string();
     let ret = task::spawn_blocking(|| do_read(device, req))
         .await
         .map_err(|x| crate::Error::internal(anyhow!(x)))?;

@@ -54,8 +54,8 @@ pub struct Instrument {
 }
 
 pub struct Request {
-    inner: CanRequest,
-    bitrate: Option<u32>,
+    pub inner: CanRequest,
+    pub bitrate: Option<u32>,
 }
 
 impl Instrument {

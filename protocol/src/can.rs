@@ -16,6 +16,15 @@ pub enum CanInstrument {
     Loopback,
 }
 
+impl CanInstrument {
+    pub fn bitrate(&self) -> Option<u32> {
+        match self {
+            CanInstrument::PCan { baudrate, .. } => Some(*baudrate),
+            _ => None,
+        }
+    }
+}
+
 impl From<CanInstrument> for CanAddress {
     fn from(x: CanInstrument) -> Self {
         match x {

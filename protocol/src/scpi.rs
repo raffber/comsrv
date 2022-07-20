@@ -4,23 +4,23 @@ use crate::bytestream::SerialAddress;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct VxiInstrument {
-    address: String, 
+    pub address: String,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct VisaInstrument {
-    address: String,
+    pub address: String,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PrologixInstrument {
-    address: SerialAddress,
+    pub address: SerialAddress,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PrologixRequest {
-    addr: u8,
-    request: ScpiRequest,
+    pub addr: u8,
+    pub scpi: ScpiRequest,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -43,8 +43,8 @@ pub enum ScpiResponse {
     String(String),
     Binary {
         #[serde(
-        serialize_with = "crate::util::to_base64",
-        deserialize_with = "crate::util::from_base64"
+            serialize_with = "crate::util::to_base64",
+            deserialize_with = "crate::util::from_base64"
         )]
         data: Vec<u8>,
     },

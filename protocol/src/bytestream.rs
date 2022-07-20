@@ -1,5 +1,3 @@
-use std::net::ToSocketAddrs;
-
 use crate::Duration;
 use serde::{Deserialize, Serialize};
 

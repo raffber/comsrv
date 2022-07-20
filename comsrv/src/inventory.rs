@@ -84,11 +84,8 @@ impl<T: Instrument> Inventory<T> {
     }
 
     /// Connect a new instrument. This function creates a new instrument and registers it
-    /// in the `Inventory`. However, it does not perform any io, and thus cannot fail.
-    ///
-    /// # Panics
-    ///
-    /// This function panics if the there is no `Instrument` associated with the given address type.
+    /// in the `Inventory`. However, it does not perform any io, however it may fail
+    /// due to invalid arguments.
     pub fn connect(&self, server: &Server, addr: &T::Address) -> crate::Result<T> {
         log::debug!("Opening instrument: {:?}", addr);
         let mut inner = self.0.lock().unwrap();
@@ -104,6 +101,16 @@ impl<T: Instrument> Inventory<T> {
         };
         inner.instruments.insert(addr.clone(), instr);
         Ok(ret)
+    }
+
+    pub async fn wait_connect(
+        &self,
+        server: &Server,
+        addr: &T::Address,
+        lock_id: Option<&Uuid>,
+    ) -> crate::Result<T> {
+        self.wait_for_lock(addr, lock_id).await;
+        self.connect(server, addr)
     }
 
     /// If there is instrument connected to the given address, this instrument is disconnected and
