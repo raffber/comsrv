@@ -4,6 +4,7 @@ use wsrpc::server::{Requested, Server as WsrpcServer};
 
 use crate::can;
 use crate::ftdi;
+use crate::ftdi::FtdiRequest;
 use crate::serial;
 use crate::tcp;
 use crate::visa;
@@ -51,7 +52,7 @@ impl App {
         let (server, rx) = Server::new();
         let app = App {
             server,
-            inventories: Inventories::new(),
+            inventories: Arc::new(Inventories::new()),
         };
         (app, rx)
     }
@@ -76,15 +77,22 @@ impl App {
     async fn handle(&self, req: Request) -> crate::Result<Response> {
         match req {
             Request::ByteStream {
-                instrument: ByteStreamInstrument::Ftdi(instr),
+                instrument: ByteStreamInstrument::Ftdi(instrument),
                 request,
                 lock,
             } => {
-                let instr = self
+                let mut instr = self
                     .inventories
                     .ftdi
-                    .connect(&self.server, &instr.address)?;
-                instr.request(req)
+                    .connect(&self.server, &instrument.address)?;
+                instr
+                    .request(FtdiRequest {
+                        request,
+                        port_config: instrument.port_config,
+                        options: instrument.options,
+                    })
+                    .await
+                    .map(Response::Bytes)
             }
             Request::ByteStream {
                 instrument: ByteStreamInstrument::Serial(instr),
@@ -106,9 +114,10 @@ impl App {
                 request,
                 lock,
             } => todo!(),
-            Request::Scpi {
-                instrument: ScpiInstrument::PrologixSerial(instr),
+            Request::Can {
+                instrument: CanInstrument::Loopback,
                 request,
+                lock,
             } => todo!(),
             Request::Scpi {
                 instrument: ScpiInstrument::Visa(instr),

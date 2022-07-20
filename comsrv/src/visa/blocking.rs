@@ -1,10 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-use visa_sys::Instrument as VisaInstrument;
-pub use visa_sys::{VisaError, VisaResult};
+use super::visa_sys::Instrument as VisaInstrument;
+pub use super::visa_sys::{VisaError, VisaResult};
+use anyhow::anyhow;
 
 use crate::{scpi, Error};
 use comsrv_protocol::{ScpiRequest, ScpiResponse};
+
+use super::consts;
 
 const DEFAULT_TIMEOUT: f32 = 3.0;
 const DEFAULT_CHUNK_SIZE: usize = 20 * 1024;
@@ -53,12 +56,16 @@ impl Instrument {
 
     pub fn query_string<T: AsRef<str>>(&self, msg: T) -> crate::Result<String> {
         log::debug!("Query[{}]: `{}`", self.instr.addr(), msg.as_ref());
-        self.write(msg).map_err(Error::Visa)?;
-        let rx = self.read().map_err(Error::Visa)?;
-        let ret = String::from_utf8(rx).map_err(Error::DecodeError)?;
+        self.write(msg)
+            .map_err(|x| crate::Error::transport(anyhow!(x)))?;
+        let rx = self
+            .read()
+            .map_err(|x| crate::Error::transport(anyhow!(x)))?;
+        let ret = String::from_utf8(rx)
+            .map_err(|x| crate::Error::protocol(anyhow!("Invalid UTF-8 received. {}", x)))?;
         log::debug!("Reply[{}]: `{}`", self.instr.addr(), ret);
         if !ret.ends_with(DEFAULT_TERMINATION) {
-            return Err(Error::NotTerminated);
+            return Err(Error::protocol(anyhow!("Invalid Termination")));
         }
         Ok(ret[..ret.len() - DEFAULT_TERMINATION.len()].to_string())
     }
@@ -73,8 +80,11 @@ impl Instrument {
 
     pub fn query_binary<T: AsRef<str>>(&self, msg: T) -> crate::Result<Vec<u8>> {
         log::debug!("QueryBinary[{}]: `{}`", self.instr.addr(), msg.as_ref());
-        self.write(msg).map_err(Error::Visa)?;
-        let rx = self.read().map_err(Error::Visa)?;
+        self.write(msg)
+            .map_err(|x| crate::Error::transport(anyhow!(x)))?;
+        let rx = self
+            .read()
+            .map_err(|x| crate::Error::transport(anyhow!(x)))?;
         let (offset, length) = scpi::parse_binary_header(&rx)?;
         Ok(rx[offset..offset + length].to_vec())
     }
@@ -87,7 +97,7 @@ impl Instrument {
         match req {
             ScpiRequest::Write(x) => self
                 .write(x)
-                .map_err(Error::Visa)
+                .map_err(|x| crate::Error::transport(anyhow!(x)))
                 .map(|_| ScpiResponse::Done),
             ScpiRequest::QueryString(x) => self.query_string(x).map(ScpiResponse::String),
             ScpiRequest::QueryBinary(x) => self
@@ -95,7 +105,7 @@ impl Instrument {
                 .map(|data| ScpiResponse::Binary { data }),
             ScpiRequest::ReadRaw => self
                 .read()
-                .map_err(Error::Visa)
+                .map_err(|x| crate::Error::transport(anyhow!(x)))
                 .map(|data| ScpiResponse::Binary { data }),
         }
     }

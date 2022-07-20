@@ -2,6 +2,7 @@ use crate::iotask::{IoContext, IoHandler, IoTask};
 use crate::{inventory, Error};
 use async_trait::async_trait;
 use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse, TcpAddress, TcpOptions};
+use std::io;
 use std::net::ToSocketAddrs;
 use tokio::task::{self, JoinHandle};
 
@@ -41,7 +42,7 @@ impl TcpRequest {
     fn options(&self) -> Option<&TcpOptions> {
         match self {
             TcpRequest::SetOptions(x) => Some(x),
-            TcpRequest::Bytes { options, .. } => options.clone(),
+            TcpRequest::Bytes { options, .. } => options.as_ref(),
             TcpRequest::DropCheck => None,
         }
     }
@@ -49,6 +50,7 @@ impl TcpRequest {
 
 pub enum TcpResponse {
     Bytes(ByteStreamResponse),
+    Done,
     Nope,
 }
 
@@ -60,14 +62,20 @@ impl Handler {
     ) -> (crate::Result<TcpResponse>, TcpStream) {
         match req {
             TcpRequest::Bytes { request, .. } => {
-                let ret = crate::bytestream::handle(&mut stream, req).await;
+                let ret = crate::bytestream::handle(&mut stream, request).await;
                 (ret.map(TcpResponse::Bytes), stream)
             }
             TcpRequest::DropCheck => {
                 log::error!("This bit of code should not be reachable.!");
-                (Err(crate::Error::internal("Unreachable code.")), stream)
+                (
+                    Err(crate::Error::internal(anyhow!("Unreachable code."))),
+                    stream,
+                )
             }
-            TcpRequest::SetOptions(_) => {}
+            TcpRequest::SetOptions(_) => (
+                Err(crate::Error::internal(anyhow!("Unreachable code."))),
+                stream,
+            ),
         }
     }
 
@@ -85,11 +93,14 @@ async fn connect_tcp_stream(
     addr: SocketAddr,
     connection_timeout: Duration,
 ) -> crate::Result<TcpStream> {
-    let fut = async move { TcpStream::connect(&addr).await.map_err(Error::io) };
+    let fut = async move { TcpStream::connect(&addr).await.map_err(Error::transport) };
     match timeout(connection_timeout, fut).await {
         Ok(Ok(x)) => Ok(x),
         Ok(Err(x)) => Err(x),
-        Err(_) => Err(crate::Error::Timeout),
+        Err(_) => Err(crate::Error::transport(io::Error::new(
+            io::ErrorKind::TimedOut,
+            "Connection timed out",
+        ))),
     }
 }
 
@@ -105,6 +116,7 @@ impl IoHandler for Handler {
     ) -> crate::Result<Self::Response> {
         if let Some(opts) = req.options() {
             self.set_options(opts);
+            return Ok(TcpResponse::Done);
         }
         if let TcpRequest::DropCheck = &req {
             let now = Instant::now();
@@ -136,8 +148,9 @@ impl IoHandler for Handler {
                 Ok(ret) => {
                     self.stream.replace(stream);
                     let ctx = ctx.clone();
+                    let drop_delay = self.drop_delay.clone();
                     self.drop_delay_task = Some(task::spawn(async move {
-                        sleep(self.drop_delay + Duration::from_millis(100)).await;
+                        sleep(drop_delay + Duration::from_millis(100)).await;
                         let _ = ctx.send(TcpRequest::DropCheck);
                     }));
                     return Ok(ret);
@@ -182,7 +195,7 @@ impl inventory::Instrument for Instrument {
 
     fn connect(server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
         let addr = (&addr.host as &str, addr.port).to_socket_addrs();
-        let iter = addr.map_err(|x| crate::Error::argument)?;
+        let iter = addr.map_err(crate::Error::argument)?;
         if let Some(x) = iter.next() {
             Ok(Instrument::new(x))
         } else {

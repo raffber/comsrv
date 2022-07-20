@@ -1,9 +1,8 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct HidInstrument {
     pub address: HidIdentifier,
-
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -29,7 +28,7 @@ pub struct HidDeviceInfo {
     pub serial_number: Option<String>,
 }
 
-#[derive(Hash, Clone, Serialize, Deserialize, Debug)]
+#[derive(Hash, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct HidIdentifier {
     pub pid: u16,
     pub vid: u16,

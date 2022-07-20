@@ -4,6 +4,7 @@
 /// Thus, the actor must implement the trait `IoHandler`. An `IoHandler` can then be placed in an
 /// `IoTask<T: IoHandler>` which implements `Send + Clone` and is thus sharable between threads.
 use crate::Error;
+use anyhow::anyhow;
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task;
@@ -13,7 +14,6 @@ pub trait Message: 'static + Send {}
 
 impl<T: 'static + Send> Message for T {}
 
-#[derive(Clone)]
 pub struct IoContext<T: IoHandler> {
     tx: mpsc::UnboundedSender<RequestMsg<T>>,
 }
@@ -21,6 +21,14 @@ pub struct IoContext<T: IoHandler> {
 impl<T: IoHandler> IoContext<T> {
     pub fn send(&mut self, req: T::Request) {
         let _ = self.tx.send(RequestMsg::Task { req, answer: None });
+    }
+}
+
+impl<T: IoHandler> Clone for IoContext<T> {
+    fn clone(&self) -> Self {
+        Self {
+            tx: self.tx.clone(),
+        }
     }
 }
 
@@ -104,8 +112,12 @@ impl<T: 'static + IoHandler> IoTask<T> {
             req,
             answer: Some(tx),
         };
-        self.tx.send(msg).map_err(|_| Error::Disconnected)?;
-        let ret = rx.await.map_err(|_| Error::Disconnected)?;
+        self.tx
+            .send(msg)
+            .map_err(|_| Error::internal(anyhow!("Channel disconnected")))?;
+        let ret = rx
+            .await
+            .map_err(|_| Error::internal(anyhow!("Channel disconnected")))?;
         ret
     }
 }

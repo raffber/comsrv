@@ -1,4 +1,6 @@
+use crate::bytestream::read_all;
 use crate::Error;
+use anyhow::anyhow;
 use comsrv_protocol::{ScpiRequest, ScpiResponse};
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -20,15 +22,12 @@ pub async fn handle_prologix_request<T: AsyncRead + AsyncWrite + Unpin>(
     req: ScpiRequest,
 ) -> crate::Result<ScpiResponse> {
     log::debug!("handling prologix request for address {}", addr);
-    let mut ret = Vec::with_capacity(128);
-    let fut = AsyncReadExt::read(serial, &mut ret);
-    if let Ok(x) = timeout(Duration::from_millis(2), fut).await {
-        x.map_err(Error::io)?;
-    }
-    log::debug!("Read: {:?}", ret);
-    ret.clear();
+    let _ = read_all(serial).await.map_err(crate::Error::transport)?;
     let addr_set = format!("++addr {}\n", addr);
-    serial.write(addr_set.as_bytes()).await.map_err(Error::io)?;
+    serial
+        .write(addr_set.as_bytes())
+        .await
+        .map_err(Error::transport)?;
     match req {
         ScpiRequest::Write(x) => {
             write_prologix(serial, x).await?;
@@ -41,14 +40,16 @@ pub async fn handle_prologix_request<T: AsyncRead + AsyncWrite + Unpin>(
             Ok(ScpiResponse::String(reply))
         }
         ScpiRequest::QueryBinary(_) => {
-            log::error!("ScpiRequest::QueryBinary not implemented for Prologix!!");
-            Err(Error::NotSupported)
+            log::error!("ScpiRequest::QueryBinary not implemented for Prologix.");
+            Err(Error::argument(anyhow!(
+                "ScpiRequest::QueryBinary not implemented for Prologix."
+            )))
         }
         ScpiRequest::ReadRaw => {
             write(serial, "++read eoi\n").await?;
             sleep(Duration::from_millis(100)).await;
             let mut ret = Vec::new();
-            serial.read(&mut ret).await.map_err(Error::io)?;
+            serial.read(&mut ret).await.map_err(Error::transport)?;
             Ok(ScpiResponse::Binary { data: ret })
         }
     }
@@ -59,7 +60,7 @@ async fn write<T: AsyncWrite + Unpin>(serial: &mut T, msg: &str) -> crate::Resul
         .write(msg.as_bytes())
         .await
         .map(|_| ())
-        .map_err(Error::io)
+        .map_err(Error::transport)
 }
 
 async fn write_prologix<T: AsyncWrite + Unpin>(
@@ -73,7 +74,7 @@ async fn write_prologix<T: AsyncWrite + Unpin>(
         .write(msg.as_bytes())
         .await
         .map(|_| ())
-        .map_err(Error::io)
+        .map_err(Error::transport)
 }
 
 async fn read_prologix<T: AsyncRead + Unpin>(serial: &mut T) -> crate::Result<String> {
@@ -91,24 +92,24 @@ async fn read_prologix<T: AsyncRead + Unpin>(serial: &mut T) -> crate::Result<St
                 let x = x[0];
                 if x == b'\n' {
                     let mut garbage = Vec::new();
-                    serial.read(&mut garbage).await.map_err(Error::io)?;
+                    serial.read(&mut garbage).await.map_err(Error::transport)?;
                     break;
                 }
                 ret.push(x);
             }
             Ok(Err(x)) => {
                 log::debug!("read error");
-                return Err(Error::io(x));
+                return Err(Error::transport(x));
             }
             Err(_) => {
                 log::debug!("instrument read timeout");
-                return Err(Error::Timeout);
+                return Err(Error::protocol_timeout());
             }
         };
         let delta = start.elapsed().as_secs_f32();
         if delta > PROLOGIX_TIMEOUT {
-            return Err(Error::Timeout);
+            return Err(Error::protocol_timeout());
         }
     }
-    String::from_utf8(ret).map_err(Error::DecodeError)
+    String::from_utf8(ret).map_err(|_| crate::Error::protocol(anyhow!("Could not decode reply.")))
 }

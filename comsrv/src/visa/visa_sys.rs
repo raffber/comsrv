@@ -4,6 +4,7 @@ use std::io::Write;
 use std::mem::MaybeUninit;
 use std::os::raw::c_char;
 
+use anyhow::anyhow;
 use dlopen::wrapper::{Container, WrapperApi};
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
@@ -32,7 +33,7 @@ impl VisaError {
 
 impl From<VisaError> for crate::Error {
     fn from(err: VisaError) -> Self {
-        crate::Error::Visa(err)
+        crate::Error::transport(anyhow!(err))
     }
 }
 

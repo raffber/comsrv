@@ -96,14 +96,14 @@ impl<T: Instrument> Inventory<T> {
         if let Some(ret) = inner.instruments.get(addr) {
             return Ok(ret.instr.clone());
         }
-        let ret = T::connect(server, addr);
+        let ret = T::connect(server, addr)?;
 
         let instr = LockableInstrument {
             instr: ret.clone(),
             lock: None,
         };
         inner.instruments.insert(addr.clone(), instr);
-        ret
+        Ok(ret)
     }
 
     /// If there is instrument connected to the given address, this instrument is disconnected and
@@ -187,11 +187,10 @@ impl<T: Instrument> Inventory<T> {
                         instr,
                         lock: Some(lock.clone()),
                     };
-                    inner.instruments.insert(addr.handle_id(), instr);
+                    inner.instruments.insert(addr.clone(), instr);
                 }
             };
-            let handle_id = addr.handle_id();
-            inner.locks.insert(ret, handle_id);
+            inner.locks.insert(ret, addr.clone());
             (lock, unlock)
         };
 

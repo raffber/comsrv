@@ -22,7 +22,7 @@ enum Msg {
 }
 
 impl Instrument {
-    pub fn connect<T: Into<String>>(addr: T) -> Self {
+    pub fn new<T: Into<String>>(addr: T) -> Self {
         let (tx, rx) = mpsc::channel();
         let addr = addr.into();
         thread::spawn(move || {
@@ -37,7 +37,7 @@ impl Instrument {
                 let instr = if let Some(instr) = oinstr.take() {
                     Ok(instr)
                 } else {
-                    BlockingInstrument::open(&addr).map_err(Error::transport)
+                    BlockingInstrument::open(&addr)
                 };
                 match instr {
                     Ok(instr) => {
@@ -45,7 +45,7 @@ impl Instrument {
                         oinstr.replace(instr);
                     }
                     Err(err) => {
-                        let _ = reply.send(Err(err));
+                        let _ = reply.send(Err(err.into()));
                     }
                 }
             }
@@ -76,6 +76,6 @@ impl inventory::Instrument for Instrument {
     type Address = String;
 
     fn connect(server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
-        Ok(Instrument::connect(addr))
+        Ok(Instrument::new(addr))
     }
 }

@@ -1,6 +1,8 @@
 use core::fmt;
 use std::fmt::{Display, Formatter};
 
+use anyhow::anyhow;
+use comsrv_protocol::SerialPortConfig;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
@@ -26,23 +28,23 @@ pub fn parse_serial_settings(settings: &str) -> crate::Result<(DataBits, Parity,
     let settings = settings.to_lowercase();
     let chars = settings.as_bytes();
     if chars.len() != 3 {
-        return Err(crate::Error::InvalidAddress);
+        return Err(crate::Error::argument(anyhow!("Invalid Address")));
     }
     let data_bits = match chars[0] as char {
         '8' => DataBits::Eight,
         '7' => DataBits::Seven,
-        _ => return Err(crate::Error::InvalidAddress),
+        _ => return Err(crate::Error::argument(anyhow!("Invalid Address"))),
     };
     let parity = match chars[1] as char {
         'n' => Parity::None,
         'o' => Parity::Odd,
         'e' => Parity::Even,
-        _ => return Err(crate::Error::InvalidAddress),
+        _ => return Err(crate::Error::argument(anyhow!("Invalid Address"))),
     };
     let stop_bits = match chars[2] as char {
         '1' => StopBits::One,
         '2' => StopBits::Two,
-        _ => return Err(crate::Error::InvalidAddress),
+        _ => return Err(crate::Error::argument(anyhow!("Invalid Address"))),
     };
     Ok((data_bits, parity, stop_bits))
 }
@@ -55,10 +57,16 @@ pub struct SerialParams {
     pub parity: Parity,
 }
 
+impl Into<SerialParams> for SerialPortConfig {
+    fn into(self) -> SerialParams {
+        todo!()
+    }
+}
+
 impl SerialParams {
     pub fn from_address_with_path(addr_parts: &[&str]) -> crate::Result<(String, SerialParams)> {
         if addr_parts.len() != 3 {
-            return Err(crate::Error::InvalidAddress);
+            return Err(crate::Error::argument(anyhow!("Invalid Address")));
         }
         let path = addr_parts[0].into();
         let params = Self::from_address(&addr_parts[1..])?;
@@ -67,11 +75,11 @@ impl SerialParams {
 
     pub fn from_address(addr_parts: &[&str]) -> crate::Result<SerialParams> {
         if addr_parts.len() < 2 {
-            return Err(crate::Error::InvalidAddress);
+            return Err(crate::Error::argument(anyhow!("Invalid Address")));
         }
         let baud_rate: u32 = addr_parts[0]
             .parse()
-            .map_err(|_| crate::Error::InvalidAddress)?;
+            .map_err(|_| crate::Error::argument(anyhow!("Invalid Address")))?;
         let (bits, parity, stop) = parse_serial_settings(&addr_parts[1])?;
 
         Ok(SerialParams {

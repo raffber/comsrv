@@ -3,6 +3,7 @@ use std::{
     os::{raw::c_schar, unix::prelude::AsRawFd},
 };
 
+use anyhow::anyhow;
 use libc::{c_char, c_int, c_short, c_uint, c_ulong};
 
 #[repr(C)]
@@ -35,16 +36,16 @@ pub(crate) fn apply_low_latency<T: AsRawFd>(serial_stream: &T) -> crate::Result<
         let ss_ref = &mut serial_struct as *mut SerialStruct;
         let failed = libc::ioctl(fd, libc::TIOCGSERIAL, ss_ref);
         if failed != 0 {
-            return Err(crate::Error::Other(
-                "Cannot get serial info struct".to_string(),
-            ));
+            return Err(crate::Error::transport(anyhow!(
+                "Cannot get serial info struct"
+            )));
         }
 
         serial_struct.flags |= 1 << 13;
         const TIOCSSERIAL: c_ulong = 0x541F;
         let failed = libc::ioctl(fd, TIOCSSERIAL, ss_ref);
         if failed != 0 {
-            return Err(crate::Error::Other("Cannot set low latency".to_string()));
+            return Err(crate::Error::transport(anyhow!("Cannot set low latency")));
         }
     }
 

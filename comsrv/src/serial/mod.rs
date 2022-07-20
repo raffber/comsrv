@@ -3,10 +3,11 @@ use serde::{Deserialize, Serialize};
 use tokio::task;
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 
+use anyhow::anyhow;
 pub use params::SerialParams;
 
 use crate::inventory;
-use crate::iotask::{IoHandler, IoTask};
+use crate::iotask::{IoContext, IoHandler, IoTask};
 use crate::prologix::{handle_prologix_request, init_prologix};
 use crate::serial::params::{DataBits, Parity, StopBits};
 use comsrv_protocol::{
@@ -41,7 +42,6 @@ impl Request {
                 parity: Parity::None,
             },
             Request::Serial { params, .. } => params.clone(),
-            Request::ModBus { params, .. } => params.clone(),
         }
     }
 }
@@ -63,7 +63,8 @@ async fn open_serial_port(path: &str, params: &SerialParams) -> crate::Result<Se
         .parity(params.parity.into())
         .stop_bits(params.stop_bits.into())
         .data_bits(params.data_bits.into())
-        .open_native_async()?;
+        .open_native_async()
+        .map_err(|x| crate::Error::transport(anyhow!(x)))?;
 
     #[cfg(target_os = "linux")]
     {
@@ -81,7 +82,11 @@ impl IoHandler for Handler {
     type Request = Request;
     type Response = Response;
 
-    async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
+    async fn handle(
+        &mut self,
+        ctx: &mut IoContext<Self>,
+        req: Self::Request,
+    ) -> crate::Result<Self::Response> {
         let new_params = req.params();
         let mut serial = match self.serial.take() {
             None => {
@@ -169,7 +174,7 @@ pub async fn list_devices() -> crate::Result<Vec<String>> {
             let ports = x.iter().map(|x| x.port_name.clone()).collect();
             Ok(ports)
         }
-        Err(err) => Err(crate::Error::Other(err.description).into()),
+        Err(err) => Err(crate::Error::transport(anyhow!(err.description)).into()),
     })
     .await
     .unwrap()

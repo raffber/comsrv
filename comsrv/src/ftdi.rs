@@ -23,6 +23,12 @@ pub struct FtdiRequest {
     options: Option<SerialOptions>,
 }
 
+impl FtdiRequest {
+    fn params(&self) -> SerialParams {
+        todo!()
+    }
+}
+
 #[derive(Clone)]
 pub struct Instrument {
     inner: IoTask<Handler>,
@@ -102,7 +108,7 @@ impl IoHandler for Handler {
         req: Self::Request,
     ) -> crate::Result<Self::Response> {
         let params = req.params();
-        let mut ftdi = if let Some((mut ftdi, open_params)) = self.device.take() {
+        let mut ftdi: Ftdi = if let Some((mut ftdi, open_params)) = self.device.take() {
             if params != open_params {
                 if let Err(x) = ftdi.set_params(params.clone().into()).await {
                     ftdi.close().await;
@@ -117,7 +123,7 @@ impl IoHandler for Handler {
         let ret = crate::bytestream::handle(&mut ftdi, req.request).await;
         match &ret {
             Ok(_) | Err(crate::Error::Protocol(_)) => {
-                self.device.replace(ftdi);
+                self.device.replace((ftdi, params));
             }
             Err(_) => {
                 ftdi.close().await;

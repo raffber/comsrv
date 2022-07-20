@@ -8,6 +8,8 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::time;
 use tokio::time::Duration;
 
+use anyhow::anyhow;
+
 use crate::Error;
 use cobs::{cobs_decode, cobs_encode};
 use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse};
@@ -56,16 +58,16 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             log::debug!("write: {:?}", data);
             AsyncWriteExt::write_all(stream, &data)
                 .await
-                .map_err(Error::io)?;
+                .map_err(Error::transport)?;
             Ok(ByteStreamResponse::Done)
         }
         ByteStreamRequest::ReadExact { count, timeout } => {
             log::debug!("read exactly {} bytes", count);
             let mut data = vec![0; count as usize];
             let fut = AsyncReadExt::read_exact(stream, data.as_mut_slice());
-            let _ = match timeout(timeout.into(), fut).await {
+            let _ = match time::timeout(timeout.into(), fut).await {
                 Ok(x) => Ok(x?),
-                Err(_) => Err(Error::Timeout),
+                Err(_) => Err(Error::protocol_timeout()),
             }?;
             Ok(ByteStreamResponse::Data(data))
         }
@@ -93,14 +95,14 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
         ByteStreamRequest::CobsRead(timeout) => {
             match time::timeout(timeout.into(), cobs_read(stream)).await {
                 Ok(x) => x,
-                Err(_) => Err(crate::Error::Timeout),
+                Err(_) => Err(crate::Error::protocol_timeout()),
             }
         }
         ByteStreamRequest::CobsQuery { data, timeout } => {
             read_all(stream).await?;
             match time::timeout(timeout.into(), cobs_query(stream, data)).await {
                 Ok(x) => x,
-                Err(_) => Err(crate::Error::Timeout),
+                Err(_) => Err(crate::Error::protocol_timeout()),
             }
         }
         ByteStreamRequest::WriteLine { mut line, term } => {
@@ -112,7 +114,8 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
         ByteStreamRequest::ReadLine { timeout, term } => {
             check_term(term)?;
             let ret = read_to_term_timeout(stream, term, timeout.into()).await?;
-            let ret = String::from_utf8(ret).map_err(crate::Error::DecodeError)?;
+            let ret = String::from_utf8(ret)
+                .map_err(|_| crate::Error::protocol(anyhow!("Cannot decode as UTF-8")))?;
             Ok(ByteStreamResponse::String(ret))
         }
         ByteStreamRequest::QueryLine {
@@ -125,7 +128,8 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             line.push(term as char);
             AsyncWriteExt::write_all(stream, line.as_bytes()).await?;
             let ret = read_to_term_timeout(stream, term, timeout.into()).await?;
-            let ret = String::from_utf8(ret).map_err(crate::Error::DecodeError)?;
+            let ret = String::from_utf8(ret)
+                .map_err(|_| crate::Error::protocol(anyhow!("Cannot decode as UTF-8")))?;
             Ok(ByteStreamResponse::String(ret))
         }
         ByteStreamRequest::ReadToTerm { term, timeout } => {
@@ -154,7 +158,7 @@ async fn read_to_term_timeout<T: AsyncReadExt + Unpin>(
     let fut = read_to_term(stream, term);
     match time::timeout(timeout, fut).await {
         Ok(x) => x,
-        Err(_) => Err(crate::Error::Timeout),
+        Err(_) => Err(crate::Error::protocol_timeout()),
     }
 }
 
@@ -172,7 +176,7 @@ async fn read_to_term<T: AsyncReadExt + Unpin>(stream: &mut T, term: u8) -> crat
 
 fn check_term(term: u8) -> crate::Result<()> {
     if term == 0 || term > 128 {
-        Err(crate::Error::InvalidRequest)
+        Err(crate::Error::argument(anyhow!("Invalid termination.")))
     } else {
         Ok(())
     }
@@ -209,7 +213,7 @@ async fn cobs_query<T: AsyncRead + AsyncWrite + Unpin>(
     let data = cobs_encode(&data);
     AsyncWriteExt::write_all(stream, &data)
         .await
-        .map_err(Error::io)?;
+        .map_err(Error::transport)?;
     cobs_read(stream).await
 }
 
@@ -256,19 +260,19 @@ async fn modbus_ddp_rtu<T: AsyncRead + AsyncWrite + Unpin>(
     let mut data = vec![0_u8; 300];
     stream.read_exact(&mut data[0..4]).await?;
     if data[0] != station_address || data[1] != custom_cmd || data[2] != sub_cmd {
-        return Err(crate::Error::InvalidResponse);
+        return Err(crate::Error::protocol(anyhow!("Invalid Response")));
     }
     if !response {
         return Ok(ByteStreamResponse::Data(vec![]));
     }
     let len = data[3];
     if len == 0 {
-        return Err(crate::Error::InvalidResponse);
+        return Err(crate::Error::protocol(anyhow!("Invalid Response")));
     }
     stream.read_exact(&mut data[4..6 + len as usize]).await?;
 
     if ddp_crc(&data[0..6 + len as usize]) != 0 {
-        return Err(crate::Error::InvalidResponse);
+        return Err(crate::Error::protocol(anyhow!("Invalid Response")));
     }
     let reply = &data[4..4 + len as usize];
     Ok(ByteStreamResponse::Data(reply.to_vec()))
