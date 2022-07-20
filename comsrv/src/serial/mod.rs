@@ -143,7 +143,7 @@ impl IoHandler for Handler {
                 req,
                 slave_addr,
             } => {
-                let _ = read_all(&mut serial).await.unwrap();
+                let _ = read_all(&mut serial).await?;
 
                 let channel = ClonableChannel::new(serial);
                 let mut ctx =
