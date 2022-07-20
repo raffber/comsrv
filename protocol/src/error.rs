@@ -167,8 +167,19 @@ impl Error {
     }
 
     pub fn should_retry(&self) -> bool {
-        matches!(self, Error::Protocol(_))
-        // TODO: io errors in transport
+        match self {
+            Error::Transport(TransportError::Io(err)) => {
+                err.kind() == io::ErrorKind::ConnectionReset
+                    || err.kind() == io::ErrorKind::ConnectionAborted
+                    || err.kind() == io::ErrorKind::BrokenPipe
+                    || err.kind() == io::ErrorKind::TimedOut
+                    || err.kind() == io::ErrorKind::UnexpectedEof
+            }
+            Error::Transport(TransportError::Other(_)) => false,
+            Error::Protocol(_) => false,
+            Error::Argument(_) => false,
+            Error::Internal(_) => false,
+        }
     }
 
     pub fn internal<T: Into<anyhow::Error>>(err: T) -> Self {
