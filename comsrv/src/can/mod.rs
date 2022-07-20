@@ -9,9 +9,7 @@ use crate::iotask::{IoContext, IoHandler, IoTask};
 use anyhow::anyhow;
 use async_can::CanFrameError;
 use async_can::Error as CanError;
-use comsrv_protocol::{
-    CanAddress, CanMessage, CanRequest, CanResponse, DataFrame, RemoteFrame, Response,
-};
+use comsrv_protocol::{CanAddress, CanMessage, CanRequest, CanResponse, DataFrame, RemoteFrame, Response};
 use tokio::sync::oneshot;
 
 mod crc;
@@ -195,11 +193,7 @@ impl IoHandler for Handler {
     type Request = Request;
     type Response = CanResponse;
 
-    async fn handle(
-        &mut self,
-        _ctx: &mut IoContext<Self>,
-        req: Self::Request,
-    ) -> crate::Result<Self::Response> {
+    async fn handle(&mut self, _ctx: &mut IoContext<Self>, req: Self::Request) -> crate::Result<Self::Response> {
         self.check_listener().await;
         self.update_bitrate(&req).await;
 
@@ -285,18 +279,12 @@ impl Listener {
         log::debug!("CAN received - ID = {:x}", msg.id());
         if self.listen_raw {
             let tx = Response::Can(CanResponse::Raw(msg.clone()));
-            log::debug!(
-                "Broadcast raw CAN message: {}",
-                serde_json::to_string(&msg).unwrap()
-            );
+            log::debug!("Broadcast raw CAN message: {}", serde_json::to_string(&msg).unwrap());
             self.server.broadcast(tx);
         }
         if self.listen_gct {
             if let Some(msg) = self.decoder.decode(msg) {
-                log::debug!(
-                    "Broadcast GCT CAN message: {}",
-                    serde_json::to_string(&msg).unwrap()
-                );
+                log::debug!("Broadcast GCT CAN message: {}", serde_json::to_string(&msg).unwrap());
                 let msg = Response::Can(CanResponse::Gct(msg));
                 self.server.broadcast(msg);
             }
@@ -404,11 +392,7 @@ mod tests {
         } else {
             panic!()
         };
-        let msg = if let CanMessage::Data(msg) = msg {
-            msg
-        } else {
-            panic!()
-        };
+        let msg = if let CanMessage::Data(msg) = msg { msg } else { panic!() };
         assert_eq!(msg.data.len(), 4);
         assert_eq!(&msg.data, &[1, 2, 3, 4]);
         assert!(msg.ext_id);

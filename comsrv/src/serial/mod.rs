@@ -10,9 +10,7 @@ use crate::inventory;
 use crate::iotask::{IoContext, IoHandler, IoTask};
 use crate::prologix::{handle_prologix_request, init_prologix};
 use crate::serial::params::{DataBits, Parity, StopBits};
-use comsrv_protocol::{
-    ByteStreamRequest, ByteStreamResponse, ScpiRequest, ScpiResponse, SerialAddress,
-};
+use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse, ScpiRequest, ScpiResponse, SerialAddress};
 
 pub mod params;
 
@@ -82,11 +80,7 @@ impl IoHandler for Handler {
     type Request = Request;
     type Response = Response;
 
-    async fn handle(
-        &mut self,
-        _ctx: &mut IoContext<Self>,
-        req: Self::Request,
-    ) -> crate::Result<Self::Response> {
+    async fn handle(&mut self, _ctx: &mut IoContext<Self>, req: Self::Request) -> crate::Result<Self::Response> {
         let new_params = req.params();
         let mut serial = match self.serial.take() {
             None => {
@@ -113,15 +107,11 @@ impl IoHandler for Handler {
         }
         let ret = match req {
             Request::Prologix { gpib_addr, req } => {
-                handle_prologix_request(&mut serial, gpib_addr, req)
-                    .await
-                    .map(Response::Scpi)
+                handle_prologix_request(&mut serial, gpib_addr, req).await.map(Response::Scpi)
             }
             Request::Serial { params: _, req } => {
                 self.prologix_initialized = false;
-                crate::bytestream::handle(&mut serial, req)
-                    .await
-                    .map(Response::Bytes)
+                crate::bytestream::handle(&mut serial, req).await.map(Response::Bytes)
             }
         };
         match &ret {

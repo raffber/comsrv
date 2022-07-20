@@ -60,11 +60,8 @@ impl Instrument {
             request: req,
             reply: tx,
         };
-        self.tx
-            .send(thmsg)
-            .map_err(|_| Error::internal(anyhow!("Disconnected")))?;
-        rx.await
-            .map_err(|_| Error::internal(anyhow!("Disconnected")))?
+        self.tx.send(thmsg).map_err(|_| Error::internal(anyhow!("Disconnected")))?;
+        rx.await.map_err(|_| Error::internal(anyhow!("Disconnected")))?
     }
 
     pub fn disconnect(self) {

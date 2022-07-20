@@ -19,12 +19,7 @@ fn main() {
                 .default_value("5902")
                 .help("Define the port to listen on."),
         )
-        .arg(
-            Arg::with_name("verbose")
-                .long("verbose")
-                .short("v")
-                .help("Log verbose output"),
-        )
+        .arg(Arg::with_name("verbose").long("verbose").short("v").help("Log verbose output"))
         .get_matches();
 
     let verbose = matches.is_present("verbose");

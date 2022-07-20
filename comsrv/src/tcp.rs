@@ -67,15 +67,9 @@ impl Handler {
             }
             TcpRequest::DropCheck => {
                 log::error!("This bit of code should not be reachable.!");
-                (
-                    Err(crate::Error::internal(anyhow!("Unreachable code."))),
-                    stream,
-                )
+                (Err(crate::Error::internal(anyhow!("Unreachable code."))), stream)
             }
-            TcpRequest::SetOptions(_) => (
-                Err(crate::Error::internal(anyhow!("Unreachable code."))),
-                stream,
-            ),
+            TcpRequest::SetOptions(_) => (Err(crate::Error::internal(anyhow!("Unreachable code."))), stream),
         }
     }
 
@@ -89,10 +83,7 @@ impl Handler {
     }
 }
 
-async fn connect_tcp_stream(
-    addr: SocketAddr,
-    connection_timeout: Duration,
-) -> crate::Result<TcpStream> {
+async fn connect_tcp_stream(addr: SocketAddr, connection_timeout: Duration) -> crate::Result<TcpStream> {
     let fut = async move { TcpStream::connect(&addr).await.map_err(Error::transport) };
     match timeout(connection_timeout, fut).await {
         Ok(Ok(x)) => Ok(x),
@@ -109,11 +100,7 @@ impl IoHandler for Handler {
     type Request = TcpRequest;
     type Response = TcpResponse;
 
-    async fn handle(
-        &mut self,
-        ctx: &mut IoContext<Self>,
-        req: Self::Request,
-    ) -> crate::Result<Self::Response> {
+    async fn handle(&mut self, ctx: &mut IoContext<Self>, req: Self::Request) -> crate::Result<Self::Response> {
         if let Some(opts) = req.options() {
             self.set_options(opts);
             return Ok(TcpResponse::Done);
@@ -199,10 +186,7 @@ impl inventory::Instrument for Instrument {
         if let Some(x) = iter.next() {
             Ok(Instrument::new(x))
         } else {
-            Err(crate::Error::argument(anyhow!(
-                "Invalid tcp socket address: {:?}",
-                addr
-            )))
+            Err(crate::Error::argument(anyhow!("Invalid tcp socket address: {:?}", addr)))
         }
     }
 }

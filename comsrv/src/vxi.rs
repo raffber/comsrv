@@ -48,10 +48,7 @@ impl crate::inventory::Instrument for Instrument {
         if let Some(x) = iter.next() {
             Ok(Instrument::new(x.ip()))
         } else {
-            Err(crate::Error::argument(anyhow!(
-                "Invalid tcp socket address: {:?}",
-                addr
-            )))
+            Err(crate::Error::argument(anyhow!("Invalid tcp socket address: {:?}", addr)))
         }
     }
 }
@@ -66,11 +63,7 @@ impl IoHandler for Handler {
     type Request = Request;
     type Response = ScpiResponse;
 
-    async fn handle(
-        &mut self,
-        _ctx: &mut IoContext<Self>,
-        req: Self::Request,
-    ) -> crate::Result<Self::Response> {
+    async fn handle(&mut self, _ctx: &mut IoContext<Self>, req: Self::Request) -> crate::Result<Self::Response> {
         let mut client = if let Some(client) = self.client.take() {
             client
         } else {
@@ -108,10 +101,7 @@ async fn connect(addr: IpAddr) -> crate::Result<CoreClient> {
     ret.map_err(map_error)
 }
 
-async fn handle_request_timeout(
-    client: &mut CoreClient,
-    req: Request,
-) -> crate::Result<ScpiResponse> {
+async fn handle_request_timeout(client: &mut CoreClient, req: Request) -> crate::Result<ScpiResponse> {
     let fut = handle_request(client, req.req);
     tokio::time::timeout(DEFAULT_TIMEOUT, fut)
         .await
@@ -131,13 +121,9 @@ async fn handle_request(client: &mut CoreClient, req: ScpiRequest) -> crate::Res
                 .map_err(map_error)
         }
         ScpiRequest::QueryString(data) => {
-            client
-                .device_write(data.as_bytes().to_vec())
-                .await
-                .map_err(map_error)?;
+            client.device_write(data.as_bytes().to_vec()).await.map_err(map_error)?;
             let data = client.device_read().await.map_err(map_error)?;
-            let ret = String::from_utf8(data)
-                .map_err(|_| crate::Error::protocol(anyhow!("Data not terminated.")))?;
+            let ret = String::from_utf8(data).map_err(|_| crate::Error::protocol(anyhow!("Data not terminated.")))?;
             if !ret.ends_with(DEFAULT_TERMINATION) {
                 return Err(Error::protocol(anyhow!("Data not terminated.")));
             }
@@ -145,10 +131,7 @@ async fn handle_request(client: &mut CoreClient, req: ScpiRequest) -> crate::Res
             Ok(ScpiResponse::String(ret))
         }
         ScpiRequest::QueryBinary(data) => {
-            client
-                .device_write(data.as_bytes().to_vec())
-                .await
-                .map_err(map_error)?;
+            client.device_write(data.as_bytes().to_vec()).await.map_err(map_error)?;
             let rx = client.device_read().await.map_err(map_error)?;
             let (offset, length) = scpi::parse_binary_header(&rx)?;
             let ret = rx[offset..offset + length].to_vec();

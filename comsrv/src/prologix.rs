@@ -24,10 +24,7 @@ pub async fn handle_prologix_request<T: AsyncRead + AsyncWrite + Unpin>(
     log::debug!("handling prologix request for address {}", addr);
     let _ = read_all(serial).await.map_err(crate::Error::transport)?;
     let addr_set = format!("++addr {}\n", addr);
-    serial
-        .write(addr_set.as_bytes())
-        .await
-        .map_err(Error::transport)?;
+    serial.write(addr_set.as_bytes()).await.map_err(Error::transport)?;
     match req {
         ScpiRequest::Write(x) => {
             write_prologix(serial, x).await?;
@@ -56,25 +53,14 @@ pub async fn handle_prologix_request<T: AsyncRead + AsyncWrite + Unpin>(
 }
 
 async fn write<T: AsyncWrite + Unpin>(serial: &mut T, msg: &str) -> crate::Result<()> {
-    serial
-        .write(msg.as_bytes())
-        .await
-        .map(|_| ())
-        .map_err(Error::transport)
+    serial.write(msg.as_bytes()).await.map(|_| ()).map_err(Error::transport)
 }
 
-async fn write_prologix<T: AsyncWrite + Unpin>(
-    serial: &mut T,
-    mut msg: String,
-) -> crate::Result<()> {
+async fn write_prologix<T: AsyncWrite + Unpin>(serial: &mut T, mut msg: String) -> crate::Result<()> {
     if !msg.ends_with('\n') {
         msg.push('\n');
     }
-    serial
-        .write(msg.as_bytes())
-        .await
-        .map(|_| ())
-        .map_err(Error::transport)
+    serial.write(msg.as_bytes()).await.map(|_| ()).map_err(Error::transport)
 }
 
 async fn read_prologix<T: AsyncRead + Unpin>(serial: &mut T) -> crate::Result<String> {
@@ -82,12 +68,7 @@ async fn read_prologix<T: AsyncRead + Unpin>(serial: &mut T) -> crate::Result<St
     let mut ret = Vec::new();
     loop {
         let mut x = [0; 1];
-        match timeout(
-            Duration::from_secs_f32(PROLOGIX_TIMEOUT),
-            serial.read_exact(&mut x),
-        )
-        .await
-        {
+        match timeout(Duration::from_secs_f32(PROLOGIX_TIMEOUT), serial.read_exact(&mut x)).await {
             Ok(Ok(_)) => {
                 let x = x[0];
                 if x == b'\n' {

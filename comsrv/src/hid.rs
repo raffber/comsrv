@@ -42,16 +42,10 @@ impl IoHandler for Handler {
     type Request = HidRequest;
     type Response = HidResponse;
 
-    async fn handle(
-        &mut self,
-        _ctx: &mut IoContext<Self>,
-        req: Self::Request,
-    ) -> crate::Result<Self::Response> {
+    async fn handle(&mut self, _ctx: &mut IoContext<Self>, req: Self::Request) -> crate::Result<Self::Response> {
         let device = self.device.take();
         let idn = self.idn.clone();
-        let (device, result) = task::spawn_blocking(move || handle_blocking(device, &idn, req))
-            .await
-            .unwrap();
+        let (device, result) = task::spawn_blocking(move || handle_blocking(device, &idn, req)).await.unwrap();
         self.device = device;
         result
     }
@@ -77,27 +71,17 @@ fn handle_blocking(
     }
 }
 
-fn handle_request(
-    device: &mut HidApiDevice,
-    idn: &HidIdentifier,
-    req: HidRequest,
-) -> crate::Result<HidResponse> {
+fn handle_request(device: &mut HidApiDevice, idn: &HidIdentifier, req: HidRequest) -> crate::Result<HidResponse> {
     match req {
-        HidRequest::Write { data } => device
-            .write(&data)
-            .map(|_| HidResponse::Ok)
-            .map_err(to_error),
+        HidRequest::Write { data } => device.write(&data).map(|_| HidResponse::Ok).map_err(to_error),
         HidRequest::Read { timeout_ms } => {
             let mut buf = [0u8; 64];
-            device
-                .read_timeout(&mut buf, timeout_ms)
-                .map_err(to_error)
-                .and_then(|x| {
-                    if x == 0 {
-                        return Err(crate::Error::protocol_timeout());
-                    }
-                    Ok(HidResponse::Data(buf[0..x].to_vec()))
-                })
+            device.read_timeout(&mut buf, timeout_ms).map_err(to_error).and_then(|x| {
+                if x == 0 {
+                    return Err(crate::Error::protocol_timeout());
+                }
+                Ok(HidResponse::Data(buf[0..x].to_vec()))
+            })
         }
         HidRequest::GetInfo => {
             let mfr = device.get_manufacturer_string().map_err(to_error)?;
@@ -166,7 +150,5 @@ fn list_devices_blocking() -> crate::Result<Vec<HidDeviceInfo>> {
 }
 
 pub async fn list_devices() -> crate::Result<Vec<HidDeviceInfo>> {
-    task::spawn_blocking(|| list_devices_blocking())
-        .await
-        .unwrap()
+    task::spawn_blocking(|| list_devices_blocking()).await.unwrap()
 }

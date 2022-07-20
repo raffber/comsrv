@@ -103,12 +103,7 @@ impl<T: Instrument> Inventory<T> {
         Ok(ret)
     }
 
-    pub async fn wait_connect(
-        &self,
-        server: &Server,
-        addr: &T::Address,
-        lock_id: Option<&Uuid>,
-    ) -> crate::Result<T> {
+    pub async fn wait_connect(&self, server: &Server, addr: &T::Address, lock_id: Option<&Uuid>) -> crate::Result<T> {
         self.wait_for_lock(addr, lock_id).await;
         self.connect(server, addr)
     }
@@ -159,12 +154,7 @@ impl<T: Instrument> Inventory<T> {
         log::debug!("Lock acquired, proceeding.");
     }
 
-    pub async fn wait_and_lock(
-        &self,
-        server: &Server,
-        addr: &T::Address,
-        timeout: Duration,
-    ) -> crate::Result<Uuid> {
+    pub async fn wait_and_lock(&self, server: &Server, addr: &T::Address, timeout: Duration) -> crate::Result<Uuid> {
         self.wait_for_lock(addr, None).await;
         self.lock(server, addr, timeout).await
     }
@@ -173,12 +163,7 @@ impl<T: Instrument> Inventory<T> {
     /// newly created lock. If a lock is still present on the address, the lock is removed and
     /// unlocked.
     /// If this behavior is undesirable, call wait_for_lock() before calling this function.
-    pub async fn lock(
-        &self,
-        server: &Server,
-        addr: &T::Address,
-        timeout: Duration,
-    ) -> crate::Result<Uuid> {
+    pub async fn lock(&self, server: &Server, addr: &T::Address, timeout: Duration) -> crate::Result<Uuid> {
         let ret = Uuid::new_v4();
 
         let (lock, mut unlock) = {

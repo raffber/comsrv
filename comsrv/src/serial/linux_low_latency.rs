@@ -36,9 +36,7 @@ pub(crate) fn apply_low_latency<T: AsRawFd>(serial_stream: &T) -> crate::Result<
         let ss_ref = &mut serial_struct as *mut SerialStruct;
         let failed = libc::ioctl(fd, libc::TIOCGSERIAL, ss_ref);
         if failed != 0 {
-            return Err(crate::Error::transport(anyhow!(
-                "Cannot get serial info struct"
-            )));
+            return Err(crate::Error::transport(anyhow!("Cannot get serial info struct")));
         }
 
         serial_struct.flags |= 1 << 13;

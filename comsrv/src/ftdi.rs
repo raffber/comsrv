@@ -103,11 +103,7 @@ impl IoHandler for Handler {
     type Request = FtdiRequest;
     type Response = ByteStreamResponse;
 
-    async fn handle(
-        &mut self,
-        _ctx: &mut IoContext<Self>,
-        req: Self::Request,
-    ) -> crate::Result<Self::Response> {
+    async fn handle(&mut self, _ctx: &mut IoContext<Self>, req: Self::Request) -> crate::Result<Self::Response> {
         let params = req.params()?;
         let mut ftdi: Ftdi = if let Some((mut ftdi, open_params)) = self.device.take() {
             if params != open_params {

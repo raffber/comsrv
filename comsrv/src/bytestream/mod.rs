@@ -56,9 +56,7 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
     match req {
         ByteStreamRequest::Write(data) => {
             log::debug!("write: {:?}", data);
-            AsyncWriteExt::write_all(stream, &data)
-                .await
-                .map_err(Error::transport)?;
+            AsyncWriteExt::write_all(stream, &data).await.map_err(Error::transport)?;
             Ok(ByteStreamResponse::Done)
         }
         ByteStreamRequest::ReadExact { count, timeout } => {
@@ -92,12 +90,10 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             AsyncWriteExt::write_all(stream, &data).await?;
             Ok(ByteStreamResponse::Done)
         }
-        ByteStreamRequest::CobsRead(timeout) => {
-            match time::timeout(timeout.into(), cobs_read(stream)).await {
-                Ok(x) => x,
-                Err(_) => Err(crate::Error::protocol_timeout()),
-            }
-        }
+        ByteStreamRequest::CobsRead(timeout) => match time::timeout(timeout.into(), cobs_read(stream)).await {
+            Ok(x) => x,
+            Err(_) => Err(crate::Error::protocol_timeout()),
+        },
         ByteStreamRequest::CobsQuery { data, timeout } => {
             read_all(stream).await?;
             match time::timeout(timeout.into(), cobs_query(stream, data)).await {
@@ -114,8 +110,7 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
         ByteStreamRequest::ReadLine { timeout, term } => {
             check_term(term)?;
             let ret = read_to_term_timeout(stream, term, timeout.into()).await?;
-            let ret = String::from_utf8(ret)
-                .map_err(|_| crate::Error::protocol(anyhow!("Cannot decode as UTF-8")))?;
+            let ret = String::from_utf8(ret).map_err(|_| crate::Error::protocol(anyhow!("Cannot decode as UTF-8")))?;
             Ok(ByteStreamResponse::String(ret))
         }
         ByteStreamRequest::QueryLine {
@@ -128,8 +123,7 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             line.push(term as char);
             AsyncWriteExt::write_all(stream, line.as_bytes()).await?;
             let ret = read_to_term_timeout(stream, term, timeout.into()).await?;
-            let ret = String::from_utf8(ret)
-                .map_err(|_| crate::Error::protocol(anyhow!("Cannot decode as UTF-8")))?;
+            let ret = String::from_utf8(ret).map_err(|_| crate::Error::protocol(anyhow!("Cannot decode as UTF-8")))?;
             Ok(ByteStreamResponse::String(ret))
         }
         ByteStreamRequest::ReadToTerm { term, timeout } => {
@@ -211,9 +205,7 @@ async fn cobs_query<T: AsyncRead + AsyncWrite + Unpin>(
 ) -> crate::Result<ByteStreamResponse> {
     let _ = read_all(stream).await.map_err(crate::Error::transport);
     let data = cobs_encode(&data);
-    AsyncWriteExt::write_all(stream, &data)
-        .await
-        .map_err(Error::transport)?;
+    AsyncWriteExt::write_all(stream, &data).await.map_err(Error::transport)?;
     cobs_read(stream).await
 }
 
@@ -245,13 +237,7 @@ async fn modbus_ddp_rtu<T: AsyncRead + AsyncWrite + Unpin>(
     if response {
         ddp_cmd |= 0x80;
     }
-    let mut req = vec![
-        station_address,
-        custom_cmd,
-        sub_cmd,
-        (data.len() + 1) as u8,
-        ddp_cmd,
-    ];
+    let mut req = vec![station_address, custom_cmd, sub_cmd, (data.len() + 1) as u8, ddp_cmd];
     req.extend(data);
     let msg_crc = ddp_crc(&req);
     req.push((msg_crc & 0xFF) as u8);

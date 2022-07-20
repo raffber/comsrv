@@ -81,11 +81,7 @@ impl App {
         while let Some(msg) = rx.recv().await {
             let (req, rep) = msg.split();
             let app = self.clone();
-            log::debug!(
-                "Incoming[{}]: {}",
-                rep.request_id(),
-                serde_json::to_string(&req).unwrap()
-            );
+            log::debug!("Incoming[{}]: {}", rep.request_id(), serde_json::to_string(&req).unwrap());
             task::spawn(async move {
                 let response = app.handle(req).await.into();
                 log::debug!("Answering: {}", serde_json::to_string(&response).unwrap());
@@ -131,12 +127,9 @@ impl App {
                 request,
                 lock,
             } => self.handle_prologix(instrument, request, lock).await,
-            Request::Sigrok {
-                instrument,
-                request,
-            } => sigrok::read(&instrument.address, request)
-                .await
-                .map(Response::Sigrok),
+            Request::Sigrok { instrument, request } => {
+                sigrok::read(&instrument.address, request).await.map(Response::Sigrok)
+            }
             Request::Hid {
                 instrument,
                 request,
@@ -156,24 +149,17 @@ impl App {
                 self.server.shutdown().await;
                 Ok(Response::Done)
             }
-            Request::ListHidDevices => crate::hid::list_devices()
-                .await
-                .map(|x| Response::Hid(HidResponse::List(x))),
+            Request::ListHidDevices => crate::hid::list_devices().await.map(|x| Response::Hid(HidResponse::List(x))),
             Request::Version => {
                 let version = crate_version!();
-                let version: Vec<_> = version
-                    .split(".")
-                    .map(|x| x.parse::<u32>().unwrap())
-                    .collect();
+                let version: Vec<_> = version.split(".").map(|x| x.parse::<u32>().unwrap()).collect();
                 Ok(Response::Version {
                     major: version[0],
                     minor: version[1],
                     build: version[2],
                 })
             }
-            Request::ListSerialPorts => crate::serial::list_devices()
-                .await
-                .map(Response::SerialPorts),
+            Request::ListSerialPorts => crate::serial::list_devices().await.map(Response::SerialPorts),
             Request::ListFtdiDevices => ftdi::list_ftdi().await.map(Response::FtdiDevices),
             Request::ListCanDevices => match async_can::list_devices().await {
                 Ok(x) => {
@@ -258,22 +244,14 @@ impl App {
         }
     }
 
-    async fn handle_can(
-        &self,
-        instr: CanInstrument,
-        req: CanRequest,
-        lock: Option<Uuid>,
-    ) -> crate::Result<Response> {
+    async fn handle_can(&self, instr: CanInstrument, req: CanRequest, lock: Option<Uuid>) -> crate::Result<Response> {
         let bitrate = instr.bitrate();
         let addr: CanAddress = instr.into();
         self.inventories
             .can
             .wait_connect(&self.server, &addr, lock.as_ref())
             .await?
-            .request(can::Request {
-                inner: req,
-                bitrate,
-            })
+            .request(can::Request { inner: req, bitrate })
             .await
             .map(Response::Can)
     }
@@ -293,12 +271,7 @@ impl App {
             .map(Response::Scpi)
     }
 
-    async fn handle_vxi(
-        &self,
-        instr: VxiInstrument,
-        req: ScpiRequest,
-        lock: Option<Uuid>,
-    ) -> crate::Result<Response> {
+    async fn handle_vxi(&self, instr: VxiInstrument, req: ScpiRequest, lock: Option<Uuid>) -> crate::Result<Response> {
         self.inventories
             .vxi
             .wait_connect(&self.server, &instr.address, lock.as_ref())
@@ -352,48 +325,15 @@ impl App {
     ) -> crate::Result<Response> {
         let timeout: Duration = timeout.into();
         let lock_id = match addr {
-            comsrv_protocol::Address::Tcp(x) => {
-                self.inventories
-                    .tcp
-                    .wait_and_lock(&self.server, &x, timeout)
-                    .await
-            }
-            comsrv_protocol::Address::Ftdi(x) => {
-                self.inventories
-                    .ftdi
-                    .wait_and_lock(&self.server, &x, timeout)
-                    .await
-            }
-            comsrv_protocol::Address::Hid(x) => {
-                self.inventories
-                    .hid
-                    .wait_and_lock(&self.server, &x, timeout)
-                    .await
-            }
+            comsrv_protocol::Address::Tcp(x) => self.inventories.tcp.wait_and_lock(&self.server, &x, timeout).await,
+            comsrv_protocol::Address::Ftdi(x) => self.inventories.ftdi.wait_and_lock(&self.server, &x, timeout).await,
+            comsrv_protocol::Address::Hid(x) => self.inventories.hid.wait_and_lock(&self.server, &x, timeout).await,
             comsrv_protocol::Address::Serial(x) => {
-                self.inventories
-                    .serial
-                    .wait_and_lock(&self.server, &x, timeout)
-                    .await
+                self.inventories.serial.wait_and_lock(&self.server, &x, timeout).await
             }
-            comsrv_protocol::Address::Vxi(x) => {
-                self.inventories
-                    .vxi
-                    .wait_and_lock(&self.server, &x, timeout)
-                    .await
-            }
-            comsrv_protocol::Address::Visa(x) => {
-                self.inventories
-                    .visa
-                    .wait_and_lock(&self.server, &x, timeout)
-                    .await
-            }
-            comsrv_protocol::Address::Can(x) => {
-                self.inventories
-                    .can
-                    .wait_and_lock(&self.server, &x, timeout)
-                    .await
-            }
+            comsrv_protocol::Address::Vxi(x) => self.inventories.vxi.wait_and_lock(&self.server, &x, timeout).await,
+            comsrv_protocol::Address::Visa(x) => self.inventories.visa.wait_and_lock(&self.server, &x, timeout).await,
+            comsrv_protocol::Address::Can(x) => self.inventories.can.wait_and_lock(&self.server, &x, timeout).await,
         }?;
         Ok(Response::Locked { lock_id })
     }
@@ -423,24 +363,12 @@ impl App {
     }
 
     fn list_connected_instruments(&self) -> crate::Result<Response> {
-        let mut ret: Vec<Address> = self
-            .inventories
-            .tcp
-            .list()
-            .drain(..)
-            .map(Address::Tcp)
-            .collect();
+        let mut ret: Vec<Address> = self.inventories.tcp.list().drain(..).map(Address::Tcp).collect();
         ret.extend(self.inventories.can.list().drain(..).map(Address::Can));
         ret.extend(self.inventories.ftdi.list().drain(..).map(Address::Ftdi));
         ret.extend(self.inventories.vxi.list().drain(..).map(Address::Vxi));
         ret.extend(self.inventories.hid.list().drain(..).map(Address::Hid));
-        ret.extend(
-            self.inventories
-                .serial
-                .list()
-                .drain(..)
-                .map(Address::Serial),
-        );
+        ret.extend(self.inventories.serial.list().drain(..).map(Address::Serial));
         ret.extend(self.inventories.visa.list().drain(..).map(Address::Visa));
         Ok(Response::Instruments(ret))
     }

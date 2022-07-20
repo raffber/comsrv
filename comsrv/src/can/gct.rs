@@ -4,8 +4,8 @@ use crate::can::crc::crc16;
 use anyhow::anyhow;
 use byteorder::{ByteOrder, LittleEndian};
 use comsrv_protocol::{
-    CanMessage, DataFrame, GctMessage, MessageId, SysCtrlType, BROADCAST_ADDR, MSGTYPE_DDP,
-    MSGTYPE_HEARTBEAT, MSGTYPE_MONITORING_DATA, MSGTYPE_MONITORING_REQUEST, MSGTYPE_SYSCTRL,
+    CanMessage, DataFrame, GctMessage, MessageId, SysCtrlType, BROADCAST_ADDR, MSGTYPE_DDP, MSGTYPE_HEARTBEAT,
+    MSGTYPE_MONITORING_DATA, MSGTYPE_MONITORING_REQUEST, MSGTYPE_SYSCTRL,
 };
 
 struct DdpDecoderV1 {
@@ -193,14 +193,8 @@ impl Decoder {
             MSGTYPE_MONITORING_REQUEST => GctMessage::try_decode_monitoring_request(msg),
             MSGTYPE_DDP => {
                 let dst = id.dst();
-                let decoder_v1 = self
-                    .ddp_v1
-                    .entry(dst)
-                    .or_insert_with(|| DdpDecoderV1::new(dst));
-                let decoder_v2 = self
-                    .ddp_v2
-                    .entry(dst)
-                    .or_insert_with(|| DdpDecoderV2::new(dst));
+                let decoder_v1 = self.ddp_v1.entry(dst).or_insert_with(|| DdpDecoderV1::new(dst));
+                let decoder_v2 = self.ddp_v2.entry(dst).or_insert_with(|| DdpDecoderV2::new(dst));
                 let msg_v1 = decoder_v1.decode(&msg);
                 let msg_v2 = decoder_v2.decode(msg);
                 if let Some(msg) = msg_v1 {
@@ -311,12 +305,7 @@ pub fn encode(msg: GctMessage) -> crate::Result<Vec<CanMessage>> {
             group_idx,
             readings,
         } => {
-            let id = MessageId::new(
-                MSGTYPE_MONITORING_REQUEST,
-                src,
-                dst,
-                (group_idx as u16) << 6,
-            );
+            let id = MessageId::new(MSGTYPE_MONITORING_REQUEST, src, dst, (group_idx as u16) << 6);
             let mut data = [0_u8; 8];
             LittleEndian::write_u64(&mut data, readings);
             let msg = CanMessage::Data(DataFrame {

@@ -104,10 +104,7 @@ impl SerialParams {
 
 impl Display for SerialParams {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let x = format!(
-            "{}::{}{}{}",
-            self.baud, self.data_bits, self.parity, self.stop_bits
-        );
+        let x = format!("{}::{}{}{}", self.baud, self.data_bits, self.parity, self.stop_bits);
         f.write_str(&x)
     }
 }

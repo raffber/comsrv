@@ -23,18 +23,11 @@ fn run_command(args: &[&str]) -> crate::Result<String> {
     }
     let child = cmd.spawn().map_err(crate::Error::transport)?;
     let output = child.wait_with_output().map_err(crate::Error::transport)?;
-    let stdout = String::from_utf8(output.stdout)
-        .map_err(|_| crate::Error::transport(anyhow!("Decode Error")))?;
-    let stderr = String::from_utf8(output.stderr)
-        .map_err(|_| crate::Error::transport(anyhow!("Decode Error")))?;
+    let stdout = String::from_utf8(output.stdout).map_err(|_| crate::Error::transport(anyhow!("Decode Error")))?;
+    let stderr = String::from_utf8(output.stderr).map_err(|_| crate::Error::transport(anyhow!("Decode Error")))?;
     let code = output.status.code().unwrap_or(-1);
     if code != 0 {
-        let err = anyhow!(
-            "Process failed {}: stdout: `{}`, stderr: `{}`",
-            code,
-            stdout,
-            stderr
-        );
+        let err = anyhow!("Process failed {}: stdout: `{}`, stderr: `{}`", code, stdout, stderr);
         return Err(crate::Error::transport(err));
     }
     Ok(stdout)

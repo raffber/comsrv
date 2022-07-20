@@ -26,9 +26,7 @@ impl<T: IoHandler> IoContext<T> {
 
 impl<T: IoHandler> Clone for IoContext<T> {
     fn clone(&self) -> Self {
-        Self {
-            tx: self.tx.clone(),
-        }
+        Self { tx: self.tx.clone() }
     }
 }
 
@@ -39,11 +37,7 @@ pub trait IoHandler: Send + Sized {
     type Request: Message;
     type Response: Message;
 
-    async fn handle(
-        &mut self,
-        ctx: &mut IoContext<Self>,
-        req: Self::Request,
-    ) -> crate::Result<Self::Response>;
+    async fn handle(&mut self, ctx: &mut IoContext<Self>, req: Self::Request) -> crate::Result<Self::Response>;
 
     async fn disconnect(&mut self) {}
 }
@@ -66,9 +60,7 @@ pub struct IoTask<T: IoHandler> {
 
 impl<T: IoHandler> Clone for IoTask<T> {
     fn clone(&self) -> Self {
-        Self {
-            tx: self.tx.clone(),
-        }
+        Self { tx: self.tx.clone() }
     }
 }
 
@@ -78,9 +70,7 @@ impl<T: 'static + IoHandler> IoTask<T> {
         let (tx, mut rx) = mpsc::unbounded_channel::<RequestMsg<T>>();
         let copy_tx = tx.clone();
         task::spawn(async move {
-            let mut ctx = IoContext {
-                tx: copy_tx.clone(),
-            };
+            let mut ctx = IoContext { tx: copy_tx.clone() };
             while let Some(x) = rx.recv().await {
                 match x {
                     RequestMsg::Task { req, answer } => {
@@ -108,16 +98,11 @@ impl<T: 'static + IoHandler> IoTask<T> {
     /// returns `Err(Error::Disconnected)`.
     pub async fn request(&mut self, req: T::Request) -> crate::Result<T::Response> {
         let (tx, rx) = oneshot::channel();
-        let msg = RequestMsg::Task {
-            req,
-            answer: Some(tx),
-        };
+        let msg = RequestMsg::Task { req, answer: Some(tx) };
         self.tx
             .send(msg)
             .map_err(|_| Error::internal(anyhow!("Channel disconnected")))?;
-        let ret = rx
-            .await
-            .map_err(|_| Error::internal(anyhow!("Channel disconnected")))?;
+        let ret = rx.await.map_err(|_| Error::internal(anyhow!("Channel disconnected")))?;
         ret
     }
 }

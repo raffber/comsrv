@@ -56,13 +56,10 @@ impl Instrument {
 
     pub fn query_string<T: AsRef<str>>(&self, msg: T) -> crate::Result<String> {
         log::debug!("Query[{}]: `{}`", self.instr.addr(), msg.as_ref());
-        self.write(msg)
-            .map_err(|x| crate::Error::transport(anyhow!(x)))?;
-        let rx = self
-            .read()
-            .map_err(|x| crate::Error::transport(anyhow!(x)))?;
-        let ret = String::from_utf8(rx)
-            .map_err(|x| crate::Error::protocol(anyhow!("Invalid UTF-8 received. {}", x)))?;
+        self.write(msg).map_err(|x| crate::Error::transport(anyhow!(x)))?;
+        let rx = self.read().map_err(|x| crate::Error::transport(anyhow!(x)))?;
+        let ret =
+            String::from_utf8(rx).map_err(|x| crate::Error::protocol(anyhow!("Invalid UTF-8 received. {}", x)))?;
         log::debug!("Reply[{}]: `{}`", self.instr.addr(), ret);
         if !ret.ends_with(DEFAULT_TERMINATION) {
             return Err(Error::protocol(anyhow!("Invalid Termination")));
@@ -80,11 +77,8 @@ impl Instrument {
 
     pub fn query_binary<T: AsRef<str>>(&self, msg: T) -> crate::Result<Vec<u8>> {
         log::debug!("QueryBinary[{}]: `{}`", self.instr.addr(), msg.as_ref());
-        self.write(msg)
-            .map_err(|x| crate::Error::transport(anyhow!(x)))?;
-        let rx = self
-            .read()
-            .map_err(|x| crate::Error::transport(anyhow!(x)))?;
+        self.write(msg).map_err(|x| crate::Error::transport(anyhow!(x)))?;
+        let rx = self.read().map_err(|x| crate::Error::transport(anyhow!(x)))?;
         let (offset, length) = scpi::parse_binary_header(&rx)?;
         Ok(rx[offset..offset + length].to_vec())
     }
@@ -100,9 +94,7 @@ impl Instrument {
                 .map_err(|x| crate::Error::transport(anyhow!(x)))
                 .map(|_| ScpiResponse::Done),
             ScpiRequest::QueryString(x) => self.query_string(x).map(ScpiResponse::String),
-            ScpiRequest::QueryBinary(x) => self
-                .query_binary(x)
-                .map(|data| ScpiResponse::Binary { data }),
+            ScpiRequest::QueryBinary(x) => self.query_binary(x).map(|data| ScpiResponse::Binary { data }),
             ScpiRequest::ReadRaw => self
                 .read()
                 .map_err(|x| crate::Error::transport(anyhow!(x)))
