@@ -209,7 +209,7 @@ async fn cobs_query<T: AsyncRead + AsyncWrite + Unpin>(
     stream: &mut T,
     data: Vec<u8>,
 ) -> crate::Result<ByteStreamResponse> {
-    read_all(stream).await;
+    let _ = read_all(stream).await.map_err(crate::Error::transport);
     let data = cobs_encode(&data);
     AsyncWriteExt::write_all(stream, &data)
         .await

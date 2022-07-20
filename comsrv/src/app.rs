@@ -11,9 +11,7 @@ use crate::visa;
 use crate::vxi;
 
 use crate::inventory::Inventory;
-use comsrv_protocol::{
-    ByteStreamInstrument, CanInstrument, Request, Response, ScpiInstrument,
-};
+use comsrv_protocol::{ByteStreamInstrument, CanInstrument, Request, Response, ScpiInstrument};
 use std::sync::Arc;
 
 pub type Server = WsrpcServer<Request, Response>;
@@ -104,7 +102,11 @@ impl App {
                 lock: _,
             } => todo!(),
             Request::Can {
-                instrument: CanInstrument::PCan { address: _, baudrate: _ },
+                instrument:
+                    CanInstrument::PCan {
+                        address: _,
+                        baudrate: _,
+                    },
                 request: _,
                 lock: _,
             } => todo!(),
@@ -145,7 +147,10 @@ impl App {
             Request::ListFtdiDevices => todo!(),
             Request::ListCanDevices => todo!(),
             Request::ListConnectedInstruments => todo!(),
-            Request::Lock { addr: _, timeout_ms: _ } => todo!(),
+            Request::Lock {
+                addr: _,
+                timeout_ms: _,
+            } => todo!(),
             Request::Unlock(_) => todo!(),
             Request::DropAll => todo!(),
             Request::Version => todo!(),
