@@ -135,10 +135,6 @@ impl App {
                 request,
                 lock,
             } => self.handle_hid(instrument, request, lock).await,
-            Request::Connect {
-                instrument: _,
-                timeout: _,
-            } => todo!(),
             Request::ListSigrokDevices => sigrok::list().await.map(Response::Sigrok),
             Request::ListConnectedInstruments => self.list_connected_instruments(),
             Request::Lock { addr, timeout } => self.lock(addr, timeout).await,

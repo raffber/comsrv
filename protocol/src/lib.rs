@@ -86,11 +86,6 @@ pub enum Request {
         #[serde(skip_serializing_if = "Option::is_none", default)]
         lock: Option<Uuid>,
     },
-    Connect {
-        instrument: Instrument,
-        #[serde(skip_serializing_if = "Option::is_none", default)]
-        timeout: Option<Duration>,
-    },
     ListSigrokDevices,
     ListSerialPorts,
     ListHidDevices,

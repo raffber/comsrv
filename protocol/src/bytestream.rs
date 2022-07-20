@@ -67,7 +67,7 @@ pub enum ByteStreamInstrument {
     Tcp(TcpInstrument),
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum ModBusProtocol {
     Tcp,
     Rtu,
@@ -144,10 +144,6 @@ pub enum ModBusRequest {
     WriteRegister {
         addr: u16,
         data: Vec<u16>,
-    },
-    CustomCommand {
-        code: u8,
-        data: Vec<u8>,
     },
 }
 
