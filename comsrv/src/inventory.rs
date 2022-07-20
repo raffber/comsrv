@@ -51,7 +51,6 @@ pub trait Instrument: 'static + Clone + Send {
     fn connect(server: &Server, addr: &Self::Address) -> crate::Result<Self>;
 }
 
-
 /// Contains an instrument which can be locked
 #[derive(Clone)]
 struct LockableInstrument<T: Instrument> {
@@ -66,9 +65,7 @@ struct InventoryShared<T: Instrument> {
 
 /// A collect of instruments, public API of this module
 #[derive(Clone)]
-pub struct Inventory<T: Instrument>(
-    Arc<Mutex<InventoryShared<T>>>,
-);
+pub struct Inventory<T: Instrument>(Arc<Mutex<InventoryShared<T>>>);
 
 /// The `Inventory` type allows storing and retrieving instruments.
 /// Also, access to instruments may be locked for a given amount of time. During this time, only
@@ -127,7 +124,11 @@ impl<T: Instrument> Inventory<T> {
     /// Return a list of keys of instruments.
     pub fn list(&self) -> Vec<String> {
         let inner = self.0.lock().unwrap();
-        inner.instruments.keys().map(|x| format!("{:?}", x)).collect()
+        inner
+            .instruments
+            .keys()
+            .map(|x| format!("{:?}", x))
+            .collect()
     }
 
     /// Wait for the lock on a given instrument. If a `lock_id` is provided and matches the
@@ -159,7 +160,12 @@ impl<T: Instrument> Inventory<T> {
     /// newly created lock. If a lock is still present on the address, the lock is removed and
     /// unlocked.
     /// If this behavior is undesirable, call wait_for_lock() before calling this function.
-    pub async fn lock(&self, server: &Server, addr: &T::Address, timeout: Duration) -> crate::Result<Uuid> {
+    pub async fn lock(
+        &self,
+        server: &Server,
+        addr: &T::Address,
+        timeout: Duration,
+    ) -> crate::Result<Uuid> {
         let ret = Uuid::new_v4();
 
         let (lock, mut unlock) = {

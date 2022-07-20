@@ -2,18 +2,17 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task;
 use wsrpc::server::{Requested, Server as WsrpcServer};
 
-
-use crate::serial;
 use crate::can;
 use crate::ftdi;
+use crate::serial;
 use crate::tcp;
 use crate::visa;
 use crate::vxi;
 
 use crate::inventory::Inventory;
 use comsrv_protocol::{
-    Response, Request, SerialAddress, FtdiAddress, TcpAddress, ByteStreamInstrument,
-    CanInstrument, ScpiInstrument
+    ByteStreamInstrument, CanInstrument, FtdiAddress, Request, Response, ScpiInstrument,
+    SerialAddress, TcpAddress,
 };
 use std::sync::Arc;
 
@@ -76,20 +75,62 @@ impl App {
 
     async fn handle(&self, req: Request) -> crate::Result<Response> {
         match req {
-            Request::ByteStream { instrument: ByteStreamInstrument::Ftdi(instr), request, lock } => {
-                let instr = self.inventories.ftdi.connect(&self.server, &instr.address)?;
+            Request::ByteStream {
+                instrument: ByteStreamInstrument::Ftdi(instr),
+                request,
+                lock,
+            } => {
+                let instr = self
+                    .inventories
+                    .ftdi
+                    .connect(&self.server, &instr.address)?;
                 instr.request(req)
-            },
-            Request::ByteStream { instrument: ByteStreamInstrument::Serial(instr), request, lock } => todo!(),
-            Request::ByteStream { instrument: ByteStreamInstrument::Tcp(instr), request, lock } => todo!(),
-            Request::Can { instrument: CanInstrument::PCan { address, baudrate },  request, lock } => todo!(),
-            Request::Can { instrument: CanInstrument::SocketCan { interface },  request, lock } => todo!(),
-            Request::Scpi { instrument: ScpiInstrument::PrologixSerial(instr), request } => todo!(),
-            Request::Scpi { instrument: ScpiInstrument::Visa(instr), request } => todo!(),
-            Request::Scpi { instrument: ScpiInstrument::Vxi(instr), request } => todo!(),
-            Request::Sigrok { instrument, request } => todo!(),
-            Request::Hid { instrument, request, lock } => todo!(),
-            Request::Connect { instrument, timeout } => todo!(),
+            }
+            Request::ByteStream {
+                instrument: ByteStreamInstrument::Serial(instr),
+                request,
+                lock,
+            } => todo!(),
+            Request::ByteStream {
+                instrument: ByteStreamInstrument::Tcp(instr),
+                request,
+                lock,
+            } => todo!(),
+            Request::Can {
+                instrument: CanInstrument::PCan { address, baudrate },
+                request,
+                lock,
+            } => todo!(),
+            Request::Can {
+                instrument: CanInstrument::SocketCan { interface },
+                request,
+                lock,
+            } => todo!(),
+            Request::Scpi {
+                instrument: ScpiInstrument::PrologixSerial(instr),
+                request,
+            } => todo!(),
+            Request::Scpi {
+                instrument: ScpiInstrument::Visa(instr),
+                request,
+            } => todo!(),
+            Request::Scpi {
+                instrument: ScpiInstrument::Vxi(instr),
+                request,
+            } => todo!(),
+            Request::Sigrok {
+                instrument,
+                request,
+            } => todo!(),
+            Request::Hid {
+                instrument,
+                request,
+                lock,
+            } => todo!(),
+            Request::Connect {
+                instrument,
+                timeout,
+            } => todo!(),
             Request::ListSigrokDevices => todo!(),
             Request::ListSerialPorts => todo!(),
             Request::ListHidDevices => todo!(),
@@ -101,7 +142,10 @@ impl App {
             Request::DropAll => todo!(),
             Request::Version => todo!(),
             Request::Shutdown => todo!(),
-            Request::Prologix { instrument, request } => todo!(),
+            Request::Prologix {
+                instrument,
+                request,
+            } => todo!(),
         }
     }
 }

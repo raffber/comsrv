@@ -7,7 +7,9 @@ use crate::can::device::{CanReceiver, CanSender};
 use crate::can::gct::Decoder;
 use crate::iotask::{IoHandler, IoTask};
 use async_can::CanFrameError;
-use comsrv_protocol::{CanMessage, CanRequest, CanResponse, DataFrame, RemoteFrame, Response, CanAddress};
+use comsrv_protocol::{
+    CanAddress, CanMessage, CanRequest, CanResponse, DataFrame, RemoteFrame, Response,
+};
 use tokio::sync::oneshot;
 
 mod crc;

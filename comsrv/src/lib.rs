@@ -6,13 +6,13 @@ extern crate dlopen_derive;
 #[macro_use]
 extern crate lazy_static;
 
-pub use comsrv_protocol::{Response, Request};
+pub use comsrv_protocol::{Request, Response};
 
 pub mod app;
+mod bytestream;
 mod can;
 mod ftdi;
 mod hid;
-mod bytestream;
 mod inventory;
 mod iotask;
 mod prologix;

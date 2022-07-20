@@ -5,15 +5,13 @@ use tokio_serial::{SerialPortBuilderExt, SerialStream};
 
 pub use params::SerialParams;
 
-use crate::bytestream::read_all;
+use crate::inventory;
 use crate::iotask::{IoHandler, IoTask};
 use crate::prologix::{handle_prologix_request, init_prologix};
 use crate::serial::params::{DataBits, Parity, StopBits};
 use comsrv_protocol::{
-    ByteStreamRequest, ByteStreamResponse, ScpiRequest, ScpiResponse,
+    ByteStreamRequest, ByteStreamResponse, ScpiRequest, ScpiResponse, SerialAddress,
 };
-use std::time::Duration;
-use tokio_modbus::prelude::Slave;
 
 pub mod params;
 
@@ -117,14 +115,14 @@ impl IoHandler for Handler {
             Request::Serial { params: _, req } => {
                 self.prologix_initialized = false;
                 crate::bytestream::handle(&mut serial, req)
-                .await
-                .map(Response::Bytes)
+                    .await
+                    .map(Response::Bytes)
             }
         };
         match &ret {
-            Err(crate::Error::ProtocolError(_)) | Ok(_) =>  {
+            Err(crate::Error::Protocol(_)) | Ok(_) => {
                 self.serial.replace((serial, new_params));
-            },
+            }
             Err(_) => {}
         }
         ret
@@ -138,7 +136,11 @@ pub struct Instrument {
 
 impl Instrument {
     pub fn new(path: String) -> Self {
-        let handler = Handler { serial: None, path };
+        let handler = Handler {
+            serial: None,
+            path,
+            prologix_initialized: false,
+        };
         Self {
             inner: IoTask::new(handler),
         }
@@ -150,6 +152,14 @@ impl Instrument {
 
     pub fn disconnect(mut self) {
         self.inner.disconnect()
+    }
+}
+
+impl inventory::Instrument for Instrument {
+    type Address = SerialAddress;
+
+    fn connect(server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
+        Ok(Instrument::new(addr.port))
     }
 }
 

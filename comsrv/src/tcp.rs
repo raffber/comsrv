@@ -121,7 +121,7 @@ impl IoHandler for Handler {
                 stream
             } else {
                 let addr = self.addr.clone();
-                match connect_tcp_stream(addr, req.timeout()).await {
+                match connect_tcp_stream(addr, self.connection_timeout).await {
                     Ok(stream) => stream,
                     Err(x) => {
                         if !x.should_retry() || tries > 3 {

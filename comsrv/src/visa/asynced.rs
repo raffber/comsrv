@@ -3,8 +3,9 @@ use std::thread;
 
 use tokio::sync::oneshot;
 
-use crate::visa::blocking::Instrument as BlockingInstrument;
 use crate::Error;
+use crate::{inventory, visa::blocking::Instrument as BlockingInstrument};
+use anyhow::anyhow;
 use comsrv_protocol::{ScpiRequest, ScpiResponse};
 
 #[derive(Clone)]
@@ -36,7 +37,7 @@ impl Instrument {
                 let instr = if let Some(instr) = oinstr.take() {
                     Ok(instr)
                 } else {
-                    BlockingInstrument::open(&addr).map_err(Error::Visa)
+                    BlockingInstrument::open(&addr).map_err(Error::transport)
                 };
                 match instr {
                     Ok(instr) => {
@@ -59,11 +60,22 @@ impl Instrument {
             request: req,
             reply: tx,
         };
-        self.tx.send(thmsg).map_err(|_| Error::Disconnected)?;
-        rx.await.map_err(|_| Error::Disconnected)?
+        self.tx
+            .send(thmsg)
+            .map_err(|_| Error::internal(anyhow!("Disconnected")))?;
+        rx.await
+            .map_err(|_| Error::internal(anyhow!("Disconnected")))?
     }
 
     pub fn disconnect(self) {
         let _ = self.tx.send(Msg::Drop);
+    }
+}
+
+impl inventory::Instrument for Instrument {
+    type Address = String;
+
+    fn connect(server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
+        Ok(Instrument::connect(addr))
     }
 }

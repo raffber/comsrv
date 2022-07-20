@@ -5,8 +5,8 @@ use std::task::{Context, Poll};
 /// This module implements a request handler for handling operation on a bytesstream-like
 /// instrument, for example TCP streams or serial ports
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
-use tokio::time::Duration;
 use tokio::time;
+use tokio::time::Duration;
 
 use crate::Error;
 use cobs::{cobs_decode, cobs_encode};
@@ -132,7 +132,12 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             let ret = read_to_term_timeout(stream, term, timeout.into()).await?;
             Ok(ByteStreamResponse::Data(ret))
         }
-        ByteStreamRequest::ModBus { timeout, station_address, protocol, request } => todo!()
+        ByteStreamRequest::ModBus {
+            timeout,
+            station_address,
+            protocol,
+            request,
+        } => todo!(),
     }
 }
 

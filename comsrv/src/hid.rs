@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use crate::iotask::{IoHandler, IoTask, IoContext};
+use crate::iotask::{IoContext, IoHandler, IoTask};
 use async_trait::async_trait;
 use comsrv_protocol::{HidDeviceInfo, HidIdentifier, HidRequest, HidResponse, TransportError};
-use hidapi::{HidApi, HidResult, HidError};
 use hidapi::HidDevice as HidApiDevice;
+use hidapi::{HidApi, HidError, HidResult};
 use lazy_static::lazy_static;
 
 use tokio::task;
@@ -25,7 +25,7 @@ fn get_hidapi() -> crate::Result<&'static HidApi> {
 
 fn to_error(x: HidError) -> crate::Error {
     let err: anyhow::Error = x.into();
-    crate::Error::Transport(TransportError::Other(Arc::new(err))) 
+    crate::Error::Transport(TransportError::Other(Arc::new(err)))
 }
 
 struct Handler {
@@ -42,7 +42,11 @@ impl IoHandler for Handler {
     type Request = HidRequest;
     type Response = HidResponse;
 
-    async fn handle(&mut self, ctx: &mut IoContext<Self>, req: Self::Request) -> crate::Result<Self::Response> {
+    async fn handle(
+        &mut self,
+        ctx: &mut IoContext<Self>,
+        req: Self::Request,
+    ) -> crate::Result<Self::Response> {
         let device = self.device.take();
         let idn = self.idn.clone();
         let (device, result) = task::spawn_blocking(move || handle_blocking(device, &idn, req))
@@ -79,9 +83,10 @@ fn handle_request(
     req: HidRequest,
 ) -> crate::Result<HidResponse> {
     match req {
-        HidRequest::Write { data } => {
-            device.write(&data).map(|_| HidResponse::Ok).map_err(to_error)
-        }
+        HidRequest::Write { data } => device
+            .write(&data)
+            .map(|_| HidResponse::Ok)
+            .map_err(to_error),
         HidRequest::Read { timeout_ms } => {
             let mut buf = [0u8; 64];
             device

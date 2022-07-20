@@ -1,7 +1,7 @@
 mod consts;
 
 mod asynced;
-mod visa_sys;
 mod blocking;
+mod visa_sys;
 
 pub use asynced::Instrument;

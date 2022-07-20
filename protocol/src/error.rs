@@ -168,6 +168,7 @@ impl Error {
 
     pub fn should_retry(&self) -> bool {
         matches!(self, Error::Protocol(_))
+        // TODO: io errors in transport
     }
 
     pub fn internal<T: Into<anyhow::Error>>(err: T) -> Self {

@@ -77,7 +77,6 @@ impl crate::inventory::Instrument for Instrument {
     }
 }
 
-
 struct Handler {
     device: Option<(Ftdi, SerialParams)>,
     serial_number: String,
@@ -121,7 +120,7 @@ impl IoHandler for Handler {
                 self.device.replace(ftdi);
             }
             Err(_) => {
-                ftdi.close();
+                ftdi.close().await;
             }
         }
         ret
