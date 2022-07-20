@@ -8,6 +8,7 @@ use comsrv_protocol::FtdiDeviceInfo;
 use comsrv_protocol::SerialOptions;
 use comsrv_protocol::SerialPortConfig;
 use std::cmp::PartialOrd;
+use std::convert::TryInto;
 
 use crate::iotask::IoContext;
 use crate::iotask::IoHandler;
@@ -24,8 +25,8 @@ pub struct FtdiRequest {
 }
 
 impl FtdiRequest {
-    fn params(&self) -> SerialParams {
-        todo!()
+    fn params(&self) -> crate::Result<SerialParams> {
+        self.port_config.clone().try_into()
     }
 }
 
@@ -107,7 +108,7 @@ impl IoHandler for Handler {
         _ctx: &mut IoContext<Self>,
         req: Self::Request,
     ) -> crate::Result<Self::Response> {
-        let params = req.params();
+        let params = req.params()?;
         let mut ftdi: Ftdi = if let Some((mut ftdi, open_params)) = self.device.take() {
             if params != open_params {
                 if let Err(x) = ftdi.set_params(params.clone().into()).await {

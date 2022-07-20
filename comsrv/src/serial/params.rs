@@ -1,5 +1,8 @@
 use core::fmt;
-use std::fmt::{Display, Formatter};
+use std::{
+    convert::TryInto,
+    fmt::{Display, Formatter},
+};
 
 use anyhow::anyhow;
 use comsrv_protocol::SerialPortConfig;
@@ -57,9 +60,17 @@ pub struct SerialParams {
     pub parity: Parity,
 }
 
-impl Into<SerialParams> for SerialPortConfig {
-    fn into(self) -> SerialParams {
-        todo!()
+impl TryInto<SerialParams> for SerialPortConfig {
+    type Error = crate::Error;
+
+    fn try_into(self) -> Result<SerialParams, Self::Error> {
+        let (data_bits, parity, stop_bits) = parse_serial_settings(&self.config)?;
+        Ok(SerialParams {
+            baud: self.baudrate,
+            data_bits,
+            stop_bits,
+            parity,
+        })
     }
 }
 

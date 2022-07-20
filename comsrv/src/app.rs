@@ -1,3 +1,4 @@
+use comsrv_protocol::Address;
 use comsrv_protocol::ByteStreamRequest;
 use comsrv_protocol::CanAddress;
 use comsrv_protocol::CanDeviceInfo;
@@ -31,6 +32,7 @@ use crate::vxi;
 use crate::inventory::Inventory;
 use anyhow::anyhow;
 use comsrv_protocol::{ByteStreamInstrument, CanInstrument, Request, Response, ScpiInstrument};
+use std::convert::TryInto;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -145,7 +147,7 @@ impl App {
                 timeout: _,
             } => todo!(),
             Request::ListSigrokDevices => sigrok::list().await.map(Response::Sigrok),
-            Request::ListConnectedInstruments => todo!(),
+            Request::ListConnectedInstruments => self.list_connected_instruments(),
             Request::Lock { addr, timeout } => self.lock(addr, timeout).await,
             Request::Unlock { addr, id } => self.unlock(addr, id).await,
             Request::DropAll => self.drop_all(),
@@ -188,7 +190,7 @@ impl App {
                         .collect();
                     Ok(Response::CanDevices(ret))
                 }
-                Err(_) => todo!(),
+                Err(x) => Err(crate::Error::transport(anyhow!(x))),
             },
         }
     }
@@ -246,7 +248,7 @@ impl App {
             .wait_connect(&self.server, &instr.address, lock.as_ref())
             .await?
             .request(serial::Request::Serial {
-                params: instr.port_config.into(),
+                params: instr.port_config.try_into()?,
                 req,
             })
             .await?;
@@ -418,6 +420,29 @@ impl App {
         self.inventories.can.disconnect_all();
         self.inventories.ftdi.disconnect_all();
         Ok(Response::Done)
+    }
+
+    fn list_connected_instruments(&self) -> crate::Result<Response> {
+        let mut ret: Vec<Address> = self
+            .inventories
+            .tcp
+            .list()
+            .drain(..)
+            .map(Address::Tcp)
+            .collect();
+        ret.extend(self.inventories.can.list().drain(..).map(Address::Can));
+        ret.extend(self.inventories.ftdi.list().drain(..).map(Address::Ftdi));
+        ret.extend(self.inventories.vxi.list().drain(..).map(Address::Vxi));
+        ret.extend(self.inventories.hid.list().drain(..).map(Address::Hid));
+        ret.extend(
+            self.inventories
+                .serial
+                .list()
+                .drain(..)
+                .map(Address::Serial),
+        );
+        ret.extend(self.inventories.visa.list().drain(..).map(Address::Visa));
+        Ok(Response::Instruments(ret))
     }
 }
 

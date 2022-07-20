@@ -6,6 +6,7 @@ use crate::app::Server;
 use crate::can::device::{CanReceiver, CanSender};
 use crate::can::gct::Decoder;
 use crate::iotask::{IoContext, IoHandler, IoTask};
+use anyhow::anyhow;
 use async_can::CanFrameError;
 use async_can::Error as CanError;
 use comsrv_protocol::{
@@ -18,12 +19,15 @@ mod device;
 mod gct;
 mod loopback;
 
-pub fn map_error(_err: CanError) -> crate::Error {
-    todo!()
+pub fn map_error(err: CanError) -> crate::Error {
+    match err {
+        CanError::Io(io) => crate::Error::transport(io),
+        err => crate::Error::transport(anyhow!(err)),
+    }
 }
 
-pub fn map_frame_error(_err: CanFrameError) -> crate::Error {
-    todo!()
+pub fn map_frame_error(err: CanFrameError) -> crate::Error {
+    crate::Error::argument(anyhow!("{:?}", err))
 }
 
 pub fn into_protocol_message(msg: async_can::Message) -> CanMessage {

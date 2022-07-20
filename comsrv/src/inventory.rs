@@ -129,13 +129,9 @@ impl<T: Instrument> Inventory<T> {
     }
 
     /// Return a list of keys of instruments.
-    pub fn list(&self) -> Vec<String> {
+    pub fn list(&self) -> Vec<T::Address> {
         let inner = self.0.lock().unwrap();
-        inner
-            .instruments
-            .keys()
-            .map(|x| format!("{:?}", x))
-            .collect()
+        inner.instruments.keys().cloned().collect()
     }
 
     /// Wait for the lock on a given instrument. If a `lock_id` is provided and matches the

@@ -161,6 +161,9 @@ async fn handle_request(client: &mut CoreClient, req: ScpiRequest) -> crate::Res
     }
 }
 
-fn map_error(_err: async_vxi11::Error) -> crate::Error {
-    todo!()
+fn map_error(err: async_vxi11::Error) -> crate::Error {
+    match err {
+        async_vxi11::Error::Io(io) => crate::Error::transport(io),
+        err => crate::Error::transport(anyhow!(err)),
+    }
 }

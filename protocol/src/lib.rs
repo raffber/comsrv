@@ -113,7 +113,7 @@ pub enum Request {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Response {
     Error(Error),
-    Instruments(Vec<Instrument>),
+    Instruments(Vec<Address>),
     Scpi(ScpiResponse),
     Bytes(ByteStreamResponse),
     Can(CanResponse),
