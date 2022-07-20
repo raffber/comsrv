@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::can::crc::crc16;
-use crate::can::CanError;
+use anyhow::anyhow;
 use byteorder::{ByteOrder, LittleEndian};
 use comsrv_protocol::{
     CanMessage, DataFrame, GctMessage, MessageId, SysCtrlType, BROADCAST_ADDR, MSGTYPE_DDP,
@@ -264,9 +264,9 @@ fn encode_ddp_v2(src: u8, dst: u8, mut data: Vec<u8>) -> Vec<CanMessage> {
     ret
 }
 
-pub fn encode(msg: GctMessage) -> Result<Vec<CanMessage>, CanError> {
+pub fn encode(msg: GctMessage) -> crate::Result<Vec<CanMessage>> {
     if let Err(_) = msg.validate() {
-        return Err(CanError::InvalidMessage);
+        return Err(crate::Error::argument(anyhow!("Invalid")));
     }
     let ret = match msg {
         GctMessage::SysCtrl {

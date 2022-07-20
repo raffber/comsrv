@@ -1,4 +1,5 @@
-use crate::can::{CanError, CanMessage};
+use crate::can::CanMessage;
+use anyhow::anyhow;
 use tokio::sync::broadcast;
 
 const MAX_SIZE: usize = 1000;
@@ -33,11 +34,11 @@ impl LoopbackDevice {
         Self { rx }
     }
 
-    pub async fn recv(&mut self) -> Result<CanMessage, CanError> {
+    pub async fn recv(&mut self) -> crate::Result<CanMessage> {
         self.rx
             .recv()
             .await
-            .map_err(|_| CanError::BusError(async_can::BusError::Off))
+            .map_err(|_| crate::Error::protocol(anyhow!("Loopback closed.")))
     }
 
     pub fn send(&self, msg: CanMessage) {

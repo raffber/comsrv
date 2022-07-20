@@ -5,8 +5,9 @@ use tokio::task;
 use crate::app::Server;
 use crate::can::device::{CanReceiver, CanSender};
 use crate::can::gct::Decoder;
-use crate::iotask::{IoHandler, IoTask};
+use crate::iotask::{IoContext, IoHandler, IoTask};
 use async_can::CanFrameError;
+use async_can::Error as CanError;
 use comsrv_protocol::{
     CanAddress, CanMessage, CanRequest, CanResponse, DataFrame, RemoteFrame, Response,
 };
@@ -16,6 +17,14 @@ mod crc;
 mod device;
 mod gct;
 mod loopback;
+
+pub fn map_error(err: CanError) -> crate::Error {
+    todo!()
+}
+
+pub fn map_frame_error(err: CanFrameError) -> crate::Error {
+    todo!()
+}
 
 pub fn into_protocol_message(msg: async_can::Message) -> CanMessage {
     match msg {
@@ -52,11 +61,12 @@ pub struct Request {
 impl Instrument {
     pub fn new(server: &Server, addr: &CanAddress) -> Self {
         let handler = Handler {
-            addr,
+            addr: addr.clone(),
             server: server.clone(),
             sender: None,
             listener: None,
             loopback: false,
+            bitrate: None,
         };
         Self {
             io: IoTask::new(handler),
@@ -85,6 +95,7 @@ struct Handler {
     server: Server,
     sender: Option<CanSender>,
     listener: Option<UnboundedSender<ListenerMsg>>,
+    bitrate: Option<u32>,
     loopback: bool,
 }
 
@@ -105,23 +116,30 @@ impl Handler {
             let (tx, rx) = oneshot::channel();
             if listener.send(ListenerMsg::Close(tx)).is_ok() {
                 let _ = rx.await;
-                log::debug!("{} - Listener closed", self.addr);
+                log::debug!("{:?} - Listener closed", self.addr);
             } // else it's already gone
         }
     }
 
     async fn update_bitrate(&mut self, req: &Request) {
-        if let Some(bitrate) = req.bitrate {
-            if self.addr.bitrate() != req.bitrate {
-                log::debug!("{} - Updating Bitrate", self.addr);
+        let bitrate = match req.bitrate {
+            Some(x) => x,
+            None => return,
+        };
+        match self.addr {
+            CanAddress::PCan { .. } => {
+                log::debug!("{:?} - Updating Bitrate", self.addr);
                 self.close_listener().await;
                 if let Some(sender) = self.sender.take() {
                     let _ = sender.close().await;
                 }
-                log::debug!("{} - Sender closed", self.addr);
-                self.addr.update_bitrate(bitrate);
+                log::debug!("{:?} - Sender closed", self.addr);
+                self.bitrate = Some(bitrate);
             }
-        }
+            _ => {
+                log::debug!("Updating Bitrate not supported for {:?}", self.addr);
+            }
+        };
     }
 
     async fn handle_request(&mut self, req: &Request) -> crate::Result<CanResponse> {
@@ -132,12 +150,12 @@ impl Handler {
         match &req.inner {
             CanRequest::ListenRaw(en) => {
                 let _ = listener.send(ListenerMsg::EnableRaw(*en));
-                Ok(CanResponse::Started(self.addr.interface()))
+                Ok(CanResponse::Started(self.addr.clone()))
             }
             CanRequest::StopAll => {
                 let _ = listener.send(ListenerMsg::EnableRaw(false));
                 let _ = listener.send(ListenerMsg::EnableGct(false));
-                Ok(CanResponse::Stopped(self.addr.interface()))
+                Ok(CanResponse::Stopped(self.addr.clone()))
             }
             CanRequest::TxRaw(msg) => {
                 if self.loopback {
@@ -148,13 +166,10 @@ impl Handler {
             }
             CanRequest::ListenGct(en) => {
                 let _ = listener.send(ListenerMsg::EnableGct(*en));
-                Ok(CanResponse::Started(self.addr.interface()))
+                Ok(CanResponse::Started(self.addr.clone()))
             }
             CanRequest::TxGct(msg) => {
-                let msgs = gct::encode(msg.clone()).map_err(|err| crate::Error::Can {
-                    addr: self.addr.interface(),
-                    err,
-                })?;
+                let msgs = gct::encode(msg.clone())?;
                 for msg in msgs {
                     if self.loopback {
                         let _ = listener.send(ListenerMsg::Loopback(msg.clone()));
@@ -176,16 +191,20 @@ impl IoHandler for Handler {
     type Request = Request;
     type Response = CanResponse;
 
-    async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
+    async fn handle(
+        &mut self,
+        ctx: &mut IoContext<Self>,
+        req: Self::Request,
+    ) -> crate::Result<Self::Response> {
         self.check_listener().await;
         self.update_bitrate(&req).await;
 
         if self.sender.is_none() {
-            log::debug!("{} - Initializing new Sender", self.addr);
+            log::debug!("{:?} - Initializing new Sender", self.addr);
             self.sender.replace(CanSender::new(self.addr.clone())?);
         }
         if self.listener.is_none() {
-            log::debug!("{} - Initializing new Receiver", self.addr);
+            log::debug!("{:?} - Initializing new Receiver", self.addr);
             let device = CanReceiver::new(self.addr.clone())?;
             let (tx, rx) = mpsc::unbounded_channel();
             let fut = listener_task(rx, device, self.server.clone(), self.addr.clone());
@@ -227,7 +246,7 @@ struct Listener {
     decoder: Decoder,
     server: Server,
     device: Option<CanReceiver>,
-    address: String,
+    address: CanAddress,
 }
 
 impl Listener {
@@ -282,15 +301,11 @@ impl Listener {
 
     async fn err(&mut self, err: crate::Error) -> bool {
         if let Some(device) = &self.device {
-            let send_err = crate::Error::Can {
-                addr: device.address().into(),
-                err: err.clone(),
-            };
-            self.server.broadcast(send_err.into());
+            self.server.broadcast(err.clone().into());
             // depending on error, continue listening or quit...
             match err {
                 crate::Error::Transport(x) => {
-                    let tx = Response::Can(CanResponse::Stopped(device.address().interface()));
+                    let tx = Response::Can(CanResponse::Stopped(device.address()));
                     self.server.broadcast(tx);
                     false
                 }
@@ -313,7 +328,7 @@ async fn listener_task(
     mut rx: UnboundedReceiver<ListenerMsg>,
     device: CanReceiver,
     server: Server,
-    address: String,
+    address: CanAddress,
 ) {
     let mut listener = Listener {
         listen_gct: true,
@@ -359,7 +374,7 @@ mod tests {
             bitrate: None,
         };
         let resp = instr.request(req).await;
-        let _expected_resp = CanResponse::Started(CanAddress::Loopback.interface());
+        let _expected_resp = CanResponse::Started(CanAddress::Loopback);
         assert!(matches!(resp, Ok(_expected_resp)));
 
         let msg = CanMessage::Data(DataFrame {

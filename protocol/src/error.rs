@@ -196,3 +196,9 @@ impl Into<Response> for Error {
         Response::Error(self)
     }
 }
+
+impl From<io::Error> for Error {
+    fn from(x: io::Error) -> Self {
+        Error::Transport(TransportError::Io(Arc::new(x)))
+    }
+}

@@ -4,31 +4,22 @@ use std::iter::repeat;
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, Hash, PartialEq)]
 pub enum CanAddress {
-    PCan {
-        address: String,
-    }, 
-    SocketCan {
-        interface: String,
-    },
-    Loopback
+    PCan { address: String },
+    SocketCan { interface: String },
+    Loopback,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum CanInstrument {
-    PCan {
-        address: String,
-        baudrate: u32,
-    },
-    SocketCan {
-        interface: String,
-    },
+    PCan { address: String, baudrate: u32 },
+    SocketCan { interface: String },
     Loopback,
 }
 
 impl From<CanInstrument> for CanAddress {
     fn from(x: CanInstrument) -> Self {
         match x {
-            CanInstrument::PCan { address, ..} => CanAddress::PCan { address },
+            CanInstrument::PCan { address, .. } => CanAddress::PCan { address },
             CanInstrument::SocketCan { interface } => CanAddress::SocketCan { interface },
             CanInstrument::Loopback => CanAddress::Loopback,
         }
@@ -95,8 +86,8 @@ pub enum CanRequest {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum CanResponse {
-    Started(String),
-    Stopped(String),
+    Started(CanAddress),
+    Stopped(CanAddress),
     Ok,
     Raw(CanMessage),
     Gct(GctMessage),

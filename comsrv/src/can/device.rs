@@ -1,8 +1,11 @@
-use async_can::{Receiver, Sender};
+use async_can::{CanFrameError, Error as CanError, Receiver, Sender};
 
 /// This module is responsible for mapping CAN functionality a device to different backends
 use crate::can::loopback::LoopbackDevice;
-use crate::can::{into_async_can_message, into_protocol_message, CanAddress, CanError, CanMessage};
+use crate::can::{into_async_can_message, into_protocol_message, CanAddress, CanMessage};
+use anyhow::anyhow;
+
+use super::{map_error, map_frame_error};
 
 pub enum CanSender {
     Loopback(LoopbackDevice),
@@ -22,27 +25,20 @@ impl CanSender {
                 Ok(())
             }
             CanSender::Bus { device, addr } => {
-                let addr = addr.interface();
-                let msg = into_async_can_message(msg).map_err(|err| crate::Error::Can {
-                    addr: addr.clone(),
-                    err: err.into(),
-                })?;
-
-                let ret = device.send(msg).await;
-                ret.map_err(|x| crate::Error::Can {
-                    addr,
-                    err: x.into(),
-                })
+                let msg = into_async_can_message(msg).map_err(map_frame_error)?;
+                device.send(msg).await.map_err(map_error)
             }
         }
     }
 }
 
 impl CanReceiver {
-    pub async fn recv(&mut self) -> Result<CanMessage, CanError> {
+    pub async fn recv(&mut self) -> crate::Result<CanMessage> {
         match self {
             CanReceiver::Loopback(lo) => lo.recv().await,
-            CanReceiver::Bus { device, addr: _ } => Ok(into_protocol_message(device.recv().await?)),
+            CanReceiver::Bus { device, addr: _ } => Ok(into_protocol_message(
+                device.recv().await.map_err(map_error)?,
+            )),
         }
     }
 
@@ -59,12 +55,9 @@ impl CanSender {
     pub fn new(addr: CanAddress) -> crate::Result<Self> {
         let addr2 = addr.clone();
         match addr {
-            CanAddress::PCan { .. } => Err(crate::Error::NotSupported),
-            CanAddress::Socket(ifname) => {
-                let device = Sender::connect(ifname).map_err(|x| crate::Error::Can {
-                    addr: addr2.interface(),
-                    err: x.into(),
-                })?;
+            CanAddress::PCan { .. } => Err(crate::Error::internal(anyhow!("Not Supported"))),
+            CanAddress::SocketCan { interface } => {
+                let device = Sender::connect(interface.clone()).map_err(map_error)?;
                 Ok(CanSender::Bus {
                     device,
                     addr: addr2,
@@ -84,12 +77,9 @@ impl CanReceiver {
     pub fn new(addr: CanAddress) -> crate::Result<Self> {
         let addr2 = addr.clone();
         match addr {
-            CanAddress::PCan { .. } => Err(crate::Error::NotSupported),
-            CanAddress::Socket(ifname) => {
-                let device = Receiver::connect(ifname).map_err(|x| crate::Error::Can {
-                    addr: addr2.interface(),
-                    err: x.into(),
-                })?;
+            CanAddress::PCan { .. } => Err(crate::Error::internal(anyhow!("Not supported"))),
+            CanAddress::SocketCan { interface } => {
+                let device = Receiver::connect(interface.clone()).map_err(map_error)?;
                 Ok(CanReceiver::Bus {
                     device,
                     addr: addr2,
