@@ -78,7 +78,7 @@ impl Into<async_ftdi::SerialParams> for SerialParams {
 impl crate::inventory::Instrument for Instrument {
     type Address = FtdiAddress;
 
-    fn connect(server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
+    fn connect(_server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
         Ok(Self::new(&addr.port))
     }
 }
@@ -104,7 +104,7 @@ impl IoHandler for Handler {
 
     async fn handle(
         &mut self,
-        ctx: &mut IoContext<Self>,
+        _ctx: &mut IoContext<Self>,
         req: Self::Request,
     ) -> crate::Result<Self::Response> {
         let params = req.params();

@@ -18,11 +18,11 @@ mod device;
 mod gct;
 mod loopback;
 
-pub fn map_error(err: CanError) -> crate::Error {
+pub fn map_error(_err: CanError) -> crate::Error {
     todo!()
 }
 
-pub fn map_frame_error(err: CanFrameError) -> crate::Error {
+pub fn map_frame_error(_err: CanFrameError) -> crate::Error {
     todo!()
 }
 
@@ -193,7 +193,7 @@ impl IoHandler for Handler {
 
     async fn handle(
         &mut self,
-        ctx: &mut IoContext<Self>,
+        _ctx: &mut IoContext<Self>,
         req: Self::Request,
     ) -> crate::Result<Self::Response> {
         self.check_listener().await;
@@ -304,7 +304,7 @@ impl Listener {
             self.server.broadcast(err.clone().into());
             // depending on error, continue listening or quit...
             match err {
-                crate::Error::Transport(x) => {
+                crate::Error::Transport(_x) => {
                     let tx = Response::Can(CanResponse::Stopped(device.address()));
                     self.server.broadcast(tx);
                     false

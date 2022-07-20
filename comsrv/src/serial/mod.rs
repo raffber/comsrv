@@ -84,7 +84,7 @@ impl IoHandler for Handler {
 
     async fn handle(
         &mut self,
-        ctx: &mut IoContext<Self>,
+        _ctx: &mut IoContext<Self>,
         req: Self::Request,
     ) -> crate::Result<Self::Response> {
         let new_params = req.params();

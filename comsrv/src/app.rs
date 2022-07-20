@@ -12,8 +12,7 @@ use crate::vxi;
 
 use crate::inventory::Inventory;
 use comsrv_protocol::{
-    ByteStreamInstrument, CanInstrument, FtdiAddress, Request, Response, ScpiInstrument,
-    SerialAddress, TcpAddress,
+    ByteStreamInstrument, CanInstrument, Request, Response, ScpiInstrument,
 };
 use std::sync::Arc;
 
@@ -79,7 +78,7 @@ impl App {
             Request::ByteStream {
                 instrument: ByteStreamInstrument::Ftdi(instrument),
                 request,
-                lock,
+                lock: _,
             } => {
                 let mut instr = self
                     .inventories
@@ -95,50 +94,50 @@ impl App {
                     .map(Response::Bytes)
             }
             Request::ByteStream {
-                instrument: ByteStreamInstrument::Serial(instr),
-                request,
-                lock,
+                instrument: ByteStreamInstrument::Serial(_instr),
+                request: _,
+                lock: _,
             } => todo!(),
             Request::ByteStream {
-                instrument: ByteStreamInstrument::Tcp(instr),
-                request,
-                lock,
+                instrument: ByteStreamInstrument::Tcp(_instr),
+                request: _,
+                lock: _,
             } => todo!(),
             Request::Can {
-                instrument: CanInstrument::PCan { address, baudrate },
-                request,
-                lock,
+                instrument: CanInstrument::PCan { address: _, baudrate: _ },
+                request: _,
+                lock: _,
             } => todo!(),
             Request::Can {
-                instrument: CanInstrument::SocketCan { interface },
-                request,
-                lock,
+                instrument: CanInstrument::SocketCan { interface: _ },
+                request: _,
+                lock: _,
             } => todo!(),
             Request::Can {
                 instrument: CanInstrument::Loopback,
-                request,
-                lock,
+                request: _,
+                lock: _,
             } => todo!(),
             Request::Scpi {
-                instrument: ScpiInstrument::Visa(instr),
-                request,
+                instrument: ScpiInstrument::Visa(_instr),
+                request: _,
             } => todo!(),
             Request::Scpi {
-                instrument: ScpiInstrument::Vxi(instr),
-                request,
+                instrument: ScpiInstrument::Vxi(_instr),
+                request: _,
             } => todo!(),
             Request::Sigrok {
-                instrument,
-                request,
+                instrument: _,
+                request: _,
             } => todo!(),
             Request::Hid {
-                instrument,
-                request,
-                lock,
+                instrument: _,
+                request: _,
+                lock: _,
             } => todo!(),
             Request::Connect {
-                instrument,
-                timeout,
+                instrument: _,
+                timeout: _,
             } => todo!(),
             Request::ListSigrokDevices => todo!(),
             Request::ListSerialPorts => todo!(),
@@ -146,14 +145,14 @@ impl App {
             Request::ListFtdiDevices => todo!(),
             Request::ListCanDevices => todo!(),
             Request::ListConnectedInstruments => todo!(),
-            Request::Lock { addr, timeout_ms } => todo!(),
+            Request::Lock { addr: _, timeout_ms: _ } => todo!(),
             Request::Unlock(_) => todo!(),
             Request::DropAll => todo!(),
             Request::Version => todo!(),
             Request::Shutdown => todo!(),
             Request::Prologix {
-                instrument,
-                request,
+                instrument: _,
+                request: _,
             } => todo!(),
         }
     }

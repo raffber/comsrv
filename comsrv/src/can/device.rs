@@ -1,4 +1,4 @@
-use async_can::{CanFrameError, Error as CanError, Receiver, Sender};
+use async_can::{Receiver, Sender};
 
 /// This module is responsible for mapping CAN functionality a device to different backends
 use crate::can::loopback::LoopbackDevice;
@@ -24,7 +24,7 @@ impl CanSender {
                 lo.send(msg);
                 Ok(())
             }
-            CanSender::Bus { device, addr } => {
+            CanSender::Bus { device, addr: _ } => {
                 let msg = into_async_can_message(msg).map_err(map_frame_error)?;
                 device.send(msg).await.map_err(map_error)
             }

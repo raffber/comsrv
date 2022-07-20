@@ -44,7 +44,7 @@ impl IoHandler for Handler {
 
     async fn handle(
         &mut self,
-        ctx: &mut IoContext<Self>,
+        _ctx: &mut IoContext<Self>,
         req: Self::Request,
     ) -> crate::Result<Self::Response> {
         let device = self.device.take();
@@ -143,7 +143,7 @@ impl Instrument {
 impl crate::inventory::Instrument for Instrument {
     type Address = HidIdentifier;
 
-    fn connect(server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
+    fn connect(_server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
         Ok(Instrument::new(addr))
     }
 }

@@ -137,10 +137,10 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             Ok(ByteStreamResponse::Data(ret))
         }
         ByteStreamRequest::ModBus {
-            timeout,
-            station_address,
-            protocol,
-            request,
+            timeout: _,
+            station_address: _,
+            protocol: _,
+            request: _,
         } => todo!(),
     }
 }
