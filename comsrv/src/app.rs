@@ -1,7 +1,10 @@
 use comsrv_protocol::ByteStreamRequest;
 use comsrv_protocol::CanAddress;
+use comsrv_protocol::CanDeviceInfo;
+use comsrv_protocol::CanDriverType;
 use comsrv_protocol::CanRequest;
 use comsrv_protocol::FtdiInstrument;
+use comsrv_protocol::HidResponse;
 use comsrv_protocol::PrologixInstrument;
 use comsrv_protocol::PrologixRequest;
 use comsrv_protocol::ScpiRequest;
@@ -29,6 +32,7 @@ use crate::inventory::Inventory;
 use anyhow::anyhow;
 use comsrv_protocol::{ByteStreamInstrument, CanInstrument, Request, Response, ScpiInstrument};
 use std::sync::Arc;
+use std::time::Duration;
 
 pub type Server = WsrpcServer<Request, Response>;
 
@@ -140,20 +144,52 @@ impl App {
                 instrument: _,
                 timeout: _,
             } => todo!(),
-            Request::ListSigrokDevices => todo!(),
-            Request::ListSerialPorts => todo!(),
-            Request::ListHidDevices => todo!(),
-            Request::ListFtdiDevices => todo!(),
-            Request::ListCanDevices => todo!(),
+            Request::ListSigrokDevices => sigrok::list().await.map(Response::Sigrok),
             Request::ListConnectedInstruments => todo!(),
-            Request::Lock {
-                addr: _,
-                timeout_ms: _,
-            } => todo!(),
-            Request::Unlock(_) => todo!(),
-            Request::DropAll => todo!(),
-            Request::Version => todo!(),
-            Request::Shutdown => todo!(),
+            Request::Lock { addr, timeout } => self.lock(addr, timeout).await,
+            Request::Unlock { addr, id } => self.unlock(addr, id).await,
+            Request::DropAll => self.drop_all(),
+            Request::Shutdown => {
+                let _ = self.drop_all();
+                self.server.shutdown().await;
+                Ok(Response::Done)
+            }
+            Request::ListHidDevices => crate::hid::list_devices()
+                .await
+                .map(|x| Response::Hid(HidResponse::List(x))),
+            Request::Version => {
+                let version = crate_version!();
+                let version: Vec<_> = version
+                    .split(".")
+                    .map(|x| x.parse::<u32>().unwrap())
+                    .collect();
+                Ok(Response::Version {
+                    major: version[0],
+                    minor: version[1],
+                    build: version[2],
+                })
+            }
+            Request::ListSerialPorts => crate::serial::list_devices()
+                .await
+                .map(Response::SerialPorts),
+            Request::ListFtdiDevices => ftdi::list_ftdi().await.map(Response::FtdiDevices),
+            Request::ListCanDevices => match async_can::list_devices().await {
+                Ok(x) => {
+                    #[cfg(target_os = "linux")]
+                    let driver_type = CanDriverType::SocketCAN;
+                    #[cfg(target_os = "windows")]
+                    let driver_type = CanDriverType::PCAN;
+                    let ret = x
+                        .iter()
+                        .map(|y| CanDeviceInfo {
+                            interface_name: y.interface_name.clone(),
+                            driver_type: driver_type.clone(),
+                        })
+                        .collect();
+                    Ok(Response::CanDevices(ret))
+                }
+                Err(_) => todo!(),
+            },
         }
     }
 
@@ -305,6 +341,83 @@ impl App {
             .request(request)
             .await
             .map(Response::Hid)
+    }
+
+    async fn lock(
+        &self,
+        addr: comsrv_protocol::Address,
+        timeout: comsrv_protocol::Duration,
+    ) -> crate::Result<Response> {
+        let timeout: Duration = timeout.into();
+        let lock_id = match addr {
+            comsrv_protocol::Address::Tcp(x) => {
+                self.inventories
+                    .tcp
+                    .wait_and_lock(&self.server, &x, timeout)
+                    .await
+            }
+            comsrv_protocol::Address::Ftdi(x) => {
+                self.inventories
+                    .ftdi
+                    .wait_and_lock(&self.server, &x, timeout)
+                    .await
+            }
+            comsrv_protocol::Address::Hid(x) => {
+                self.inventories
+                    .hid
+                    .wait_and_lock(&self.server, &x, timeout)
+                    .await
+            }
+            comsrv_protocol::Address::Serial(x) => {
+                self.inventories
+                    .serial
+                    .wait_and_lock(&self.server, &x, timeout)
+                    .await
+            }
+            comsrv_protocol::Address::Vxi(x) => {
+                self.inventories
+                    .vxi
+                    .wait_and_lock(&self.server, &x, timeout)
+                    .await
+            }
+            comsrv_protocol::Address::Visa(x) => {
+                self.inventories
+                    .visa
+                    .wait_and_lock(&self.server, &x, timeout)
+                    .await
+            }
+            comsrv_protocol::Address::Can(x) => {
+                self.inventories
+                    .can
+                    .wait_and_lock(&self.server, &x, timeout)
+                    .await
+            }
+        }?;
+        Ok(Response::Locked { lock_id })
+    }
+
+    async fn unlock(&self, addr: comsrv_protocol::Address, id: Uuid) -> crate::Result<Response> {
+        match addr {
+            comsrv_protocol::Address::Tcp(_) => self.inventories.tcp.unlock(id).await,
+            comsrv_protocol::Address::Ftdi(_) => self.inventories.ftdi.unlock(id).await,
+            comsrv_protocol::Address::Hid(_) => self.inventories.hid.unlock(id).await,
+            comsrv_protocol::Address::Serial(_) => self.inventories.serial.unlock(id).await,
+            comsrv_protocol::Address::Vxi(_) => self.inventories.vxi.unlock(id).await,
+            comsrv_protocol::Address::Visa(_) => self.inventories.visa.unlock(id).await,
+            comsrv_protocol::Address::Can(_) => self.inventories.can.unlock(id).await,
+        }
+        Ok(Response::Done)
+    }
+
+    fn drop_all(&self) -> crate::Result<Response> {
+        self.inventories.tcp.disconnect_all();
+        self.inventories.vxi.disconnect_all();
+        self.inventories.hid.disconnect_all();
+        self.inventories.serial.disconnect_all();
+        self.inventories.visa.disconnect_all();
+        self.inventories.can.disconnect_all();
+        self.inventories.ftdi.disconnect_all();
+        Ok(Response::Done)
     }
 }
 

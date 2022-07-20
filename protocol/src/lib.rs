@@ -40,6 +40,17 @@ pub enum Instrument {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum Address {
+    Tcp(TcpAddress),
+    Ftdi(FtdiAddress),
+    Hid(HidIdentifier),
+    Serial(SerialAddress),
+    Vxi(String),
+    Visa(String),
+    Can(CanAddress),
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Request {
     ByteStream {
         instrument: ByteStreamInstrument,
@@ -87,10 +98,13 @@ pub enum Request {
     ListCanDevices,
     ListConnectedInstruments,
     Lock {
-        addr: String,
-        timeout_ms: u32,
+        addr: Address,
+        timeout: Duration,
     },
-    Unlock(Uuid),
+    Unlock {
+        addr: Address,
+        id: Uuid,
+    },
     DropAll,
     Version,
     Shutdown,
@@ -104,16 +118,9 @@ pub enum Response {
     Bytes(ByteStreamResponse),
     Can(CanResponse),
     Sigrok(SigrokResponse),
-    Locked {
-        instrument: Instrument,
-        lock_id: Uuid,
-    },
+    Locked { lock_id: Uuid },
     Hid(HidResponse),
-    Version {
-        major: u32,
-        minor: u32,
-        build: u32,
-    },
+    Version { major: u32, minor: u32, build: u32 },
     SerialPorts(Vec<String>),
     FtdiDevices(Vec<FtdiDeviceInfo>),
     CanDevices(Vec<CanDeviceInfo>),

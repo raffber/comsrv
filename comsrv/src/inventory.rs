@@ -163,6 +163,16 @@ impl<T: Instrument> Inventory<T> {
         log::debug!("Lock acquired, proceeding.");
     }
 
+    pub async fn wait_and_lock(
+        &self,
+        server: &Server,
+        addr: &T::Address,
+        timeout: Duration,
+    ) -> crate::Result<Uuid> {
+        self.wait_for_lock(addr, None).await;
+        self.lock(server, addr, timeout).await
+    }
+
     /// Lock the given instrument for a given duration and returns an ID representing the
     /// newly created lock. If a lock is still present on the address, the lock is removed and
     /// unlocked.
