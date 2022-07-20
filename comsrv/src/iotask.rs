@@ -13,12 +13,13 @@ pub trait Message: 'static + Send {}
 
 impl<T: 'static + Send> Message for T {}
 
+#[derive(Clone)]
 pub struct IoContext<T: IoHandler> {
     tx: mpsc::UnboundedSender<RequestMsg<T>>,
 }
 
 impl<T: IoHandler> IoContext<T> {
-    fn send(&mut self, req: T::Request) {
+    pub fn send(&mut self, req: T::Request) {
         let _ = self.tx.send(RequestMsg::Task { req, answer: None });
     }
 }

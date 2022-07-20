@@ -35,7 +35,10 @@ where
 {
     let ret = IoError::deserialize(deserializer)?;
     // TODO: deserialize ErrorKind
-    Ok(Arc::new(io::Error::new(io::ErrorKind::Other, ret.description)))
+    Ok(Arc::new(io::Error::new(
+        io::ErrorKind::Other,
+        ret.description,
+    )))
 }
 
 fn serialize_anyhow_error<S>(error: &Arc<anyhow::Error>, serializer: S) -> Result<S::Ok, S::Error>
@@ -74,7 +77,8 @@ pub enum TransportError {
             serialize_with = "serialize_anyhow_error",
             deserialize_with = "deserialize_anyhow_error"
         )]
-        Arc<anyhow::Error>)
+        Arc<anyhow::Error>,
+    ),
 }
 
 impl From<io::Error> for TransportError {
@@ -109,7 +113,8 @@ pub enum ProtocolError {
             serialize_with = "serialize_anyhow_error",
             deserialize_with = "deserialize_anyhow_error"
         )]
-        Arc<anyhow::Error>)
+        Arc<anyhow::Error>,
+    ),
 }
 
 impl From<io::Error> for ProtocolError {
@@ -136,14 +141,16 @@ pub enum Error {
             serialize_with = "serialize_anyhow_error",
             deserialize_with = "deserialize_anyhow_error"
         )]
-        Arc<anyhow::Error>),
+        Arc<anyhow::Error>,
+    ),
     #[error("Internal Error {0}")]
     Internal(
         #[serde(
             serialize_with = "serialize_anyhow_error",
             deserialize_with = "deserialize_anyhow_error"
         )]
-        Arc<anyhow::Error>),
+        Arc<anyhow::Error>,
+    ),
 }
 
 impl Error {
@@ -161,6 +168,14 @@ impl Error {
 
     pub fn should_retry(&self) -> bool {
         matches!(self, Error::Protocol(_))
+    }
+
+    pub fn internal<T: Into<anyhow::Error>>(err: T) -> Self {
+        Self::Internal(Arc::new(err.into()))
+    }
+
+    pub fn argument<T: Into<anyhow::Error>>(err: T) -> Self {
+        Self::Internal(Arc::new(err.into()))
     }
 }
 

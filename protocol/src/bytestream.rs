@@ -1,3 +1,5 @@
+use std::net::ToSocketAddrs;
+
 use crate::Duration;
 use serde::{Deserialize, Serialize};
 
@@ -25,7 +27,7 @@ pub struct SerialPortConfig {
 
 #[derive(Clone, Serialize, Deserialize, Debug, Hash, PartialEq, Eq)]
 pub struct TcpAddress {
-    pub url: String,
+    pub host: String,
     pub port: u16,
 }
 

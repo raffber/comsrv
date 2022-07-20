@@ -1,10 +1,11 @@
 use async_trait::async_trait;
 use async_vxi11::CoreClient;
-use std::net::IpAddr;
+use std::net::{IpAddr, ToSocketAddrs};
 use tokio::time::{sleep, Duration};
 
-use crate::iotask::{IoHandler, IoTask};
+use crate::iotask::{IoContext, IoHandler, IoTask};
 use crate::{scpi, Error};
+use anyhow::anyhow;
 use comsrv_protocol::{ScpiRequest, ScpiResponse};
 
 const DEFAULT_TERMINATION: &str = "\n";
@@ -42,7 +43,16 @@ impl crate::inventory::Instrument for Instrument {
     type Address = String;
 
     fn connect(server: &crate::app::Server, addr: &Self::Address) -> Self {
-        todo!()
+        let addr = format!("{}:443", addr).to_socket_addrs();
+        let iter = addr.map_err(|x| crate::Error::argument)?;
+        if let Some(x) = iter.next() {
+            Ok(Instrument::new(x.ip()))
+        } else {
+            Err(crate::Error::argument(anyhow!(
+                "Invalid tcp socket address: {:?}",
+                addr
+            )))
+        }
     }
 }
 
@@ -56,7 +66,11 @@ impl IoHandler for Handler {
     type Request = Request;
     type Response = ScpiResponse;
 
-    async fn handle(&mut self, req: Self::Request) -> crate::Result<Self::Response> {
+    async fn handle(
+        &mut self,
+        ctx: &mut IoContext<Self>,
+        req: Self::Request,
+    ) -> crate::Result<Self::Response> {
         let mut client = if let Some(client) = self.client.take() {
             client
         } else {
