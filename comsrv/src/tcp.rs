@@ -80,11 +80,11 @@ impl Handler {
     }
 
     fn set_options(&mut self, opts: &TcpOptions) {
-        if let Some(drop_delay) = opts.auto_drop {
-            self.drop_delay = drop_delay.into()
+        if let Some(drop_delay) = &opts.auto_drop {
+            self.drop_delay = drop_delay.clone().into();
         }
-        if let Some(connection_timeout) = opts.connection_timeout {
-            self.connection_timeout = connection_timeout.into();
+        if let Some(connection_timeout) = &opts.connection_timeout {
+            self.connection_timeout = connection_timeout.clone().into();
         }
     }
 }
@@ -147,7 +147,7 @@ impl IoHandler for Handler {
             match ret {
                 Ok(ret) => {
                     self.stream.replace(stream);
-                    let ctx = ctx.clone();
+                    let mut ctx = ctx.clone();
                     let drop_delay = self.drop_delay.clone();
                     self.drop_delay_task = Some(task::spawn(async move {
                         sleep(drop_delay + Duration::from_millis(100)).await;
@@ -193,9 +193,9 @@ impl Instrument {
 impl inventory::Instrument for Instrument {
     type Address = TcpAddress;
 
-    fn connect(server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
-        let addr = (&addr.host as &str, addr.port).to_socket_addrs();
-        let iter = addr.map_err(crate::Error::argument)?;
+    fn connect(_server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
+        let format_addr = (&addr.host as &str, addr.port).to_socket_addrs();
+        let mut iter = format_addr.map_err(crate::Error::argument)?;
         if let Some(x) = iter.next() {
             Ok(Instrument::new(x))
         } else {

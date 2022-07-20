@@ -42,9 +42,9 @@ impl Instrument {
 impl crate::inventory::Instrument for Instrument {
     type Address = String;
 
-    fn connect(server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
-        let addr = format!("{}:443", addr).to_socket_addrs();
-        let iter = addr.map_err(crate::Error::argument)?;
+    fn connect(_server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
+        let format_addr = format!("{}:443", addr).to_socket_addrs();
+        let mut iter = format_addr.map_err(crate::Error::argument)?;
         if let Some(x) = iter.next() {
             Ok(Instrument::new(x.ip()))
         } else {
@@ -68,7 +68,7 @@ impl IoHandler for Handler {
 
     async fn handle(
         &mut self,
-        ctx: &mut IoContext<Self>,
+        _ctx: &mut IoContext<Self>,
         req: Self::Request,
     ) -> crate::Result<Self::Response> {
         let mut client = if let Some(client) = self.client.take() {
@@ -161,6 +161,6 @@ async fn handle_request(client: &mut CoreClient, req: ScpiRequest) -> crate::Res
     }
 }
 
-fn map_error(err: async_vxi11::Error) -> crate::Error {
+fn map_error(_err: async_vxi11::Error) -> crate::Error {
     todo!()
 }

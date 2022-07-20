@@ -163,8 +163,8 @@ impl Instrument {
 impl inventory::Instrument for Instrument {
     type Address = SerialAddress;
 
-    fn connect(server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
-        Ok(Instrument::new(addr.port))
+    fn connect(_server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
+        Ok(Instrument::new(addr.port.clone()))
     }
 }
 

@@ -18,9 +18,9 @@ use crate::serial::params::StopBits;
 use crate::serial::SerialParams;
 
 pub struct FtdiRequest {
-    request: ByteStreamRequest,
-    port_config: SerialPortConfig,
-    options: Option<SerialOptions>,
+    pub request: ByteStreamRequest,
+    pub port_config: SerialPortConfig,
+    pub options: Option<SerialOptions>,
 }
 
 impl FtdiRequest {
