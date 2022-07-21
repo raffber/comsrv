@@ -67,7 +67,7 @@ pub enum ByteStreamInstrument {
     Tcp(TcpInstrument),
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum ModBusProtocol {
     Tcp,
     Rtu,
