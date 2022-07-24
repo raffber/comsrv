@@ -97,7 +97,7 @@ impl<T: Rpc> LockGuard<T> {
     pub(crate) fn locked(&self) -> Locked {
         Locked {
             unlock: self.unlock.clone(),
-            lock_id: Some(self.lock_id.clone()),
+            lock_id: Some(self.lock_id),
         }
     }
 }
@@ -105,7 +105,7 @@ impl<T: Rpc> LockGuard<T> {
 impl<T: Rpc> Drop for LockGuard<T> {
     fn drop(&mut self) {
         let mut rpc = self.rpc.clone();
-        let lock = self.lock_id.clone();
+        let lock = self.lock_id;
         let addr = self.addr.clone();
         let fut = async move { unlock(&mut rpc, &addr, lock).await };
         task::spawn(fut);
@@ -129,7 +129,7 @@ impl Locked {
         if !self.unlock.as_ref().load(Ordering::Relaxed) {
             self.lock_id = None;
         }
-        self.lock_id.clone()
+        self.lock_id
     }
 }
 
@@ -158,14 +158,14 @@ pub async fn unlock<T: Rpc>(rpc: &mut T, addr: &Address, uuid: Uuid) -> crate::R
         addr: addr.clone(),
         id: uuid,
     };
-    rpc.request(req, DEFAULT_RPC_TIMEOUT.clone())
+    rpc.request(req, DEFAULT_RPC_TIMEOUT)
         .await
         .map(|_| ())
 }
 
 pub async fn list_serial_ports<T: Rpc>(rpc: &mut T) -> crate::Result<Vec<String>> {
     match rpc
-        .request(Request::ListSerialPorts, DEFAULT_RPC_TIMEOUT.clone())
+        .request(Request::ListSerialPorts, DEFAULT_RPC_TIMEOUT)
         .await
     {
         Ok(Response::SerialPorts(ret)) => Ok(ret),
@@ -177,7 +177,7 @@ pub async fn list_serial_ports<T: Rpc>(rpc: &mut T) -> crate::Result<Vec<String>
 
 pub async fn list_ftdis<T: Rpc>(rpc: &mut T) -> crate::Result<Vec<FtdiDeviceInfo>> {
     match rpc
-        .request(Request::ListFtdiDevices, DEFAULT_RPC_TIMEOUT.clone())
+        .request(Request::ListFtdiDevices, DEFAULT_RPC_TIMEOUT)
         .await
     {
         Ok(Response::FtdiDevices(ret)) => Ok(ret),

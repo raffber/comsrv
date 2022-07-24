@@ -1,7 +1,7 @@
 use crate::protocol::{CanRequest, DataFrame, RemoteFrame};
 use crate::ws::WsRpc;
 use crate::Rpc;
-use comsrv_protocol::{CanAddress, CanInstrument, Request};
+use comsrv_protocol::{CanInstrument, Request};
 use comsrv_protocol::{CanMessage, CanResponse, GctMessage, Response};
 use std::time::Duration;
 use tokio::sync::mpsc::error::TrySendError;

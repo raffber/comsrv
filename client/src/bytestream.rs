@@ -21,7 +21,7 @@ impl<T: Rpc> Clone for ByteStreamPipe<T> {
             rpc: self.rpc.clone(),
             instrument: self.instrument.clone(),
             lock: Locked::new(),
-            timeout: self.timeout.clone(),
+            timeout: self.timeout,
         }
     }
 }
@@ -66,7 +66,7 @@ impl<T: Rpc> ByteStreamPipe<T> {
                     request,
                     lock: self.lock.check_lock(),
                 },
-                self.timeout.clone(),
+                self.timeout,
             )
             .await?;
         match ret {

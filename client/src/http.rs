@@ -54,7 +54,7 @@ impl HttpRpc {
 impl Rpc for HttpRpc {
     async fn request(&mut self, request: Request, timeout: Duration) -> crate::Result<Response> {
         let url = format!("{}:{}", self.host, self.port);
-        let client = self.client.take().unwrap_or_else(|| Client::new());
+        let client = self.client.take().unwrap_or_else(Client::new);
         let response = client
             .get(&url)
             .timeout(timeout)

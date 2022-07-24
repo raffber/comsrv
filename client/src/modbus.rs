@@ -30,9 +30,9 @@ impl<T: Rpc> Clone for ModBusPipe<T> {
             rpc: self.rpc.clone(),
             instrument: self.instrument.clone(),
             lock: Locked::new(),
-            timeout: self.timeout.clone(),
-            station_address: self.station_address.clone(),
-            protocol: self.protocol.clone(),
+            timeout: self.timeout,
+            station_address: self.station_address,
+            protocol: self.protocol,
         }
     }
 }
@@ -83,7 +83,7 @@ impl<T: Rpc> ModBusPipe<T> {
         let request = Request::ByteStream {
             instrument: self.instrument.clone(),
             request: ByteStreamRequest::ModBus {
-                timeout: self.timeout.clone().into(),
+                timeout: self.timeout.into(),
                 station_address: self.station_address,
                 protocol: self.protocol,
                 request: task,
@@ -91,7 +91,7 @@ impl<T: Rpc> ModBusPipe<T> {
             lock: self.lock.check_lock(),
         };
 
-        let ret = self.rpc.request(request, self.timeout.clone()).await?;
+        let ret = self.rpc.request(request, self.timeout).await?;
         match ret {
             Response::Bytes(ByteStreamResponse::ModBus(x)) => Ok(x),
             Response::Error(x) => Err(x.into()),
