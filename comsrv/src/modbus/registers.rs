@@ -171,7 +171,7 @@ impl<'a> FunctionCode for WriteCoils<'a> {
         Ok(0)
     }
 
-    fn parse_frame(&self, data: &[u8]) -> crate::Result<Self::Output> {
+    fn parse_frame(&self, _data: &[u8]) -> crate::Result<Self::Output> {
         Ok(())
     }
 
@@ -220,7 +220,7 @@ impl<'a> FunctionCode for WriteRegisters<'a> {
         Ok(0)
     }
 
-    fn parse_frame(&self, data: &[u8]) -> crate::Result<Self::Output> {
+    fn parse_frame(&self, _data: &[u8]) -> crate::Result<Self::Output> {
         Ok(())
     }
 

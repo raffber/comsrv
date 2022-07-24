@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+
 use anyhow::anyhow;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use crate::modbus::{FunctionCode, TransactionInfo};

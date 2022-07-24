@@ -1,7 +1,7 @@
 
 use anyhow::anyhow;
-use futures::AsyncRead;
-use tokio::io::AsyncWrite;
+
+
 use crate::modbus::FunctionCode;
 
 pub struct Ddp {
@@ -35,7 +35,7 @@ impl FunctionCode for Ddp {
         }
         data.push(self.sub_cmd);
         data.push((self.request.len() + 1) as u8);
-        data.push(self.ddp_cmd);
+        data.push(ddp_cmd);
         data.extend(&self.request);
     }
 
