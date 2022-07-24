@@ -1,13 +1,34 @@
+import enum
 from typing import List, Optional
 
 from pywsrpc.client import Client
 from . import ComSrvError, BasePipe
 
 
-class ModBusDevice(BasePipe):
-    def __init__(self, addr, station_address: int = 0, rpc: Optional[Client] = None):
-        super().__init__(addr, rpc=rpc)
+class ModBusProtocol(enum.Enum):
+    RTU = "Rtu"
+    TCP = "Tcp"
+
+
+# TODO: getters and setters
+
+
+class ModBusDevice(object):
+    def __init__(
+        self,
+        bs_pipe,
+        protocol: ModBusProtocol,
+        station_address: int = 1,
+        timeout: float = 1.0,
+    ):
         self._station_address = station_address
+        self._bs_pipe = bs_pipe
+        self._timeout = timeout
+        self._protocol = protocol
+
+    @property
+    def protocol(self) -> ModBusProtocol:
+        return self._protocol
 
     @property
     def station_address(self) -> int:
@@ -17,119 +38,89 @@ class ModBusDevice(BasePipe):
     def station_address(self, value):
         self._station_address = int(value)
 
-    async def write_registers(self, addr: int, data: List[int]):
-        result = await self.get({
-            'ModBus': {
-                'addr': self._addr,
-                'task': {'WriteRegister': {
-                    'addr': addr,
-                    'data': data,
-                    'slave_id': self._station_address,
-                }},
-                'lock': self._lock,
+    async def request(self, request):
+        result = await self.get(
+            {
+                "ModBus": {
+                    "addr": self._instrument,
+                    "task": request,
+                    "lock": self._lock,
+                }
             }
-        })
+        )
+        ComSrvError.check_raise(result)
+        return result
+
+    async def write_registers(self, addr: int, data: List[int]):
+        result = await self.request(
+            {
+                "WriteRegisters": {
+                    "addr": addr,
+                    "values": data,
+                }
+            }
+        )
         ComSrvError.check_raise(result)
 
     async def write_coils(self, addr: int, data: List[bool]):
-        result = await self.get({
-            'ModBus': {
-                'addr': self._addr,
-                'task': {'WriteCoil': {
-                    'addr': addr,
-                    'data': data,
-                    'slave_id': self._station_address,
-                }},
-                'lock': self._lock,
-            }
-        })
+        result = await self.request(
+            {
+                "WriteCoils": {
+                    "addr": addr,
+                    "values": data,
+                }
+            },
+        )
         ComSrvError.check_raise(result)
 
     async def read_holding(self, addr: int, count: int = 1):
         assert count > 0
-        result = await self.get({
-            'ModBus': {
-                'addr': self._addr,
-                'task': {'ReadHolding': {
-                    'addr': addr,
-                    'cnt': count,
-                    'slave_id': self._station_address,
-                }},
-                'lock': self._lock,
-            }
-        })
+        result = await self.request(
+            {
+                "ReadHolding": {
+                    "addr": addr,
+                    "cnt": count,
+                }
+            },
+        )
         ComSrvError.check_raise(result)
-        return result['ModBus']['Number']
+        return result["ModBus"]["Number"]
 
     async def read_coil(self, addr: int, count: int = 1):
         assert count > 0
-        result = await self.get({
-            'ModBus': {
-                'addr': self._addr,
-                'task': {'ReadHolding': {
-                    'addr': addr,
-                    'cnt': count,
-                    'slave_id': self._station_address,
-                }},
-                'lock': self._lock,
-            }
-        })
+        result = await self.request(
+            {
+                "ReadHolding": {
+                    "addr": addr,
+                    "cnt": count,
+                }
+            },
+        )
         ComSrvError.check_raise(result)
-        return result['ModBus']['Bool']
+        return result["ModBus"]["Bool"]
 
     async def read_discrete(self, addr: int, count: int = 1):
         assert count > 0
-        result = await self.get({
-            'ModBus': {
-                'addr': self._addr,
-                'task': {'ReadDiscrete': {
-                    'addr': addr,
-                    'cnt': count,
-                    'slave_id': self._station_address,
-                }},
-                'lock': self._lock,
-            }
-        })
+        result = await self.request(
+            {
+                "ReadDiscrete": {
+                    "addr": addr,
+                    "cnt": count,
+                }
+            },
+        )
         ComSrvError.check_raise(result)
-        return result['ModBus']['Bool']
+        return result["ModBus"]["Bool"]
 
     async def read_input(self, addr: int, count: int = 1):
         assert count > 0
-        result = await self.get({
-            'ModBus': {
-                'addr': self._addr,
-                'task': {'ReadInput': {
-                    'addr': addr,
-                    'cnt': count,
-                    'slave_id': self._station_address,
-                }},
-                'lock': self._lock,
-            }
-        })
+        result = await self.request(
+            {
+                "ReadInput": {
+                    "addr": addr,
+                    "cnt": count,
+                }
+            },
+        )
         ComSrvError.check_raise(result)
-        return result['ModBus']['Number']
-
-    async def send_custom_command(self, code: int, data: bytes):
-        """
-        Send a custom command with the given function code
-
-        :param code: The function code, typically 0x44
-        :param data: The data to be sent
-        :return: A tuple of (return function code, data)
-        """
-        assert 0 < code < 255
-
-        result = await self.get({
-            'ModBus': {
-                'addr': self._addr,
-                'task': {'CustomCommand': {
-                    'code': code,
-                    'data': list(data),
-                    'slave_id': self._station_address,
-                }},
-                'lock': self._lock,
-            }
-        })
-        ComSrvError.check_raise(result)
-        ret = result['ModBus']['Custom']
-        return ret['code'], ret['data']
+        return result["ModBus"]["Number"]

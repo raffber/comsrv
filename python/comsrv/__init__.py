@@ -3,49 +3,60 @@ This modules implements the API of the `comsrv` utility to connect
 to instruments.
 """
 
+from argparse import ArgumentError
 from enum import Enum
 from math import prod
 import json
 from typing import List, Union, Optional
 
 from aiohttp import ClientSession
+from psycopg2 import InternalError
 
 from pywsrpc.client import Client
 
 
 class ComSrvError(Exception):
-
     @classmethod
     def parse(cls, data):
-        if 'Hid' in data:
-            return HidError(data['Hid'])
-        if 'Timeout' in data:
-            return TimeoutError()
-        if 'Can' in data:
-            return CanError()
+        if "Protocol" in data:
+            return ProtocolError.parse(data["Protocol"])
+        if "Transport" in data:
+            return TransportError(data["Protocol"])
+        if "Argument" in data:
+            return ArgumentError(message=data["Argument"])
+        if "Internal" in data:
+            return InternalError(message=data["Internal"])
         return ComSrvError(data)
 
     @classmethod
     def check_raise(cls, result):
-        if 'Error' in result:
-            raise ComSrvError.parse(result['Error'])
+        if "Error" in result:
+            raise ComSrvError.parse(result["Error"])
 
 
-class TimeoutError(ComSrvError):
+class TransportError(ComSrvError):
     pass
 
 
-class HidError(ComSrvError):
+class ProtocolError(ComSrvError):
+    @classmethod
+    def parse(cls, data):
+        if "Timeout" in data:
+            return ProtocolTimeoutError()
+        return ProtocolError(data)
+
+
+class ProtocolTimeoutError(ProtocolError):
     pass
 
 
-class CanError(ComSrvError):
+class InternalError(ComSrvError):
     pass
 
 
 _default_ws_port = 5902
 _default_http_port = 5903
-_default_host = '127.0.0.1'
+_default_host = "127.0.0.1"
 
 
 def setup_default(host=None, http_port=None, ws_port=None):
@@ -64,11 +75,11 @@ def setup_default(host=None, http_port=None, ws_port=None):
 
 
 def get_default_http_url():
-    return 'http://{}:{}'.format(_default_host, _default_http_port)
+    return "http://{}:{}".format(_default_host, _default_http_port)
 
 
 def get_default_ws_url():
-    return 'ws://{}:{}'.format(_default_host, _default_ws_port)
+    return "ws://{}:{}".format(_default_host, _default_ws_port)
 
 
 async def connect_websocket_rpc(url=None) -> Client:
@@ -122,13 +133,32 @@ async def get(url, data):
             return data
 
 
+class Address(object):
+    def to_json(self):
+        raise NotImplementedError
+
+
+class Instrument(object):
+    def address(self) -> Address:
+        raise NotImplementedError
+
+    def to_json(self):
+        raise NotImplementedError
+
+
+def duration_to_json(time_in_seconds: float):
+    raise NotImplementedError
+
+
 class BasePipe(object):
     DEFAULT_TIMEOUT = 1.0
 
-    def __init__(self, addr, rpc: Optional[Rpc] = None):
+    def __init__(self, address: Union[str, Address], rpc: Optional[Rpc] = None):
+        if isinstance(instrument, str):
+            instrument = Instrument.parse(instrument)
         if rpc is None:
             rpc = Rpc.make_default()
-        self._addr = addr
+        self._instrument = instrument
         self._lock_time = 1.0
         self._lock = None
         self._rpc = rpc
@@ -147,8 +177,8 @@ class BasePipe(object):
         self._timeout = float(value)
 
     @property
-    def addr(self):
-        return self._addr
+    def address(self):
+        return self._address
 
     @property
     def lock_time(self):
@@ -184,11 +214,15 @@ class BasePipe(object):
         """
         await self.unlock()
         lock_time = timeout or self._lock_time
-        reply = await self.get({'Lock': {
-            'addr': self._addr,
-            'timeout_ms': int(lock_time * 1000),
-        }})
-        self._lock = reply['Locked']['lock_id']
+        reply = await self.get(
+            {
+                "Lock": {
+                    "addr": self._instrument.addres,
+                    "timeout": duration_to_json(lock_time),
+                }
+            }
+        )
+        self._lock = reply["Locked"]["lock_id"]
         return self
 
     async def get(self, data, timeout=None):
@@ -216,28 +250,44 @@ class BasePipe(object):
         """
         if self._lock is None:
             return
-        await self.get({'Unlock': self._lock})
+        await self.get(
+            {
+                "Unlock": {
+                    "addr": self._instrument.address.to_json(),
+                    "id": self._lock,
+                }
+            }
+        )
         self._lock = None
         return self
 
     async def drop(self):
-        await ComSrv(rpc=self._rpc).drop(self._addr)
+        await ComSrv(rpc=self._rpc).drop(self._instrument)
 
 
 class FtdiDeviceInfo(object):
-    def __init__(self, port_open: bool, vendor_id: int, product_id: int, serial_number: str, description: str) -> None:
+    def __init__(
+        self,
+        port_open: bool,
+        vendor_id: int,
+        product_id: int,
+        serial_number: str,
+        description: str,
+    ) -> None:
         self.port_open = port_open
         self.vendor_id = vendor_id
         self.product_id = product_id
         self.serial_number = serial_number
         self.description = description
 
-    def to_address(self, baudrate: int, params: str = '8N1'):
-        return 'ftdi::{}::{}::{}'.format(self.serial_number, baudrate, params)
-    
+    def to_address(self, baudrate: int, params: str = "8N1"):
+        raise NotImplementedError
+
+
 class CanDriverType(Enum):
-    PCAN = 'pcan'
-    SOCKETCAN = 'socket'
+    PCAN = "pcan"
+    SOCKETCAN = "socket"
+
 
 class CanDevice(object):
     def __init__(self, interface_name: str, driver_type: CanDriverType) -> None:
@@ -245,14 +295,7 @@ class CanDevice(object):
         self.interface_name = interface_name
 
     def to_address(self, bitrate=None):
-        if self.driver_type == CanDriverType.PCAN:
-            if bitrate is None:
-                raise ValueError('Bitrate must be provided for PCAN devices')
-            assert bitrate is not None
-            return 'can::pcan::{}::{}'.format(self.interface_name, bitrate)
-        elif self.driver_type == CanDriverType.SOCKETCAN:
-            return 'can::socket::{}'.format(self.interface_name)
-        raise ValueError('Unknown driver type')
+        raise NotImplementedError
 
 
 class ComSrv(object):
@@ -282,66 +325,53 @@ class ComSrv(object):
         return await self._rpc.get(data, timeout)
 
     async def drop(self, addr):
-        result = await self.get({
-            'Drop': addr
-        })
-        if 'Error' in result:
-            raise ComSrvError(result['Error'])
+        result = await self.get({"Drop": addr.to_json()})
+        ComSrvError.check_raise(result)
 
     async def drop_all(self):
-        result = await self.get({
-            'DropAll': None
-        })
-        if 'Error' in result:
-            raise ComSrvError(result['Error'])
+        result = await self.get({"DropAll": None})
+        ComSrvError.check_raise(result)
 
     async def shutdown(self):
-        result = await self.get({
-            'Shutdown': None
-        })
-        if 'Error' in result:
-            raise ComSrvError(result['Error'])
+        result = await self.get({"Shutdown": None})
+        ComSrvError.check_raise(result)
 
-    async def list_instruments(self):
-        result = await self.get({
-            'ListInstruments': None
-        })
-        if 'Error' in result:
-            raise ComSrvError(result['Error'])
-        return result['Instruments']
+    async def list_connected_instruments(self):
+        result = await self.get({"ListConnectedInstruments": None})
+        ComSrvError.check_raise(result)
+        return result["Instruments"]
 
     async def list_serial_ports(self):
-        result = await self.get({
-            'ListSerialPorts': None,
-        })
-        if 'Error' in result:
-            raise ComSrvError(result['Error'])
-        return result['SerialPorts']
+        result = await self.get({"ListSerialPorts": None})
+        ComSrvError.check_raise(result)
+        return result["SerialPorts"]
 
     async def list_ftdis(self) -> List[FtdiDeviceInfo]:
-        result = await self.get({
-            'ListFtdiDevices': None,
-        })
-        if 'Error' in result:
-            raise ComSrvError(result['Error'])
+        result = await self.get(
+            {
+                "ListFtdiDevices": None,
+            }
+        )
+        ComSrvError.check_raise(result)
         ret = []
-        for x in result['FtdiDevices']:
+        for x in result["FtdiDevices"]:
             ret.append(FtdiDeviceInfo(**x))
         return ret
 
     async def list_can_devices(self) -> List[CanDevice]:
-        result = await self.get({
-            'ListCanDevices': None,
-        })
-        if 'Error' in result:
-            raise ComSrvError(result['Error'])
+        result = await self.get(
+            {
+                "ListCanDevices": None,
+            }
+        )
+        ComSrvError.check_raise(result)
         ret = []
-        for x in result['CanDevices']:
-            if x['driver_type'] == 'SocketCAN':
+        for x in result["CanDevices"]:
+            if x["driver_type"] == "SocketCAN":
                 driver_type = CanDriverType.SOCKETCAN
-            elif x['driver_type'] == 'PCAN':
+            elif x["driver_type"] == "PCAN":
                 driver_type = CanDriverType.PCAN
-            ret.append(CanDevice(x['interface_name'], driver_type=driver_type))
+            ret.append(CanDevice(x["interface_name"], driver_type=driver_type))
         return ret
 
 

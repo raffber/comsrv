@@ -35,10 +35,9 @@ impl From<std::time::Duration> for Duration {
     fn from(x: std::time::Duration) -> Self {
         Self {
             micros: x.subsec_micros(),
-            seconds: x.as_secs() as u32
+            seconds: x.as_secs() as u32,
         }
     }
-
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -62,7 +61,7 @@ pub enum Address {
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Request {
-    ByteStream {
+    Bytes {
         instrument: ByteStreamInstrument,
         request: ByteStreamRequest,
         #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -126,9 +125,15 @@ pub enum Response {
         response: CanResponse,
     },
     Sigrok(SigrokResponse),
-    Locked { lock_id: Uuid },
+    Locked {
+        lock_id: Uuid,
+    },
     Hid(HidResponse),
-    Version { major: u32, minor: u32, build: u32 },
+    Version {
+        major: u32,
+        minor: u32,
+        build: u32,
+    },
     SerialPorts(Vec<String>),
     FtdiDevices(Vec<FtdiDeviceInfo>),
     CanDevices(Vec<CanDeviceInfo>),
