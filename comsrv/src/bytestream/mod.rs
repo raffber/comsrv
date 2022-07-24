@@ -15,7 +15,6 @@ use cobs::{cobs_decode, cobs_encode};
 use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse};
 
 mod cobs;
-mod modbus;
 
 struct ReadAll<'a, T: AsyncRead + Unpin> {
     inner: &'a mut T,

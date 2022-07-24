@@ -131,19 +131,19 @@ pub enum ModBusRequest {
     },
     ReadInput {
         addr: u16,
-        cnt: u16,
+        cnt: u8,
     },
     ReadHolding {
         addr: u16,
-        cnt: u16,
+        cnt: u8,
     },
     WriteCoils {
         addr: u16,
         values: Vec<bool>,
     },
-    WriteRegister {
+    WriteRegisters {
         addr: u16,
-        data: Vec<u16>,
+        values: Vec<u16>,
     },
 }
 
@@ -161,7 +161,6 @@ pub enum ModBusResponse {
     Number(Vec<u16>),
     Bool(Vec<bool>),
     Data(Vec<u8>),
-    Custom { code: u8, data: Vec<u8> },
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]

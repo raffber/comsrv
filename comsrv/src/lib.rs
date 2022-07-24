@@ -22,6 +22,7 @@ mod sigrok;
 mod tcp;
 pub mod visa;
 mod vxi;
+mod modbus;
 
 pub use comsrv_protocol as protocol;
 
