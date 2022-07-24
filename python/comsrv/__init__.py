@@ -137,6 +137,13 @@ class Address(object):
     def to_json(self):
         raise NotImplementedError
 
+    def to_json_enum(self):
+        return {self.type_name: self.to_json()}
+
+    @property
+    def type_name(self):
+        raise NotImplementedError
+
 
 class Instrument(object):
     def address(self) -> Address:
@@ -154,12 +161,10 @@ class BasePipe(object):
     DEFAULT_TIMEOUT = 1.0
 
     def __init__(self, address: Union[str, Address], rpc: Optional[Rpc] = None):
-        if isinstance(instrument, str):
-            instrument = Instrument.parse(instrument)
         if rpc is None:
             rpc = Rpc.make_default()
-        self._instrument = instrument
         self._lock_time = 1.0
+        self._address = address
         self._lock = None
         self._rpc = rpc
         self._timeout = BasePipe.DEFAULT_TIMEOUT
@@ -217,7 +222,7 @@ class BasePipe(object):
         reply = await self.get(
             {
                 "Lock": {
-                    "addr": self._instrument.addres,
+                    "addr": self.address.to_json_enum(),
                     "timeout": duration_to_json(lock_time),
                 }
             }
@@ -253,7 +258,7 @@ class BasePipe(object):
         await self.get(
             {
                 "Unlock": {
-                    "addr": self._instrument.address.to_json(),
+                    "addr": self.address.to_json_enum(),
                     "id": self._lock,
                 }
             }
@@ -262,7 +267,7 @@ class BasePipe(object):
         return self
 
     async def drop(self):
-        await ComSrv(rpc=self._rpc).drop(self._instrument)
+        await ComSrv(rpc=self._rpc).drop(self.address.to_json_enum(), self._lock)
 
 
 class FtdiDeviceInfo(object):
@@ -324,8 +329,8 @@ class ComSrv(object):
             timeout = self._timeout
         return await self._rpc.get(data, timeout)
 
-    async def drop(self, addr):
-        result = await self.get({"Drop": addr.to_json()})
+    async def drop(self, addr, lock):
+        result = await self.get({"Drop": {"addr": addr.to_json_enum(), "id": lock}})
         ComSrvError.check_raise(result)
 
     async def drop_all(self):

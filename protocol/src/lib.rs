@@ -109,6 +109,10 @@ pub enum Request {
         addr: Address,
         id: Uuid,
     },
+    Drop {
+        addr: Address,
+        id: Option<Uuid>,
+    },
     DropAll,
     Version,
     Shutdown,

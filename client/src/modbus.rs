@@ -80,7 +80,7 @@ impl<T: Rpc> ModBusPipe<T> {
     }
 
     pub async fn request(&mut self, task: ModBusRequest) -> crate::Result<ModBusResponse> {
-        let request = Request::ByteStream {
+        let request = Request::Bytes {
             instrument: self.instrument.clone(),
             request: ByteStreamRequest::ModBus {
                 timeout: self.timeout.into(),

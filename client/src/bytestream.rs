@@ -61,7 +61,7 @@ impl<T: Rpc> ByteStreamPipe<T> {
         let ret = self
             .rpc
             .request(
-                Request::ByteStream {
+                Request::Bytes {
                     instrument: self.instrument.clone(),
                     request,
                     lock: self.lock.check_lock(),

@@ -1,16 +1,12 @@
 import enum
-from typing import List, Optional
+from typing import List
 
-from pywsrpc.client import Client
-from . import ComSrvError, BasePipe
+from . import ComSrvError, duration_to_json
 
 
 class ModBusProtocol(enum.Enum):
     RTU = "Rtu"
     TCP = "Tcp"
-
-
-# TODO: getters and setters
 
 
 class ModBusDevice(object):
@@ -30,6 +26,18 @@ class ModBusDevice(object):
     def protocol(self) -> ModBusProtocol:
         return self._protocol
 
+    @protocol.setter
+    def protocol(self, value: ModBusProtocol):
+        self._protocol = value
+
+    @property
+    def timeout(self) -> float:
+        return self._timeout
+
+    @timeout.setter
+    def timeout(self, value: float):
+        self._timeout = value
+
     @property
     def station_address(self) -> int:
         return self._station_address
@@ -39,17 +47,18 @@ class ModBusDevice(object):
         self._station_address = int(value)
 
     async def request(self, request):
-        result = await self.get(
+        result = await self._bs_pipe.request(
             {
                 "ModBus": {
-                    "addr": self._instrument,
-                    "task": request,
-                    "lock": self._lock,
+                    "timeout": duration_to_json(self._timeout),
+                    "station_address": self.station_address,
+                    "protocol": self.protocol.value,
+                    "request": request,
                 }
             }
         )
         ComSrvError.check_raise(result)
-        return result
+        return result["Bytes"]["ModBus"]
 
     async def write_registers(self, addr: int, data: List[int]):
         result = await self.request(
@@ -60,7 +69,6 @@ class ModBusDevice(object):
                 }
             }
         )
-        ComSrvError.check_raise(result)
 
     async def write_coils(self, addr: int, data: List[bool]):
         result = await self.request(
@@ -71,7 +79,6 @@ class ModBusDevice(object):
                 }
             },
         )
-        ComSrvError.check_raise(result)
 
     async def read_holding(self, addr: int, count: int = 1):
         assert count > 0
@@ -83,8 +90,7 @@ class ModBusDevice(object):
                 }
             },
         )
-        ComSrvError.check_raise(result)
-        return result["ModBus"]["Number"]
+        return result["Number"]
 
     async def read_coil(self, addr: int, count: int = 1):
         assert count > 0
@@ -96,8 +102,7 @@ class ModBusDevice(object):
                 }
             },
         )
-        ComSrvError.check_raise(result)
-        return result["ModBus"]["Bool"]
+        return result["Bool"]
 
     async def read_discrete(self, addr: int, count: int = 1):
         assert count > 0
@@ -109,8 +114,7 @@ class ModBusDevice(object):
                 }
             },
         )
-        ComSrvError.check_raise(result)
-        return result["ModBus"]["Bool"]
+        return result["Bool"]
 
     async def read_input(self, addr: int, count: int = 1):
         assert count > 0
@@ -122,5 +126,19 @@ class ModBusDevice(object):
                 }
             },
         )
-        ComSrvError.check_raise(result)
-        return result["ModBus"]["Number"]
+        return result["Number"]
+
+    async def ddp(
+        self, sub_cmd: int, ddp_cmd: int, data: bytes, response=True
+    ) -> bytes:
+        result = await self.request(
+            {
+                "Ddp": {
+                    "sub_cmd": sub_cmd,
+                    "ddp_cmd": ddp_cmd,
+                    "reponse": response,
+                    "data": list(data),
+                }
+            },
+        )
+        return result["Data"]

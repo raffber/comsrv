@@ -116,6 +116,11 @@ impl<T: Instrument> Inventory<T> {
         inner.instruments.remove(addr);
     }
 
+    pub async fn wait_disconnect(&self, addr: &T::Address, lock_id: Option<&Uuid>) {
+        self.wait_for_lock(addr, lock_id).await;
+        self.disconnect(addr);
+    }
+
     /// Drops all instruments
     pub fn disconnect_all(&self) {
         log::debug!("Dropping all instruments");

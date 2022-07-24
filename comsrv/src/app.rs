@@ -92,17 +92,17 @@ impl App {
 
     async fn handle(&self, req: Request) -> crate::Result<Response> {
         match req {
-            Request::ByteStream {
+            Request::Bytes {
                 instrument: ByteStreamInstrument::Ftdi(instrument),
                 request,
                 lock,
             } => self.handle_bytestream_ftdi(instrument, request, lock).await,
-            Request::ByteStream {
+            Request::Bytes {
                 instrument: ByteStreamInstrument::Serial(instr),
                 request,
                 lock,
             } => self.handle_bytestream_serial(instr, request, lock).await,
-            Request::ByteStream {
+            Request::Bytes {
                 instrument: ByteStreamInstrument::Tcp(instr),
                 request,
                 lock,
@@ -174,6 +174,7 @@ impl App {
                 }
                 Err(x) => Err(crate::Error::transport(anyhow!(x))),
             },
+            Request::Drop { addr, id } => self.drop(addr, id.as_ref()).await,
         }
     }
 
@@ -367,6 +368,19 @@ impl App {
         ret.extend(self.inventories.serial.list().drain(..).map(Address::Serial));
         ret.extend(self.inventories.visa.list().drain(..).map(Address::Visa));
         Ok(Response::Instruments(ret))
+    }
+
+    async fn drop(&self, addr: Address, id: Option<&Uuid>) -> crate::Result<Response> {
+        match addr {
+            Address::Tcp(x) => self.inventories.tcp.wait_disconnect(&x, id).await,
+            Address::Ftdi(x) => self.inventories.ftdi.wait_disconnect(&x, id).await,
+            Address::Hid(x) => self.inventories.hid.wait_disconnect(&x, id).await,
+            Address::Serial(x) => self.inventories.serial.wait_disconnect(&x, id).await,
+            Address::Vxi(x) => self.inventories.vxi.wait_disconnect(&x, id).await,
+            Address::Visa(x) => self.inventories.visa.wait_disconnect(&x, id).await,
+            Address::Can(x) => self.inventories.can.wait_disconnect(&x, id).await,
+        }
+        Ok(Response::Done)
     }
 }
 

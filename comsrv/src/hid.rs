@@ -77,14 +77,18 @@ fn handle_blocking(
 fn handle_request(device: &mut HidApiDevice, idn: &HidIdentifier, req: HidRequest) -> crate::Result<HidResponse> {
     match req {
         HidRequest::Write { data } => device.write(&data).map(|_| HidResponse::Ok).map_err(to_error),
-        HidRequest::Read { timeout_ms } => {
+        HidRequest::Read { timeout } => {
             let mut buf = [0u8; 64];
-            device.read_timeout(&mut buf, timeout_ms).map_err(to_error).and_then(|x| {
-                if x == 0 {
-                    return Err(crate::Error::protocol_timeout());
-                }
-                Ok(HidResponse::Data(buf[0..x].to_vec()))
-            })
+            let timeout: std::time::Duration = timeout.into();
+            device
+                .read_timeout(&mut buf, timeout.as_millis() as i32)
+                .map_err(to_error)
+                .and_then(|x| {
+                    if x == 0 {
+                        return Err(crate::Error::protocol_timeout());
+                    }
+                    Ok(HidResponse::Data(buf[0..x].to_vec()))
+                })
         }
         HidRequest::GetInfo => {
             let mfr = device.get_manufacturer_string().map_err(to_error)?;

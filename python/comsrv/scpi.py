@@ -1,76 +1,61 @@
 import base64
+from typing import Optional, Union
 
-from . import ComSrvError, BasePipe
+from . import ComSrvError, BasePipe, Rpc
 from .bytestream import ByteStreamPipe
 
 
+class ScpiInstrument(object):
+    def address(self):
+        raise NotImplementedError
+
+    def parse(self, instrument: str):
+        raise NotImplementedError
+
+
 class ScpiPipe(BasePipe):
-    @property
-    def url(self):
-        return self._url
+    def __init__(
+        self, instrument: Union[str, ScpiInstrument], rpc: Optional[Rpc] = None
+    ):
+        if isinstance(instrument, str):
+            instrument = ScpiInstrument.parse(instrument)
+        super().__init__(instrument.address, rpc)
+
+    async def request(self, request):
+        result = await self.get(
+            {
+                "Scpi": {
+                    "instrument": self._instrument,
+                    "request": request,
+                    "lock": self._lock,
+                }
+            }
+        )
+        ComSrvError.check_raise(result)
+        return result["Scpi"]
 
     async def query(self, msg: str) -> str:
-        result = await self.get(
-            {
-                "Scpi": {
-                    "addr": self._instrument,
-                    "task": {"QueryString": msg},
-                    "options": {"Default": None},
-                    "lock": self._lock,
-                }
-            }
-        )
-        ComSrvError.check_raise(result)
-        return result["Scpi"]["String"]
+        result = await self.get({"QueryString": msg})
+        return result["String"]
 
     async def write(self, msg: str):
-        result = await self.get(
-            {
-                "Scpi": {
-                    "addr": self._instrument,
-                    "task": {"Write": msg},
-                    "options": {"Default": None},
-                    "lock": self._lock,
-                }
-            }
-        )
-        ComSrvError.check_raise(result)
+        await self.get({"Write": msg})
 
     async def query_binary(self, msg: str) -> bytes:
-        result = await self.get(
-            {
-                "Scpi": {
-                    "addr": self._instrument,
-                    "task": {"QueryBinary": msg},
-                    "options": {"Default": None},
-                    "lock": self._lock,
-                }
-            }
-        )
-        ComSrvError.check_raise(result)
-        data = result["Scpi"]["Binary"]["data"]
+        result = await self.get({"QueryBinary": msg})
+        data = result["Binary"]["data"]
         return base64.b64decode(data)
 
     async def read_raw(self) -> bytes:
-        result = await self.get(
-            {
-                "Scpi": {
-                    "addr": self._instrument,
-                    "task": "ReadRaw",
-                    "options": {"Default": None},
-                    "lock": self._lock,
-                }
-            }
-        )
+        result = await self.get("ReadRaw")
         ComSrvError.check_raise(result)
-        data = result["Scpi"]["Binary"]["data"]
+        data = result["Binary"]["data"]
         return base64.b64decode(data)
 
 
 class SerialScpiPipe(BasePipe):
-    def __init__(self, addr, rpc=None, term="\n", timeout=1.0):
-        super().__init__(addr=addr, rpc=rpc)
-        self._inner = ByteStreamPipe(addr, rpc=rpc)
+    def __init__(self, bs_pipe: ByteStreamPipe, term="\n", timeout=1.0):
+        self._inner = bs_pipe
         self._timeout = timeout
         self._term = term
 

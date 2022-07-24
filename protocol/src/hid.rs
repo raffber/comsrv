@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::Duration;
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct HidInstrument {
     pub address: HidIdentifier,
@@ -8,7 +10,7 @@ pub struct HidInstrument {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum HidRequest {
     Write { data: Vec<u8> },
-    Read { timeout_ms: i32 },
+    Read { timeout: Duration },
     GetInfo,
 }
 
