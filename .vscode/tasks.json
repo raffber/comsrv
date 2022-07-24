@@ -17,6 +17,16 @@
             "problemMatcher": [],
             "group": {
                 "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "client-check",
+            "type": "shell",
+            "command": "cd client && cargo check",
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
                 "isDefault": true
             }
         }

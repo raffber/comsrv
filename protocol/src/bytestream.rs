@@ -1,4 +1,4 @@
-use crate::Duration;
+use crate::{Address, Duration};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -37,12 +37,24 @@ pub struct SerialInstrument {
     pub options: Option<SerialOptions>,
 }
 
+impl Into<SerialAddress> for SerialInstrument {
+    fn into(self) -> SerialAddress {
+        self.address
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FtdiInstrument {
     pub address: FtdiAddress,
     pub port_config: SerialPortConfig,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub options: Option<SerialOptions>,
+}
+
+impl Into<FtdiAddress> for FtdiInstrument {
+    fn into(self) -> FtdiAddress {
+        self.address
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -60,11 +72,37 @@ pub struct TcpInstrument {
     pub options: Option<TcpOptions>,
 }
 
+impl Into<TcpAddress> for TcpInstrument {
+    fn into(self) -> TcpAddress {
+        self.address
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ByteStreamInstrument {
     Serial(SerialInstrument),
     Ftdi(FtdiInstrument),
     Tcp(TcpInstrument),
+}
+
+impl Into<Address> for ByteStreamInstrument {
+    fn into(self) -> Address {
+        match self {
+            ByteStreamInstrument::Serial(x) => Address::Serial(x.into()),
+            ByteStreamInstrument::Ftdi(x) => Address::Ftdi(x.into()),
+            ByteStreamInstrument::Tcp(x) => Address::Tcp(x.into()),
+        }
+    }
+}
+
+impl ByteStreamInstrument {
+    pub fn address(&self) -> Address {
+        match self {
+            ByteStreamInstrument::Serial(x) => Address::Serial(x.address.clone()),
+            ByteStreamInstrument::Ftdi(x) => Address::Ftdi(x.address.clone()),
+            ByteStreamInstrument::Tcp(x) => Address::Tcp(x.address.clone()),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]

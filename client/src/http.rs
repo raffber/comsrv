@@ -1,4 +1,5 @@
 use crate::Rpc;
+use anyhow::anyhow;
 use async_trait::async_trait;
 use comsrv_protocol::{Request, Response};
 use reqwest::{Client, Error};
@@ -11,7 +12,7 @@ impl From<reqwest::Error> for crate::Error {
         } else if x.is_timeout() {
             crate::Error::Timeout
         } else {
-            crate::Error::Other(x.to_string())
+            crate::Error::Other(anyhow!(x))
         }
     }
 }

@@ -278,14 +278,20 @@ impl Listener {
     fn rx(&mut self, msg: CanMessage) {
         log::debug!("CAN received - ID = {:x}", msg.id());
         if self.listen_raw {
-            let tx = Response::Can(CanResponse::Raw(msg.clone()));
+            let tx = Response::Can {
+                source: self.address.clone(),
+                response: CanResponse::Raw(msg.clone()),
+            };
             log::debug!("Broadcast raw CAN message: {}", serde_json::to_string(&msg).unwrap());
             self.server.broadcast(tx);
         }
         if self.listen_gct {
             if let Some(msg) = self.decoder.decode(msg) {
                 log::debug!("Broadcast GCT CAN message: {}", serde_json::to_string(&msg).unwrap());
-                let msg = Response::Can(CanResponse::Gct(msg));
+                let msg = Response::Can {
+                    source: self.address.clone(),
+                    response: CanResponse::Gct(msg),
+                };
                 self.server.broadcast(msg);
             }
         }
@@ -297,7 +303,10 @@ impl Listener {
             // depending on error, continue listening or quit...
             match err {
                 crate::Error::Transport(_x) => {
-                    let tx = Response::Can(CanResponse::Stopped(device.address()));
+                    let tx = Response::Can {
+                        response: CanResponse::Stopped(device.address()),
+                        source: self.address.clone(),
+                    };
                     self.server.broadcast(tx);
                     false
                 }

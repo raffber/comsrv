@@ -211,18 +211,3 @@ async fn cobs_query<T: AsyncRead + AsyncWrite + Unpin>(
     AsyncWriteExt::write_all(stream, &data).await.map_err(Error::transport)?;
     cobs_read(stream).await
 }
-
-pub fn ddp_crc(data: &[u8]) -> u16 {
-    let mut crc = 0xFFFF_u16;
-    for x in data {
-        crc ^= *x as u16;
-        for _ in 0..8 {
-            if crc & 1 != 0 {
-                crc = (crc >> 1) ^ 0xA001;
-            } else {
-                crc >>= 1;
-            }
-        }
-    }
-    crc
-}

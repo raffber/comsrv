@@ -46,7 +46,10 @@ impl IoHandler for Handler {
         let device = self.device.take();
         let idn = self.idn.clone();
         let (device, result) = task::spawn_blocking(move || handle_blocking(device, &idn, req)).await.unwrap();
-        self.device = device;
+        let device_ok = !matches!(result, Err(crate::Error::Transport(_))) || result.is_ok();
+        if device_ok {
+            self.device = device;
+        };
         result
     }
 }

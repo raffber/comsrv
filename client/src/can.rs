@@ -1,7 +1,7 @@
 use crate::protocol::{CanRequest, DataFrame, RemoteFrame};
 use crate::ws::WsRpc;
 use crate::Rpc;
-use comsrv_protocol::Request;
+use comsrv_protocol::{CanAddress, CanInstrument, Request};
 use comsrv_protocol::{CanMessage, CanResponse, GctMessage, Response};
 use std::time::Duration;
 use tokio::sync::mpsc::error::TrySendError;
@@ -12,7 +12,7 @@ const CHANNEL_CAPACITY: usize = 1000;
 
 #[derive(Clone)]
 pub struct CanBus {
-    address: String,
+    instrument: CanInstrument,
     rpc: WsRpc,
 }
 
@@ -24,19 +24,16 @@ pub enum Message {
 }
 
 impl CanBus {
-    pub fn new<T: ToString>(address: T, rpc: WsRpc) -> Self {
-        Self {
-            address: address.to_string(),
-            rpc,
-        }
+    pub fn new(instrument: CanInstrument, rpc: WsRpc) -> Self {
+        Self { instrument, rpc }
     }
 
     pub async fn connect(&mut self) -> crate::Result<()> {
         self.rpc
             .request(
                 Request::Can {
-                    addr: self.address.clone(),
-                    task: CanRequest::ListenRaw(true),
+                    instrument: self.instrument.clone(),
+                    request: CanRequest::ListenRaw(true),
                     lock: None,
                 },
                 Duration::from_millis(100),
@@ -45,8 +42,8 @@ impl CanBus {
         self.rpc
             .request(
                 Request::Can {
-                    addr: self.address.clone(),
-                    task: CanRequest::ListenGct(true),
+                    instrument: self.instrument.clone(),
+                    request: CanRequest::ListenGct(true),
                     lock: None,
                 },
                 Duration::from_millis(100),
@@ -78,12 +75,15 @@ impl CanBus {
             Message::Gct(msg) => CanRequest::TxGct(msg),
         };
         let request = Request::Can {
-            addr: self.address.to_string(),
-            task: can_request,
+            instrument: self.instrument.clone(),
+            request: can_request,
             lock: None,
         };
         match self.rpc.request(request, Duration::from_millis(100)).await {
-            Ok(Response::Can(CanResponse::Ok)) => Ok(()),
+            Ok(Response::Can {
+                source: _,
+                response: CanResponse::Ok,
+            }) => Ok(()),
             Ok(_) => Err(crate::Error::UnexpectdResponse),
             Err(x) => Err(x),
         }
@@ -97,9 +97,18 @@ async fn subscriber_task<U: 'static + Send, T: Fn(Message) -> Option<U> + Send +
 ) {
     while let Some(x) = notifications.recv().await {
         let msg = match x {
-            Response::Can(CanResponse::Raw(CanMessage::Data(msg))) => Message::RawData(msg),
-            Response::Can(CanResponse::Raw(CanMessage::Remote(msg))) => Message::RawRemote(msg),
-            Response::Can(CanResponse::Gct(msg)) => Message::Gct(msg),
+            Response::Can {
+                source: _,
+                response: CanResponse::Raw(CanMessage::Data(msg)),
+            } => Message::RawData(msg),
+            Response::Can {
+                source: _,
+                response: CanResponse::Raw(CanMessage::Remote(msg)),
+            } => Message::RawRemote(msg),
+            Response::Can {
+                source: _,
+                response: CanResponse::Gct(msg),
+            } => Message::Gct(msg),
             _ => continue,
         };
         if let Some(x) = filter(msg) {

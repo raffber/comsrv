@@ -1,4 +1,5 @@
 use std::time::Duration;
+use anyhow::anyhow;
 
 use comsrv_protocol::{GctMessage, SysCtrlType};
 
@@ -105,11 +106,11 @@ impl GctCanDevice {
     ) -> crate::Result<Vec<MonitorValue>> {
         let mut request = 0u64;
         if group > 31 {
-            return Err("Invalid group index".into());
+            return Err(crate::Error::Other(anyhow!("Invalid group index")));
         }
         for x in readings {
             if *x > 63 {
-                return Err("Invalid reading index".into());
+                return Err(crate::Error::Other(anyhow!("Invalid reading index")));
             }
             request |= 1_u64 << x;
         }

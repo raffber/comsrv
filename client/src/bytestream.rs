@@ -1,13 +1,16 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse, Request, Response};
+use comsrv_protocol::{
+    ByteStreamInstrument, ByteStreamRequest, ByteStreamResponse, ModBusProtocol, ModBusRequest,
+    Request, Response,
+};
 
 use crate::{lock, Lock, LockGuard, Locked, Rpc, DEFAULT_RPC_TIMEOUT};
 
 pub struct ByteStreamPipe<T: Rpc> {
     rpc: T,
-    addr: String,
+    instrument: ByteStreamInstrument,
     lock: Locked,
     pub timeout: Duration,
 }
@@ -16,7 +19,7 @@ impl<T: Rpc> Clone for ByteStreamPipe<T> {
     fn clone(&self) -> Self {
         Self {
             rpc: self.rpc.clone(),
-            addr: self.addr.clone(),
+            instrument: self.instrument.clone(),
             lock: Locked::new(),
             timeout: self.timeout.clone(),
         }
@@ -26,38 +29,41 @@ impl<T: Rpc> Clone for ByteStreamPipe<T> {
 #[async_trait]
 impl<T: Rpc> Lock<T> for ByteStreamPipe<T> {
     async fn lock(&mut self, timeout: Duration) -> crate::Result<LockGuard<T>> {
-        let ret = lock(&mut self.rpc, &self.addr, timeout).await?;
+        let ret = lock(&mut self.rpc, &self.instrument.address(), timeout).await?;
         self.lock = ret.locked();
         Ok(ret)
     }
 }
 
 impl<T: Rpc> ByteStreamPipe<T> {
-    pub fn new(rpc: T, addr: &str) -> Self {
+    pub fn new(rpc: T, instrument: ByteStreamInstrument) -> Self {
         Self {
             rpc,
-            addr: addr.to_string(),
+            instrument,
             lock: Locked::new(),
             timeout: DEFAULT_RPC_TIMEOUT,
         }
     }
 
-    pub fn with_timeout(rpc: T, addr: &str, timeout: Duration) -> Self {
+    pub fn with_timeout(rpc: T, instrument: ByteStreamInstrument, timeout: Duration) -> Self {
         Self {
             rpc,
-            addr: addr.to_string(),
+            instrument,
             lock: Locked::new(),
             timeout,
         }
     }
 
-    pub async fn request(&mut self, task: ByteStreamRequest) -> crate::Result<ByteStreamResponse> {
+    pub async fn request(
+        &mut self,
+        request: ByteStreamRequest,
+    ) -> crate::Result<ByteStreamResponse> {
         let ret = self
             .rpc
             .request(
-                Request::Bytes {
-                    addr: self.addr.clone(),
-                    task,
+                Request::ByteStream {
+                    instrument: self.instrument.clone(),
+                    request,
                     lock: self.lock.check_lock(),
                 },
                 self.timeout.clone(),
@@ -65,7 +71,7 @@ impl<T: Rpc> ByteStreamPipe<T> {
             .await?;
         match ret {
             Response::Bytes(x) => Ok(x),
-            Response::Error(x) => Err(crate::Error::from_rpc(x)),
+            Response::Error(x) => Err(x.into()),
             _ => Err(crate::Error::UnexpectdResponse),
         }
     }
@@ -86,8 +92,10 @@ impl<T: Rpc> ByteStreamPipe<T> {
     }
 
     pub async fn read_to_term(&mut self, term: u8, timeout: Duration) -> crate::Result<Vec<u8>> {
-        let timeout_ms = timeout.as_millis() as u32;
-        let req = ByteStreamRequest::ReadToTerm { term, timeout_ms };
+        let req = ByteStreamRequest::ReadToTerm {
+            term,
+            timeout: timeout.into(),
+        };
         match self.request(req).await? {
             ByteStreamResponse::Data(x) => Ok(x),
             _ => Err(crate::Error::UnexpectdResponse),
@@ -95,8 +103,10 @@ impl<T: Rpc> ByteStreamPipe<T> {
     }
 
     pub async fn read_exact(&mut self, count: u32, timeout: Duration) -> crate::Result<Vec<u8>> {
-        let timeout_ms = timeout.as_millis() as u32;
-        let req = ByteStreamRequest::ReadExact { count, timeout_ms };
+        let req = ByteStreamRequest::ReadExact {
+            count,
+            timeout: timeout.into(),
+        };
         match self.request(req).await? {
             ByteStreamResponse::Data(x) => Ok(x),
             _ => Err(crate::Error::UnexpectdResponse),
@@ -120,8 +130,7 @@ impl<T: Rpc> ByteStreamPipe<T> {
     }
 
     pub async fn cobs_read(&mut self, timeout: Duration) -> crate::Result<Vec<u8>> {
-        let timeout_ms = timeout.as_millis() as u32;
-        let req = ByteStreamRequest::CobsRead(timeout_ms);
+        let req = ByteStreamRequest::CobsRead(timeout.into());
         match self.request(req).await? {
             ByteStreamResponse::Data(x) => Ok(x),
             _ => Err(crate::Error::UnexpectdResponse),
@@ -129,10 +138,9 @@ impl<T: Rpc> ByteStreamPipe<T> {
     }
 
     pub async fn cobs_query(&mut self, write: &[u8], timeout: Duration) -> crate::Result<Vec<u8>> {
-        let timeout_ms = timeout.as_millis() as u32;
         let req = ByteStreamRequest::CobsQuery {
             data: write.to_vec(),
-            timeout_ms,
+            timeout: timeout.into(),
         };
         match self.request(req).await? {
             ByteStreamResponse::Data(x) => Ok(x),
@@ -152,8 +160,10 @@ impl<T: Rpc> ByteStreamPipe<T> {
     }
 
     pub async fn read_line(&mut self, term: u8, timeout: Duration) -> crate::Result<String> {
-        let timeout_ms = timeout.as_millis() as u32;
-        let req = ByteStreamRequest::ReadLine { timeout_ms, term };
+        let req = ByteStreamRequest::ReadLine {
+            timeout: timeout.into(),
+            term,
+        };
         match self.request(req).await? {
             ByteStreamResponse::String(x) => Ok(x),
             _ => Err(crate::Error::UnexpectdResponse),
@@ -166,10 +176,9 @@ impl<T: Rpc> ByteStreamPipe<T> {
         term: u8,
         timeout: Duration,
     ) -> crate::Result<String> {
-        let timeout_ms = timeout.as_millis() as u32;
         let req = ByteStreamRequest::QueryLine {
             line: write.to_string(),
-            timeout_ms,
+            timeout: timeout.into(),
             term,
         };
         match self.request(req).await? {
@@ -178,25 +187,26 @@ impl<T: Rpc> ByteStreamPipe<T> {
         }
     }
 
-    pub async fn modbus_rtu_ddp(
+    pub async fn modbus_ddp(
         &mut self,
         station_address: u8,
-        custom_command: u8,
+        protocol: ModBusProtocol,
         sub_cmd: u8,
         ddp_cmd: u8,
         response: bool,
         data: &[u8],
         timeout: Duration,
     ) -> crate::Result<Vec<u8>> {
-        let timeout_ms = timeout.as_millis() as u32;
-        let req = ByteStreamRequest::ModBusRtuDdp {
-            timeout_ms,
+        let req = ByteStreamRequest::ModBus {
+            timeout: timeout.into(),
             station_address,
-            custom_command,
-            sub_cmd,
-            ddp_cmd,
-            response,
-            data: data.to_vec(),
+            protocol,
+            request: ModBusRequest::Ddp {
+                sub_cmd,
+                ddp_cmd,
+                response,
+                data: data.to_vec(),
+            },
         };
         match self.request(req).await? {
             ByteStreamResponse::Data(x) => Ok(x),

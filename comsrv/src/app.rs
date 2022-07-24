@@ -249,7 +249,7 @@ impl App {
             .await?
             .request(can::Request { inner: req, bitrate })
             .await
-            .map(Response::Can)
+            .map(|response| Response::Can { source: addr, response })
     }
 
     async fn handle_visa(

@@ -1,20 +1,24 @@
 use crate::{lock, Lock, LockGuard, Locked, Rpc, DEFAULT_RPC_TIMEOUT};
 use async_trait::async_trait;
-use comsrv_protocol::{ModBusRequest, ModBusResponse, Request, Response};
+use comsrv_protocol::{
+    ByteStreamInstrument, ByteStreamRequest, ByteStreamResponse, ModBusProtocol, ModBusRequest,
+    ModBusResponse, Request, Response,
+};
 use std::time::Duration;
 
 pub struct ModBusPipe<T: Rpc> {
     rpc: T,
-    addr: String,
+    instrument: ByteStreamInstrument,
     lock: Locked,
     pub timeout: Duration,
-    station_address: Option<u8>,
+    station_address: u8,
+    protocol: ModBusProtocol,
 }
 
 #[async_trait]
 impl<T: Rpc> Lock<T> for ModBusPipe<T> {
     async fn lock(&mut self, timeout: Duration) -> crate::Result<LockGuard<T>> {
-        let ret = lock(&mut self.rpc, &self.addr, timeout).await?;
+        let ret = lock(&mut self.rpc, &self.instrument.clone().into(), timeout).await?;
         self.lock = ret.locked();
         Ok(ret)
     }
@@ -24,71 +28,79 @@ impl<T: Rpc> Clone for ModBusPipe<T> {
     fn clone(&self) -> Self {
         Self {
             rpc: self.rpc.clone(),
-            addr: self.addr.clone(),
+            instrument: self.instrument.clone(),
             lock: Locked::new(),
             timeout: self.timeout.clone(),
             station_address: self.station_address.clone(),
+            protocol: self.protocol.clone(),
         }
     }
 }
 
 impl<T: Rpc> ModBusPipe<T> {
-    pub fn new(rpc: T, addr: &str) -> Self {
+    pub fn new(
+        rpc: T,
+        instrument: ByteStreamInstrument,
+        station_address: u8,
+        protocol: ModBusProtocol,
+    ) -> Self {
         Self {
             rpc,
-            addr: addr.to_string(),
+            instrument,
             lock: Locked::new(),
             timeout: DEFAULT_RPC_TIMEOUT,
-            station_address: None,
+            station_address,
+            protocol,
         }
     }
 
-    pub fn with_timeout(rpc: T, addr: &str, timeout: Duration) -> Self {
+    pub fn with_timeout(
+        rpc: T,
+        instrument: ByteStreamInstrument,
+        timeout: Duration,
+        station_address: u8,
+        protocol: ModBusProtocol,
+    ) -> Self {
         Self {
             rpc,
-            addr: addr.to_string(),
+            instrument,
             lock: Locked::new(),
             timeout,
-            station_address: None,
+            station_address,
+            protocol,
         }
     }
 
-    pub fn override_station_address(&mut self, station_address: Option<u8>) {
+    pub fn set_station_address(&mut self, station_address: u8) {
         self.station_address = station_address;
     }
 
     fn station_address(&self) -> u8 {
-        self.station_address.unwrap_or(0)
+        self.station_address
     }
 
     pub async fn request(&mut self, task: ModBusRequest) -> crate::Result<ModBusResponse> {
-        let ret = self
-            .rpc
-            .request(
-                Request::ModBus {
-                    addr: self.addr.clone(),
-                    task,
-                    lock: self.lock.check_lock(),
-                },
-                self.timeout.clone(),
-            )
-            .await?;
+        let request = Request::ByteStream {
+            instrument: self.instrument.clone(),
+            request: ByteStreamRequest::ModBus {
+                timeout: self.timeout.clone().into(),
+                station_address: self.station_address,
+                protocol: self.protocol,
+                request: task,
+            },
+            lock: self.lock.check_lock(),
+        };
+
+        let ret = self.rpc.request(request, self.timeout.clone()).await?;
         match ret {
-            Response::ModBus(x) => Ok(x),
-            Response::Error(x) => Err(crate::Error::from_rpc(x)),
+            Response::Bytes(ByteStreamResponse::ModBus(x)) => Ok(x),
+            Response::Error(x) => Err(x.into()),
             _ => Err(crate::Error::UnexpectdResponse),
         }
     }
 
     pub async fn read_coil(&mut self, addr: u16, cnt: u16) -> crate::Result<Vec<bool>> {
-        match self
-            .request(ModBusRequest::ReadCoil {
-                addr,
-                cnt,
-                slave_id: self.station_address(),
-            })
-            .await?
-        {
+        match self.request(ModBusRequest::ReadCoil { addr, cnt }).await? {
             ModBusResponse::Bool(ret) => Ok(ret),
             _ => Err(crate::Error::UnexpectdResponse),
         }
@@ -104,11 +116,7 @@ impl<T: Rpc> ModBusPipe<T> {
 
     pub async fn read_discrete(&mut self, addr: u16, cnt: u16) -> crate::Result<Vec<bool>> {
         match self
-            .request(ModBusRequest::ReadDiscrete {
-                addr,
-                cnt,
-                slave_id: self.station_address(),
-            })
+            .request(ModBusRequest::ReadDiscrete { addr, cnt })
             .await?
         {
             ModBusResponse::Bool(ret) => Ok(ret),
@@ -124,15 +132,8 @@ impl<T: Rpc> ModBusPipe<T> {
         Ok(ret[0])
     }
 
-    pub async fn read_input(&mut self, addr: u16, cnt: u16) -> crate::Result<Vec<u16>> {
-        match self
-            .request(ModBusRequest::ReadInput {
-                addr,
-                cnt,
-                slave_id: self.station_address(),
-            })
-            .await?
-        {
+    pub async fn read_input(&mut self, addr: u16, cnt: u8) -> crate::Result<Vec<u16>> {
+        match self.request(ModBusRequest::ReadInput { addr, cnt }).await? {
             ModBusResponse::Number(ret) => Ok(ret),
             _ => Err(crate::Error::UnexpectdResponse),
         }
@@ -146,13 +147,9 @@ impl<T: Rpc> ModBusPipe<T> {
         Ok(ret[0])
     }
 
-    pub async fn read_holding(&mut self, addr: u16, cnt: u16) -> crate::Result<Vec<u16>> {
+    pub async fn read_holding(&mut self, addr: u16, cnt: u8) -> crate::Result<Vec<u16>> {
         match self
-            .request(ModBusRequest::ReadHolding {
-                addr,
-                cnt,
-                slave_id: self.station_address(),
-            })
+            .request(ModBusRequest::ReadHolding { addr, cnt })
             .await?
         {
             ModBusResponse::Number(ret) => Ok(ret),
@@ -170,11 +167,7 @@ impl<T: Rpc> ModBusPipe<T> {
 
     pub async fn write_coils(&mut self, addr: u16, data: Vec<bool>) -> crate::Result<()> {
         match self
-            .request(ModBusRequest::WriteCoil {
-                addr,
-                values: data,
-                slave_id: self.station_address(),
-            })
+            .request(ModBusRequest::WriteCoils { addr, values: data })
             .await?
         {
             ModBusResponse::Done => Ok(()),
@@ -184,11 +177,7 @@ impl<T: Rpc> ModBusPipe<T> {
 
     pub async fn write_register(&mut self, addr: u16, data: Vec<u16>) -> crate::Result<()> {
         match self
-            .request(ModBusRequest::WriteRegister {
-                addr,
-                data,
-                slave_id: self.station_address(),
-            })
+            .request(ModBusRequest::WriteRegisters { addr, values: data })
             .await?
         {
             ModBusResponse::Done => Ok(()),
@@ -198,10 +187,9 @@ impl<T: Rpc> ModBusPipe<T> {
 
     pub async fn write_single_register(&mut self, addr: u16, data: u16) -> crate::Result<()> {
         match self
-            .request(ModBusRequest::WriteRegister {
+            .request(ModBusRequest::WriteRegisters {
                 addr,
-                data: vec![data],
-                slave_id: self.station_address(),
+                values: vec![data],
             })
             .await?
         {

@@ -99,14 +99,12 @@ impl IoHandler for Handler {
                 }
             }
         };
-        if !self.prologix_initialized {
-            if let Request::Prologix { .. } = req {
-                init_prologix(&mut serial).await?;
-                self.prologix_initialized = true;
-            }
-        }
         let ret = match req {
             Request::Prologix { gpib_addr, req } => {
+                if !self.prologix_initialized {
+                    init_prologix(&mut serial).await?;
+                    self.prologix_initialized = true;
+                }
                 handle_prologix_request(&mut serial, gpib_addr, req).await.map(Response::Scpi)
             }
             Request::Serial { params: _, req } => {
@@ -166,6 +164,6 @@ pub async fn list_devices() -> crate::Result<Vec<String>> {
         }
         Err(err) => Err(crate::Error::transport(anyhow!(err.description)).into()),
     })
-    .await
-    .unwrap()
+        .await
+        .unwrap()
 }

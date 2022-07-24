@@ -31,6 +31,16 @@ impl Into<std::time::Duration> for Duration {
     }
 }
 
+impl From<std::time::Duration> for Duration {
+    fn from(x: std::time::Duration) -> Self {
+        Self {
+            micros: x.subsec_micros(),
+            seconds: x.as_secs() as u32
+        }
+    }
+
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Instrument {
     ByteStream(ByteStreamInstrument),
@@ -111,7 +121,10 @@ pub enum Response {
     Instruments(Vec<Address>),
     Scpi(ScpiResponse),
     Bytes(ByteStreamResponse),
-    Can(CanResponse),
+    Can {
+        source: CanAddress,
+        response: CanResponse,
+    },
     Sigrok(SigrokResponse),
     Locked { lock_id: Uuid },
     Hid(HidResponse),
