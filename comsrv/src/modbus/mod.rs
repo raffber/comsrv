@@ -1,18 +1,18 @@
-mod tcp;
-mod rtu;
-mod registers;
 mod ddp;
+mod registers;
+mod rtu;
+mod tcp;
 
 use comsrv_protocol::{ModBusProtocol, ModBusRequest, ModBusResponse};
 
-use std::time::Duration;
-use thiserror::Error;
-use tokio::io::{AsyncRead, AsyncWrite};
 use crate::modbus::ddp::Ddp;
 use crate::modbus::function_codes::{READ_COILS, READ_DISCRETES, READ_HOLDINGS, READ_INPUTS};
 use crate::modbus::registers::{ReadBoolRegisters, ReadU16Registers, WriteCoils, WriteRegisters};
 use crate::modbus::rtu::RtuHandler;
 use crate::modbus::tcp::TcpHandler;
+use std::time::Duration;
+use thiserror::Error;
+use tokio::io::{AsyncRead, AsyncWrite};
 
 mod function_codes {
     pub const READ_COILS: u8 = 1;
@@ -27,9 +27,47 @@ mod function_codes {
 }
 
 #[derive(Error, Debug)]
-enum ModBusException {
-    #[error("InvalidData")]
-    InvalidData,
+pub enum ModBusException {
+    #[error("InvalidFunction")]
+    InvalidFunction,
+    #[error("Invalid Data Address")]
+    InvalidDataAddress,
+    #[error("Invalid Data Value")]
+    InvalidDataValue,
+    #[error("Server Device Failure")]
+    ServerDeviceFailure,
+    #[error("Acknowledge")]
+    Acknowledge,
+    #[error("Server Device Busy")]
+    ServerDeviceBusy,
+    #[error("Negative Acknowledgement")]
+    NegativeAcknowledgement,
+    #[error("Memory Parity Error")]
+    MemoryParityError,
+    #[error("Gateway Path Unavailable")]
+    GatewayPathUnavailable,
+    #[error("Gateway Target Device Failed to Respond")]
+    GatewayTargetFailedToRespond,
+    #[error("Unknown Exception Code: {0}")]
+    Unknown(u8),
+}
+
+impl ModBusException {
+    pub fn from_code(code: u8) -> Self {
+        match code {
+            1 => ModBusException::InvalidFunction,
+            2 => ModBusException::InvalidDataAddress,
+            3 => ModBusException::InvalidDataValue,
+            4 => ModBusException::ServerDeviceFailure,
+            5 => ModBusException::Acknowledge,
+            6 => ModBusException::ServerDeviceBusy,
+            7 => ModBusException::NegativeAcknowledgement,
+            8 => ModBusException::MemoryParityError,
+            10 => ModBusException::GatewayPathUnavailable,
+            11 => ModBusException::GatewayTargetFailedToRespond,
+            x => ModBusException::Unknown(x),
+        }
+    }
 }
 
 #[derive(Error, Debug)]
@@ -61,21 +99,29 @@ impl<T: FunctionCode> Handler<T> {
             ModBusProtocol::Rtu => Self::Rtu(RtuHandler::new(function_code)),
         }
     }
-    async fn handle<S: AsyncRead + AsyncWrite + Unpin>(&self, stream: &mut S, timeout: Duration, transaction: &TransactionInfo) -> crate::Result<T::Output> {
+    async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
+        &self,
+        stream: &mut S,
+        timeout: Duration,
+        transaction: &TransactionInfo,
+    ) -> crate::Result<T::Output> {
         match tokio::time::timeout(timeout, self.handle_no_timeout(stream, transaction)).await {
             Ok(x) => x,
-            Err(_) => Err(crate::Error::protocol_timeout())
+            Err(_) => Err(crate::Error::protocol_timeout()),
         }
     }
 
-    async fn handle_no_timeout<S: AsyncRead + AsyncWrite + Unpin>(&self, stream: &mut S, transaction: &TransactionInfo) -> crate::Result<T::Output> {
+    async fn handle_no_timeout<S: AsyncRead + AsyncWrite + Unpin>(
+        &self,
+        stream: &mut S,
+        transaction: &TransactionInfo,
+    ) -> crate::Result<T::Output> {
         match self {
             Handler::Tcp(x) => x.handle(&transaction, stream).await,
             Handler::Rtu(x) => x.handle(&transaction, stream).await,
         }
     }
 }
-
 
 pub struct TransactionInfo {
     transaction_id: u16,
@@ -105,7 +151,12 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
     crate::bytestream::read_all(stream).await.map_err(crate::Error::transport)?;
     let transaction = TransactionInfo::new(station_address, protocol.clone(), timeout);
     let ret = match request {
-        ModBusRequest::Ddp { sub_cmd, ddp_cmd, response, data } => {
+        ModBusRequest::Ddp {
+            sub_cmd,
+            ddp_cmd,
+            response,
+            data,
+        } => {
             let fun_code = Ddp::new(ddp_cmd, sub_cmd, data, response)?;
             let ret = Handler::new(protocol, fun_code).handle(stream, timeout, &transaction).await?;
             ModBusResponse::Data(ret)

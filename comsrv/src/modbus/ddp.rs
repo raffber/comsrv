@@ -1,6 +1,4 @@
-
 use anyhow::anyhow;
-
 
 use crate::modbus::FunctionCode;
 
@@ -14,13 +12,17 @@ pub struct Ddp {
 impl Ddp {
     pub fn new(ddp_cmd: u8, sub_cmd: u8, request: Vec<u8>, response: bool) -> crate::Result<Self> {
         if request.len() > u8::MAX as usize {
-            return Err(crate::Error::argument(anyhow!("Maximum DDP length is {} but got {}", u8::MAX, request.len())));
+            return Err(crate::Error::argument(anyhow!(
+                "Maximum DDP length is {} but got {}",
+                u8::MAX,
+                request.len()
+            )));
         }
         Ok(Self {
             ddp_cmd,
             sub_cmd,
             request,
-            response
+            response,
         })
     }
 }

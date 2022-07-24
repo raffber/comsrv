@@ -1,7 +1,6 @@
-
+use crate::modbus::{FunctionCode, ModBusException, TransactionInfo};
 use anyhow::anyhow;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use crate::modbus::{FunctionCode, TransactionInfo};
 
 pub struct RtuHandler<T: FunctionCode> {
     function_code: T,
@@ -9,12 +8,14 @@ pub struct RtuHandler<T: FunctionCode> {
 
 impl<T: FunctionCode> RtuHandler<T> {
     pub fn new(function_code: T) -> Self {
-        Self {
-            function_code,
-        }
+        Self { function_code }
     }
 
-    pub async fn handle<S: AsyncRead + AsyncWrite + Unpin>(&self, transaction: &TransactionInfo, stream: &mut S) -> crate::Result<T::Output> {
+    pub async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
+        &self,
+        transaction: &TransactionInfo,
+        stream: &mut S,
+    ) -> crate::Result<T::Output> {
         let mut request = Vec::new();
         request.extend(&[transaction.station_address, self.function_code.function_code()]);
         let l = request.len();
@@ -31,9 +32,10 @@ impl<T: FunctionCode> RtuHandler<T> {
             return Err(crate::Error::protocol(anyhow!("Invalid answer received.")));
         }
         if parsed_function_code == (0x80 | self.function_code.function_code()) {
-            // TODO: modbus exception
+            let exception_code = stream.read_u8().await?;
+            return Err(crate::Error::protocol(anyhow!(ModBusException::from_code(exception_code))));
         } else if parsed_function_code != self.function_code.function_code() {
-            // TODO: invalid frame
+            return Err(crate::Error::protocol(anyhow!("Invalid frame")));
         }
         let mut header = vec![0_u8; self.function_code.get_header_length()];
         stream.read_exact(&mut header).await.map_err(crate::Error::transport)?;
@@ -43,7 +45,7 @@ impl<T: FunctionCode> RtuHandler<T> {
         if crc(&data) != 0 {
             return Err(crate::Error::protocol(anyhow!("Invalid CRC in answer")));
         }
-        self.function_code.parse_frame(&data[0 .. data.len() - 2])
+        self.function_code.parse_frame(&data[0..data.len() - 2])
     }
 }
 
