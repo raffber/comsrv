@@ -137,7 +137,7 @@ pub enum ModBusRequest {
         addr: u16,
         cnt: u16,
     },
-    WriteCoil {
+    WriteCoils {
         addr: u16,
         values: Vec<bool>,
     },

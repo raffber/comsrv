@@ -29,7 +29,6 @@ futures = "0.3.7"
 async-vxi11 = { git = "https://github.com/raffber/async-vxi11.git", rev = "0371e960f0a3018db83fabf4d773f585959e6e06" }
 async-can = { git = "https://github.com/raffber/async-can.git", rev = "b67b533055015bcdbed745d6caafbb6e792c2d97" }
 async-ftdi = {git = "https://github.com/raffber/async-ftdi.git", rev = "1bfeae5fa75ab1573d4c3133df4c2452e9e4fe39"}
-rmodbus = "0.6"
 rand = "0.8"
 byteorder = "1.3"
 bitvec = "0.20.1"
