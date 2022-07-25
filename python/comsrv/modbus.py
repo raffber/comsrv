@@ -107,10 +107,20 @@ class ModBusDevice(object):
                 bs_pipe, station_address, protocol = parse_modbus_address(
                     bs_pipe, rpc=rpc
                 )
+        if protocol is None:
+            protocol = ModBusProtocol.RTU
         self._station_address = station_address
         self._bs_pipe = bs_pipe
         self._timeout = timeout
         self._protocol = protocol
+
+    @property
+    def bytestream_pipe(self):
+        return self._bs_pipe
+
+    @property
+    def instrument(self):
+        return self._bs_pipe.instrument
 
     @property
     def protocol(self) -> ModBusProtocol:

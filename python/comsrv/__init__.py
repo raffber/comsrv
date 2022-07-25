@@ -160,7 +160,7 @@ class Instrument(object):
 
 
 def duration_to_json(time_in_seconds: float):
-    micros = (time_in_seconds % 1.0) * 1000000
+    micros = int((time_in_seconds % 1.0) * 1000000)
     seconds = round(time_in_seconds)
     return {"micros": micros, "seconds": seconds}
 

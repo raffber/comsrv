@@ -171,7 +171,11 @@ class ByteStreamPipe(BasePipe):
 
     @property
     def instrument(self):
-        self._instrument
+        return self._instrument
+
+    @property
+    def address(self):
+        return self._instrument.address
 
     async def request(self, request):
         result = await self.get(
