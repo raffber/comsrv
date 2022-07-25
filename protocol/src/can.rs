@@ -11,7 +11,7 @@ pub enum CanAddress {
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum CanInstrument {
-    PCan { address: String, baudrate: u32 },
+    PCan { address: String, bitrate: u32 },
     SocketCan { interface: String },
     Loopback,
 }
@@ -19,7 +19,7 @@ pub enum CanInstrument {
 impl CanInstrument {
     pub fn bitrate(&self) -> Option<u32> {
         match self {
-            CanInstrument::PCan { baudrate, .. } => Some(*baudrate),
+            CanInstrument::PCan { bitrate, .. } => Some(*bitrate),
             _ => None,
         }
     }
@@ -95,8 +95,8 @@ pub enum CanRequest {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum CanResponse {
-    Started(CanAddress),
-    Stopped(CanAddress),
+    Started,
+    Stopped,
     Ok,
     Raw(CanMessage),
     Gct(GctMessage),

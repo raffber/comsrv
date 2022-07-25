@@ -1,7 +1,12 @@
-from typing import Optional
+from typing import Optional, Union
 
 from . import Address, Instrument, get_default_ws_url, ComSrvError
 from pywsrpc.client import Client
+import re
+
+
+PCAN_RE = re.compile(r"(?P<addr>.*?)::(?P<bitrate>.*?)")
+
 
 from enum import Enum
 
@@ -36,9 +41,9 @@ class LoopbackAddress(CanAddress):
 
 
 class CanInstrument(Instrument):
-    def __init__(self, address: CanAddress, baudrate=0) -> None:
+    def __init__(self, address: CanAddress, bitrate=0) -> None:
         self._address = address
-        self._baudrate = baudrate
+        self._baudrate = bitrate
         super().__init__()
 
     @property
@@ -48,21 +53,41 @@ class CanInstrument(Instrument):
     def to_json(self):
         if isinstance(self._address, PCanAddress):
             return {
-                "PCan": {"address": self._address.address, "baudrate": self._baudrate}
+                "PCan": {"address": self._address.address, "bitrate": self._baudrate}
             }
         elif isinstance(self._address, SocketCanAddress):
             return self._address.to_json()
         elif isinstance(self._address, LoopbackAddress):
             return self._address.to_json()
-        raise NotImplementedError
+        raise ValueError("Invalid can address")
 
     @property
     def enum_name(self):
         return "Can"
 
+    @classmethod
+    def parse(cls, addr: str):
+        if addr.startswith("can::pcan::"):
+            addr = addr.removeprefix("can::pcan::")
+            match = PCAN_RE.match(addr)
+            if match is None:
+                raise ValueError("PCan address is invalid.")
+            addr = match.group("addr")
+            bitrate = int(match.group("bitrate"))
+            return CanInstrument(PCanAddress(addr), bitrate=bitrate)
+        elif addr.startswith("can::socket::"):
+            addr = addr.removeprefix("can::socket::")
+            return CanInstrument(SocketCanAddress(addr))
+        elif addr.startswith("can::loopback"):
+            return CanInstrument(LoopbackAddress())
+
 
 class CanBus(object):
-    def __init__(self, device: str, client: Optional[Client] = None):
+    def __init__(
+        self, device: Union[str, CanInstrument], client: Optional[Client] = None
+    ):
+        if isinstance(device, str):
+            device = CanInstrument.parse(device)
         if client is None:
             client = Client()
         self._client = client
@@ -98,7 +123,7 @@ class CanBus(object):
         :return: The return value of the server or None if `rx_reply=False`
         """
         await self.connect()
-        msg = {"Can": {"addr": self._device, "task": task}}
+        msg = {"Can": {"instrument": self._device.to_json(), "request": task}}
         if not rx_reply:
             await self._client.send_request(msg)
             return None
@@ -123,7 +148,7 @@ class CanBus(object):
         elif isinstance(msg, GctMessage):
             task = {"TxGct": msg.to_comsrv()}
         else:
-            raise CanError("Invalid message type.")
+            raise ComSrvError("Invalid message type.")
         await self.rpc(task, rx_reply=rx_reply)
 
     async def listen_raw(self):
