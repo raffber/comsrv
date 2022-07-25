@@ -112,6 +112,9 @@ impl IoHandler for Handler {
             }
             return Ok(TcpResponse::Nope);
         }
+        if let Some(x) = self.drop_delay_task.take() {
+            x.abort();
+        }
         self.last_request = Instant::now();
         let mut tries = 0;
         let err = loop {

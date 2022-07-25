@@ -19,6 +19,8 @@ mod linux_low_latency;
 
 const DEFAULT_TIMEOUT_MS: u64 = 500;
 
+// TODO: autodrop
+
 pub enum Request {
     Prologix {
         gpib_addr: u8,
@@ -164,6 +166,6 @@ pub async fn list_devices() -> crate::Result<Vec<String>> {
         }
         Err(err) => Err(crate::Error::transport(anyhow!(err.description)).into()),
     })
-        .await
-        .unwrap()
+    .await
+    .unwrap()
 }

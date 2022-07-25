@@ -138,10 +138,10 @@ class Address(object):
         raise NotImplementedError
 
     def to_json_enum(self):
-        return {self.type_name: self.to_json()}
+        return {self.enum_name: self.to_json()}
 
     @property
-    def type_name(self):
+    def enum_name(self):
         raise NotImplementedError
 
 
@@ -151,6 +151,13 @@ class Instrument(object):
 
     def to_json(self):
         raise NotImplementedError
+
+    @property
+    def enum_name(self):
+        raise NotImplementedError
+
+    def to_json_enum(self):
+        return {self.enum_name: self.to_json()}
 
 
 def duration_to_json(time_in_seconds: float):

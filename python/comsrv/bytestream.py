@@ -2,7 +2,15 @@ from typing import Optional, Union
 
 from python.comsrv.modbus import ModBusDevice, ModBusProtocol
 
-from . import Address, Rpc, duration_to_json, ComSrvError, BasePipe
+from . import Address, BasePipe, ComSrvError, Instrument, Rpc, duration_to_json
+import re
+
+
+SERIAL_ADDRESS_RE = re.compile(
+    r"serial::(?P<path>.*?)::(?P<baudrate>\d+)::(?P<config>[78][ENO][12])"
+)
+
+FTDI_ADDRESS_RE = re.compile(r"TODO")
 
 
 class FtdiAddress(Address):
@@ -13,7 +21,7 @@ class FtdiAddress(Address):
         return {"port": self.port}
 
     @property
-    def type_name(self):
+    def enum_name(self):
         return "Ftdi"
 
 
@@ -25,7 +33,7 @@ class SerialAddress(Address):
         return {"port": self.port}
 
     @property
-    def type_name(self):
+    def enum_name(self):
         return "Serial"
 
 
@@ -38,24 +46,73 @@ class TcpAddress(Address):
         return {"port": self.port, "host": self.host}
 
     @property
-    def type_name(self):
+    def enum_name(self):
         return "Tcp"
 
 
-class ByteStreamInstrument(object):
-    def instrument(self):
-        raise NotImplementedError
-
+class ByteStreamInstrument(Instrument):
     @classmethod
-    def parse(cls, addr_str):
+    def parse(cls, addr_string):
         raise NotImplementedError
 
-    @property
-    def address(self):
-        raise NotImplementedError
+
+class TcpInstrument(ByteStreamInstrument):
+    def __init__(self, address: TcpAddress) -> None:
+        super().__init__()
+        self._address = address
+
+    def address(self) -> Address:
+        return self._address
 
     def to_json(self):
-        raise NotImplementedError
+        return {"address": self.address.to_json()}
+
+    @property
+    def enum_name(self):
+        return "Tcp"
+
+
+class SerialPortConfig(object):
+    def __init__(self, config: str, baudrate: int) -> None:
+        self.config = config
+        self.baudrate = baudrate
+
+    def to_json(self):
+        return {"config": self.config, "baudrate": self.baudrate}
+
+
+class FtdiInstrument(ByteStreamInstrument):
+    def __init__(self, address: FtdiAddress, port_config: SerialPortConfig) -> None:
+        super().__init__()
+        self._address = address
+        self._port_config = port_config
+
+    def to_json(self):
+        return {"address": self.address.to_json()}
+
+    @property
+    def enum_name(self):
+        return "Ftdi"
+
+    def address(self) -> Address:
+        return self._address
+
+
+class SerialPortInstrument(ByteStreamInstrument):
+    def __init__(self, address: SerialAddress, port_config: SerialPortConfig) -> None:
+        super().__init__()
+        self._address = address
+        self._port_config = port_config
+
+    def to_json(self):
+        return {"address": self.address.to_json()}
+
+    @property
+    def enum_name(self):
+        return "Serial"
+
+    def address(self) -> Address:
+        return self._address
 
 
 class ByteStreamPipe(BasePipe):
