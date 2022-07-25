@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Optional
 
-from . import BasePipe, ComSrvError, HttpRpc, Rpc, duration_to_json
+from . import Address, BasePipe, ComSrvError, Rpc, duration_to_json
 
 
 @dataclass
@@ -13,17 +13,30 @@ class HidDeviceInfo:
     serial_number: Optional[str] = None
 
 
-class HidInstrument(object):
-    def __init__(self, vid, pid) -> None:
-        self._vid = vid
-        self._pid = pid
+class HidAddress(Address):
+    def __init__(self, pid: int, vid: int) -> None:
+        super().__init__()
+        self.pid = pid
+        self.vid = vid
 
     def to_json(self):
-        return {"address": {"pid": self._pid, "vid": self._vid}}
+        return {"pid": self.pid, "vid": self.vid}
+
+    @property
+    def enum_name(self):
+        return "Hid"
+
+
+class HidInstrument(object):
+    def __init__(self, address: HidAddress) -> None:
+        self._address = address
+
+    def to_json(self):
+        return {"address": {"pid": self._address.pid, "vid": self._address.vid}}
 
     @property
     def address(self):
-        raise NotImplementedError
+        return self._address
 
 
 class HidDevice(BasePipe):

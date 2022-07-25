@@ -1,19 +1,69 @@
 from typing import Optional, Union
 
-from python.comsrv.modbus import ModBusDevice, ModBusProtocol
-
 from . import Address, BasePipe, ComSrvError, Instrument, Rpc, duration_to_json
 import re
 
 
 SERIAL_ADDRESS_RE = re.compile(
-    r"serial::(?P<path>.*?)::(?P<baudrate>\d+)::(?P<config>[78][ENO][12])"
+    r"(?P<path>.*?)::(?P<baudrate>\d+)::(?P<config>[78][ENO][12])"
 )
 
-FTDI_ADDRESS_RE = re.compile(r"TODO")
+FTDI_ADDRESS_RE = re.compile(
+    r"(?P<path>.*?)::(?P<baudrate>\d+)::(?P<config>[78][ENO][12])"
+)
+
+TCP_ADDRESS_RE = re.compile(r"(?P<host_or_ip>.*?):(?P<port>\d+)")
 
 
-class FtdiAddress(Address):
+class ByteStreamAddress(Address):
+    pass
+
+
+class ByteStreamInstrument(Instrument):
+    @classmethod
+    def parse(cls, address_string: str):
+        address_string = address_string.strip()
+        if address_string.startswith("serial::"):
+            address_string = address_string.removeprefix("serial::")
+            m = SERIAL_ADDRESS_RE.match(address_string)
+            if m is None:
+                raise ValueError(
+                    "Serial Address should be of the form `serial::<path>::<baudrate>::<config>`"
+                )
+            path, baudrate, config = cls._parse_serial_path(m)
+            return SerialInstrument(
+                SerialAddress(path), SerialPortConfig(config, baudrate)
+            )
+        elif address_string.startswith("ftdi::"):
+            address_string = address_string.removeprefix("ftdi::")
+            m = FTDI_ADDRESS_RE.match(address_string)
+            if m is None:
+                raise ValueError(
+                    "FTDI Address should be of the form `serial::<path>::<baudrate>::<config>`"
+                )
+            path, baudrate, config = cls._parse_serial_path(m)
+            return FtdiInstrument(FtdiAddress(path), SerialPortConfig(config, baudrate))
+        elif address_string.startswith("tcp::"):
+            address_string = address_string.removeprefix("tcp::")
+            m = TCP_ADDRESS_RE.match(address_string)
+            host_or_ip = m.group("host_or_ip")
+            port = int(m.group("port"))
+            if port < 1 or port > 65535:
+                raise ValueError("Port needs to be in range (1, 65535)")
+            return TcpInstrument(TcpAddress(host_or_ip, port))
+        raise ValueError(
+            "Invalid address. Must start with `serial::` or `ftdi::` or `tcp::`"
+        )
+
+    @classmethod
+    def _parse_serial_path(cls, match):
+        baudrate = int(match.group("baudrate"))
+        path = match.group("path")
+        config = match.group("config")
+        return (path, baudrate, config)
+
+
+class FtdiAddress(ByteStreamAddress):
     def __init__(self, port: str) -> None:
         self.port = port
 
@@ -25,7 +75,7 @@ class FtdiAddress(Address):
         return "Ftdi"
 
 
-class SerialAddress(Address):
+class SerialAddress(ByteStreamAddress):
     def __init__(self, port: str) -> None:
         self.port = port
 
@@ -37,7 +87,7 @@ class SerialAddress(Address):
         return "Serial"
 
 
-class TcpAddress(Address):
+class TcpAddress(ByteStreamAddress):
     def __init__(self, host: str, port: int) -> None:
         self.port = port
         self.host = host
@@ -50,26 +100,17 @@ class TcpAddress(Address):
         return "Tcp"
 
 
-class ByteStreamInstrument(Instrument):
-    @classmethod
-    def parse(cls, addr_string):
-        raise NotImplementedError
-
-
 class TcpInstrument(ByteStreamInstrument):
     def __init__(self, address: TcpAddress) -> None:
         super().__init__()
         self._address = address
 
+    @property
     def address(self) -> Address:
         return self._address
 
     def to_json(self):
-        return {"address": self.address.to_json()}
-
-    @property
-    def enum_name(self):
-        return "Tcp"
+        return {"Tcp": {"address": self.address.to_json()}}
 
 
 class SerialPortConfig(object):
@@ -88,29 +129,33 @@ class FtdiInstrument(ByteStreamInstrument):
         self._port_config = port_config
 
     def to_json(self):
-        return {"address": self.address.to_json()}
+        return {
+            "Ftdi": {
+                "address": self.address.to_json(),
+                "port_config": self._port_config.to_json(),
+            }
+        }
 
     @property
-    def enum_name(self):
-        return "Ftdi"
-
     def address(self) -> Address:
         return self._address
 
 
-class SerialPortInstrument(ByteStreamInstrument):
+class SerialInstrument(ByteStreamInstrument):
     def __init__(self, address: SerialAddress, port_config: SerialPortConfig) -> None:
         super().__init__()
         self._address = address
         self._port_config = port_config
 
     def to_json(self):
-        return {"address": self.address.to_json()}
+        return {
+            "Serial": {
+                "address": self.address.to_json(),
+                "port_config": self._port_config.to_json(),
+            }
+        }
 
     @property
-    def enum_name(self):
-        return "Serial"
-
     def address(self) -> Address:
         return self._address
 
@@ -216,9 +261,13 @@ class ByteStreamPipe(BasePipe):
     def modbus(
         self,
         station_address: int,
-        protocol: ModBusProtocol = ModBusProtocol.RTU,
+        protocol=None,
         timeout=1.0,
-    ) -> ModBusDevice:
+    ):
+        from .modbus import ModBusProtocol, ModBusDevice
+
+        if protocol is None:
+            protocol = ModBusProtocol.RTU
         return ModBusDevice(
             self, protocol=protocol, station_address=station_address, timeout=timeout
         )

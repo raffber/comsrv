@@ -1,7 +1,18 @@
 import enum
-from typing import List
+from typing import List, Optional, Tuple, Union
+
+from comsrv.bytestream import (
+    ByteStreamInstrument,
+    ByteStreamPipe,
+    SerialAddress,
+    SerialInstrument,
+    SerialPortConfig,
+    TcpAddress,
+    TcpInstrument,
+)
 
 from . import ComSrvError, duration_to_json
+import re
 
 
 class ModBusProtocol(enum.Enum):
@@ -9,14 +20,93 @@ class ModBusProtocol(enum.Enum):
     TCP = "Tcp"
 
 
+MODBUS_SERIAL_RE = re.compile(
+    r"modbus::(?P<protocol>(rtu)|(tcp))::(?P<port>.*?)::(?P<baudrate>\d+)::(?P<config>[78][ENO][12])(::(?P<station_address>\d+))?"
+)
+
+MODBUS_TCP_RE = re.compile(
+    r"modbus::(?P<protocol>(rtu)|(tcp))::(?P<host>.*?):(?P<port>\d+)(::(?P<station_address>\d+))?"
+)
+
+
+def parse_serial_modbus(match, rpc):
+    protocol = match.group("protocol")
+    if protocol == "rtu":
+        ret_protocol = ModBusProtocol.RTU
+    elif protocol == "tcp":
+        ret_protocol = ModBusProtocol.TCP
+    else:
+        raise AssertionError
+    baudrate = int(match.group("baudrate"))
+    config = match.group("config")
+    port = match.group("port")
+    station_address = match.group("station_address")
+    if station_address is None:
+        station_address = 255
+    else:
+        station_address = int(station_address)
+    address = SerialAddress(port)
+    port_config = SerialPortConfig(baudrate=baudrate, config=config)
+    instrument = SerialInstrument(address, port_config)
+    bs_pipe = ByteStreamPipe(instrument, rpc=rpc)
+    return bs_pipe, station_address, ret_protocol
+
+
+def parse_tcp_modbus(match, rpc):
+    protocol = match.group("protocol")
+    if protocol == "rtu":
+        ret_protocol = ModBusProtocol.RTU
+    elif protocol == "tcp":
+        ret_protocol = ModBusProtocol.TCP
+    else:
+        raise AssertionError
+    host = match.group("host")
+    port = int(match.group("port"))
+    if port < 1 or port > 65535:
+        raise ValueError("Port needs to be in range (1, 65535)")
+    station_address = match.group("station_address")
+    if station_address is None:
+        station_address = 255
+    else:
+        station_address = int(station_address)
+    address = TcpAddress(host, port)
+    instrument = TcpInstrument(address)
+    bs_pipe = ByteStreamPipe(instrument, rpc=rpc)
+    return bs_pipe, station_address, ret_protocol
+
+
+def parse_modbus_address(
+    address: str, rpc=None
+) -> Tuple[ByteStreamPipe, int, ModBusProtocol]:
+    m = MODBUS_SERIAL_RE.match(address)
+    if m is not None:
+        return parse_serial_modbus(m, rpc)
+    m = MODBUS_TCP_RE.match(address)
+    if m is not None:
+        return parse_tcp_modbus(m, rpc)
+    raise ValueError("Could not parse address: `{}`".format(address))
+
+
 class ModBusDevice(object):
     def __init__(
         self,
-        bs_pipe,
-        protocol: ModBusProtocol,
+        bs_pipe: Union[str, ByteStreamInstrument],
+        rpc=None,
+        protocol: Optional[ModBusProtocol] = None,
         station_address: int = 1,
         timeout: float = 1.0,
     ):
+        if isinstance(bs_pipe, str):
+            if (
+                bs_pipe.startswith("tcp::")
+                or bs_pipe.startswith("serial::")
+                or bs_pipe.startswith("ftdi::")
+            ):
+                bs_pipe = ByteStreamPipe(bs_pipe, rpc=rpc)
+            else:
+                bs_pipe, station_address, protocol = parse_modbus_address(
+                    bs_pipe, rpc=rpc
+                )
         self._station_address = station_address
         self._bs_pipe = bs_pipe
         self._timeout = timeout

@@ -1,13 +1,64 @@
 from typing import Optional
 
-from . import get_default_ws_url, ComSrvError
+from . import Address, Instrument, get_default_ws_url, ComSrvError
 from pywsrpc.client import Client
 
 from enum import Enum
 
 
-class CanError(Exception):
-    pass
+class CanAddress(Address):
+    @property
+    def enum_name(self):
+        return "Can"
+
+
+class PCanAddress(CanAddress):
+    def __init__(self, address: str):
+        self.address = address
+        super().__init__()
+
+    def to_json(self):
+        return {"PCan": {"address": self.address}}
+
+
+class SocketCanAddress(CanAddress):
+    def __init__(self, interface: str):
+        self._interface = interface
+        super().__init__()
+
+    def to_json(self):
+        return {"SocketCan": {"interface": self._interface}}
+
+
+class LoopbackAddress(CanAddress):
+    def to_json(self):
+        return "Loopback"
+
+
+class CanInstrument(Instrument):
+    def __init__(self, address: CanAddress, baudrate=0) -> None:
+        self._address = address
+        self._baudrate = baudrate
+        super().__init__()
+
+    @property
+    def address(self) -> Address:
+        return self._address
+
+    def to_json(self):
+        if isinstance(self._address, PCanAddress):
+            return {
+                "PCan": {"address": self._address.address, "baudrate": self._baudrate}
+            }
+        elif isinstance(self._address, SocketCanAddress):
+            return self._address.to_json()
+        elif isinstance(self._address, LoopbackAddress):
+            return self._address.to_json()
+        raise NotImplementedError
+
+    @property
+    def enum_name(self):
+        return "Can"
 
 
 class CanBus(object):
@@ -52,11 +103,7 @@ class CanBus(object):
             await self._client.send_request(msg)
             return None
         resp = await self._client.request(msg)
-        if "Error" in resp:
-            if "Can" in resp["Error"]:
-                raise CanError(resp["Error"]["Can"])
-            else:
-                raise ComSrvError(resp["Error"])
+        ComSrvError.check_raise(resp)
         if "Can" not in resp:
             raise ComSrvError("Unexpected wire format")
         return resp["Can"]

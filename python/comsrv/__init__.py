@@ -3,15 +3,13 @@ This modules implements the API of the `comsrv` utility to connect
 to instruments.
 """
 
+import json
 from argparse import ArgumentError
 from enum import Enum
 from math import prod
-import json
-from typing import List, Union, Optional
+from typing import List, Optional, Union
 
 from aiohttp import ClientSession
-from psycopg2 import InternalError
-
 from pywsrpc.client import Client
 
 
@@ -21,7 +19,7 @@ class ComSrvError(Exception):
         if "Protocol" in data:
             return ProtocolError.parse(data["Protocol"])
         if "Transport" in data:
-            return TransportError(data["Protocol"])
+            return TransportError(data["Transport"])
         if "Argument" in data:
             return ArgumentError(message=data["Argument"])
         if "Internal" in data:
@@ -146,6 +144,7 @@ class Address(object):
 
 
 class Instrument(object):
+    @property
     def address(self) -> Address:
         raise NotImplementedError
 
@@ -161,7 +160,9 @@ class Instrument(object):
 
 
 def duration_to_json(time_in_seconds: float):
-    raise NotImplementedError
+    micros = (time_in_seconds % 1.0) * 1000000
+    seconds = round(time_in_seconds)
+    return {"micros": micros, "seconds": seconds}
 
 
 class BasePipe(object):
@@ -387,9 +388,20 @@ class ComSrv(object):
         return ret
 
 
-from .hid import HidDevice, enumerate_hid_devices
-from .sigrok import SigrokDevice
-from .scpi import ScpiPipe, SerialScpiPipe
+from .bytestream import (
+    ByteStreamAddress,
+    ByteStreamInstrument,
+    ByteStreamPipe,
+    FtdiAddress,
+    FtdiInstrument,
+    SerialAddress,
+    SerialInstrument,
+    SerialPortConfig,
+    TcpAddress,
+    TcpInstrument,
+)
 from .can import CanBus
-from .bytestream import ByteStreamPipe
+from .hid import HidDevice, enumerate_hid_devices
 from .modbus import ModBusDevice
+from .scpi import ScpiPipe, SerialScpiPipe
+from .sigrok import SigrokDevice
