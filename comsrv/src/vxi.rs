@@ -12,6 +12,8 @@ const DEFAULT_TERMINATION: &str = "\n";
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 
+// TODO: autodrop, connection timeout
+
 #[derive(Clone)]
 pub struct Instrument {
     inner: IoTask<Handler>,

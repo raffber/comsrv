@@ -5,9 +5,16 @@ from . import ComSrvError, BasePipe, Rpc
 from .bytestream import ByteStreamPipe
 
 
+class ScpiAddress(object):
+    pass
+
+
 class ScpiInstrument(object):
+    def __init__(self, address: ScpiAddress) -> None:
+        self._address = address
+
     def address(self):
-        raise NotImplementedError
+        return self._address
 
     def parse(self, instrument: str):
         raise NotImplementedError
