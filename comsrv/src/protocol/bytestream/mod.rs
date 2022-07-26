@@ -136,7 +136,8 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             protocol,
             request,
         } => {
-            let ret = crate::modbus::handle(timeout.into(), station_address, protocol, request, stream).await?;
+            let ret =
+                crate::protocol::modbus::handle(timeout.into(), station_address, protocol, request, stream).await?;
             Ok(ByteStreamResponse::ModBus(ret))
         }
         ByteStreamRequest::Connect => Ok(ByteStreamResponse::Done),

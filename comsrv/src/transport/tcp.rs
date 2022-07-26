@@ -62,7 +62,7 @@ impl Handler {
     ) -> (crate::Result<TcpResponse>, TcpStream) {
         match req {
             TcpRequest::Bytes { request, .. } => {
-                let ret = crate::bytestream::handle(&mut stream, request).await;
+                let ret = crate::protocol::bytestream::handle(&mut stream, request).await;
                 (ret.map(TcpResponse::Bytes), stream)
             }
             TcpRequest::DropCheck => {

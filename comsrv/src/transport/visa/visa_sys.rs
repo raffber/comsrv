@@ -39,9 +39,9 @@ impl From<VisaError> for crate::Error {
 
 cfg_if::cfg_if! {
     if #[cfg(unix)] {
-        const VISA_LIB: &[u8] = include_bytes!("../../lib/libvisa.so");
+        const VISA_LIB: &[u8] = include_bytes!("../../../lib/libvisa.so");
     } else {
-        const VISA_LIB: &[u8] = include_bytes!("../../lib/visa64.dll");
+        const VISA_LIB: &[u8] = include_bytes!("../../../lib/visa64.dll");
     }
 }
 

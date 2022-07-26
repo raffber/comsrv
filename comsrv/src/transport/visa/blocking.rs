@@ -4,7 +4,7 @@ use super::visa_sys::Instrument as VisaInstrument;
 pub use super::visa_sys::{VisaError, VisaResult};
 use anyhow::anyhow;
 
-use crate::{scpi, Error};
+use crate::{protocol::scpi, Error};
 use comsrv_protocol::{ScpiRequest, ScpiResponse};
 
 use super::consts;

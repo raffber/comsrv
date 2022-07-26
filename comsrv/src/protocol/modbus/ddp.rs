@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 
-use crate::modbus::FunctionCode;
+use super::FunctionCode;
 
 pub struct Ddp {
     ddp_cmd: u8,

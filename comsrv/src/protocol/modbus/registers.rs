@@ -1,4 +1,4 @@
-use crate::modbus::FunctionCode;
+use super::FunctionCode;
 use anyhow::anyhow;
 
 pub struct ReadU16Registers {

@@ -1,4 +1,4 @@
-use crate::modbus::{FunctionCode, ModBusException, TransactionInfo};
+use super::{FunctionCode, ModBusException, TransactionInfo};
 use anyhow::anyhow;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 

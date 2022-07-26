@@ -5,12 +5,12 @@ mod tcp;
 
 use comsrv_protocol::{ModBusProtocol, ModBusRequest, ModBusResponse};
 
-use crate::modbus::ddp::Ddp;
-use crate::modbus::function_codes::{READ_COILS, READ_DISCRETES, READ_HOLDINGS, READ_INPUTS};
-use crate::modbus::registers::{ReadBoolRegisters, ReadU16Registers, WriteCoils, WriteRegisters};
-use crate::modbus::rtu::RtuHandler;
-use crate::modbus::tcp::TcpHandler;
+use ddp::Ddp;
+use function_codes::{READ_COILS, READ_DISCRETES, READ_HOLDINGS, READ_INPUTS};
+use registers::{ReadBoolRegisters, ReadU16Registers, WriteCoils, WriteRegisters};
+use rtu::RtuHandler;
 use std::time::Duration;
+use tcp::TcpHandler;
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -148,7 +148,9 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
     request: ModBusRequest,
     stream: &mut T,
 ) -> crate::Result<ModBusResponse> {
-    crate::bytestream::read_all(stream).await.map_err(crate::Error::transport)?;
+    crate::protocol::bytestream::read_all(stream)
+        .await
+        .map_err(crate::Error::transport)?;
     let transaction = TransactionInfo::new(station_address, protocol.clone(), timeout);
     let ret = match request {
         ModBusRequest::Ddp {

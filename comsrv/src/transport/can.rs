@@ -1,21 +1,20 @@
+/// This module is responsible for mapping CAN functionality a device to different backends
+use async_can::{Receiver, Sender};
+
+use tokio::sync::broadcast;
+
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task;
 
 use crate::app::Server;
-use crate::can::device::{CanReceiver, CanSender};
-use crate::can::gct::Decoder;
 use crate::iotask::{IoContext, IoHandler, IoTask};
+use crate::protocol::can::gct::Decoder;
 use anyhow::anyhow;
 use async_can::CanFrameError;
 use async_can::Error as CanError;
 use comsrv_protocol::{CanAddress, CanMessage, CanRequest, CanResponse, DataFrame, RemoteFrame, Response};
 use tokio::sync::oneshot;
-
-mod crc;
-mod device;
-mod gct;
-mod loopback;
 
 pub fn map_error(err: CanError) -> crate::Error {
     match err {
@@ -171,7 +170,7 @@ impl Handler {
                 Ok(CanResponse::Started)
             }
             CanRequest::TxGct(msg) => {
-                let msgs = gct::encode(msg.clone())?;
+                let msgs = crate::protocol::can::gct::encode(msg.clone())?;
                 for msg in msgs {
                     if self.loopback {
                         let _ = listener.send(ListenerMsg::Loopback(msg.clone()));
@@ -375,7 +374,7 @@ mod tests {
             bitrate: None,
         };
         let resp = instr.request(req).await;
-        let _expected_resp = CanResponse::Started(CanAddress::Loopback);
+        let _expected_resp = CanResponse::Started;
         assert!(matches!(resp, Ok(_expected_resp)));
 
         let msg = CanMessage::Data(DataFrame {
@@ -396,7 +395,11 @@ mod tests {
         } else {
             panic!()
         };
-        let msg = if let Response::Can(CanResponse::Raw(msg)) = resp {
+        let msg = if let Response::Can {
+            response: CanResponse::Raw(msg),
+            ..
+        } = resp
+        {
             msg
         } else {
             panic!()
@@ -405,5 +408,176 @@ mod tests {
         assert_eq!(msg.data.len(), 4);
         assert_eq!(&msg.data, &[1, 2, 3, 4]);
         assert!(msg.ext_id);
+    }
+}
+
+pub enum CanSender {
+    Loopback(LoopbackDevice),
+    Bus { device: Sender, addr: CanAddress },
+}
+
+pub enum CanReceiver {
+    Loopback(LoopbackDevice),
+    Bus { device: Receiver, addr: CanAddress },
+}
+
+impl CanSender {
+    pub async fn send(&self, msg: CanMessage) -> crate::Result<()> {
+        match self {
+            CanSender::Loopback(lo) => {
+                lo.send(msg);
+                Ok(())
+            }
+            CanSender::Bus { device, addr: _ } => {
+                let msg = into_async_can_message(msg).map_err(map_frame_error)?;
+                device.send(msg).await.map_err(map_error)
+            }
+        }
+    }
+}
+
+impl CanReceiver {
+    pub async fn recv(&mut self) -> crate::Result<CanMessage> {
+        match self {
+            CanReceiver::Loopback(lo) => lo.recv().await,
+            CanReceiver::Bus { device, addr: _ } => Ok(into_protocol_message(device.recv().await.map_err(map_error)?)),
+        }
+    }
+
+    pub fn address(&self) -> CanAddress {
+        match self {
+            CanReceiver::Loopback(_) => CanAddress::Loopback,
+            CanReceiver::Bus { device: _, addr } => addr.clone(),
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl CanSender {
+    pub fn new(addr: CanAddress) -> crate::Result<Self> {
+        let addr2 = addr.clone();
+        match addr {
+            CanAddress::PCan { .. } => Err(crate::Error::internal(anyhow!("Not Supported"))),
+            CanAddress::SocketCan { interface } => {
+                let device = Sender::connect(interface.clone()).map_err(map_error)?;
+                Ok(CanSender::Bus { device, addr: addr2 })
+            }
+            CanAddress::Loopback => Ok(CanSender::Loopback(LoopbackDevice::new())),
+        }
+    }
+
+    pub async fn close(self) -> crate::Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl CanReceiver {
+    pub fn new(addr: CanAddress) -> crate::Result<Self> {
+        let addr2 = addr.clone();
+        match addr {
+            CanAddress::PCan { .. } => Err(crate::Error::internal(anyhow!("Not supported"))),
+            CanAddress::SocketCan { interface } => {
+                let device = Receiver::connect(interface.clone()).map_err(map_error)?;
+                Ok(CanReceiver::Bus { device, addr: addr2 })
+            }
+            CanAddress::Loopback => Ok(CanReceiver::Loopback(LoopbackDevice::new())),
+        }
+    }
+
+    pub async fn close(self) -> crate::Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl CanSender {
+    pub fn new(addr: CanAddress) -> crate::Result<Self> {
+        match &addr {
+            CanAddress::PCan { ifname, bitrate } => {
+                let device = Sender::connect(ifname, *bitrate).map_err(|x| crate::Error::Can {
+                    addr: addr.interface(),
+                    err: x.into(),
+                })?;
+                Ok(Self::Bus { device, addr })
+            }
+            CanAddress::Socket(_) => Err(crate::Error::NotSupported),
+            CanAddress::Loopback => Ok(Self::Loopback(LoopbackDevice::new())),
+        }
+    }
+
+    pub async fn close(self) -> crate::Result<()> {
+        match self {
+            CanSender::Loopback(_) => Ok(()),
+            CanSender::Bus { device, addr } => device.close().await.map_err(|x| crate::Error::Can {
+                addr: addr.interface(),
+                err: x.into(),
+            }),
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl CanReceiver {
+    pub fn new(addr: CanAddress) -> crate::Result<Self> {
+        match &addr {
+            CanAddress::PCan { ifname, bitrate } => {
+                let device = Receiver::connect(ifname, *bitrate).map_err(|x| crate::Error::Can {
+                    addr: addr.interface(),
+                    err: x.into(),
+                })?;
+                Ok(Self::Bus { device, addr })
+            }
+            CanAddress::Socket(_) => Err(crate::Error::NotSupported),
+            CanAddress::Loopback => Ok(Self::Loopback(LoopbackDevice::new())),
+        }
+    }
+
+    pub async fn close(self) -> crate::Result<()> {
+        Ok(())
+    }
+}
+
+const MAX_SIZE: usize = 1000;
+
+struct LoopbackAdapter {
+    tx: broadcast::Sender<CanMessage>,
+}
+
+impl LoopbackAdapter {
+    fn new() -> Self {
+        let (tx, _) = broadcast::channel(MAX_SIZE);
+        Self { tx }
+    }
+
+    fn send(&self, msg: CanMessage) {
+        let tx = self.tx.clone();
+        let _ = tx.send(msg);
+    }
+}
+
+lazy_static! {
+    static ref LOOPBACK_ADAPTER: LoopbackAdapter = LoopbackAdapter::new();
+}
+
+pub struct LoopbackDevice {
+    rx: broadcast::Receiver<CanMessage>,
+}
+
+impl LoopbackDevice {
+    pub fn new() -> Self {
+        let rx = LOOPBACK_ADAPTER.tx.subscribe();
+        Self { rx }
+    }
+
+    pub async fn recv(&mut self) -> crate::Result<CanMessage> {
+        self.rx
+            .recv()
+            .await
+            .map_err(|_| crate::Error::protocol(anyhow!("Loopback closed.")))
+    }
+
+    pub fn send(&self, msg: CanMessage) {
+        LOOPBACK_ADAPTER.send(msg)
     }
 }

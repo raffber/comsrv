@@ -4,7 +4,7 @@ use std::thread;
 use tokio::sync::oneshot;
 
 use crate::Error;
-use crate::{inventory, visa::blocking::Instrument as BlockingInstrument};
+use crate::{inventory, transport::visa::blocking::Instrument as BlockingInstrument};
 use anyhow::anyhow;
 use comsrv_protocol::{ScpiRequest, ScpiResponse};
 

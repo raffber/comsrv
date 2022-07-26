@@ -18,16 +18,16 @@ use tokio::task;
 use uuid::Uuid;
 use wsrpc::server::{Requested, Server as WsrpcServer};
 
-use crate::can;
-use crate::ftdi;
-use crate::ftdi::FtdiRequest;
-use crate::hid;
-use crate::serial;
-use crate::sigrok;
-use crate::tcp;
-use crate::tcp::TcpRequest;
-use crate::visa;
-use crate::vxi;
+use crate::transport::can;
+use crate::transport::ftdi;
+use crate::transport::ftdi::FtdiRequest;
+use crate::transport::hid;
+use crate::transport::serial;
+use crate::transport::sigrok;
+use crate::transport::tcp;
+use crate::transport::tcp::TcpRequest;
+use crate::transport::visa;
+use crate::transport::vxi;
 
 use crate::inventory::Inventory;
 use anyhow::anyhow;
@@ -145,7 +145,7 @@ impl App {
                 self.server.shutdown().await;
                 Ok(Response::Done)
             }
-            Request::ListHidDevices => crate::hid::list_devices().await.map(|x| Response::Hid(HidResponse::List(x))),
+            Request::ListHidDevices => hid::list_devices().await.map(|x| Response::Hid(HidResponse::List(x))),
             Request::Version => {
                 let version = crate_version!();
                 let version: Vec<_> = version.split(".").map(|x| x.parse::<u32>().unwrap()).collect();
@@ -155,7 +155,7 @@ impl App {
                     build: version[2],
                 })
             }
-            Request::ListSerialPorts => crate::serial::list_devices().await.map(Response::SerialPorts),
+            Request::ListSerialPorts => serial::list_devices().await.map(Response::SerialPorts),
             Request::ListFtdiDevices => ftdi::list_ftdi().await.map(Response::FtdiDevices),
             Request::ListCanDevices => match async_can::list_devices().await {
                 Ok(x) => {

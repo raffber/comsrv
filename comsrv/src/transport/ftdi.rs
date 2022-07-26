@@ -13,10 +13,10 @@ use std::convert::TryInto;
 use crate::iotask::IoContext;
 use crate::iotask::IoHandler;
 use crate::iotask::IoTask;
-use crate::serial::params::DataBits;
-use crate::serial::params::Parity;
-use crate::serial::params::StopBits;
-use crate::serial::SerialParams;
+use crate::transport::serial::params::DataBits;
+use crate::transport::serial::params::Parity;
+use crate::transport::serial::params::StopBits;
+use crate::transport::serial::SerialParams;
 
 pub struct FtdiRequest {
     pub request: ByteStreamRequest,
@@ -117,7 +117,7 @@ impl IoHandler for Handler {
             Ftdi::open(&self.serial_number, &params.clone().into()).await?
         };
 
-        let ret = crate::bytestream::handle(&mut ftdi, req.request).await;
+        let ret = crate::protocol::bytestream::handle(&mut ftdi, req.request).await;
         match &ret {
             Ok(_) | Err(crate::Error::Protocol(_)) => {
                 self.device.replace((ftdi, params));

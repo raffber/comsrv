@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::can::crc::crc16;
+use super::crc::crc16;
 use anyhow::anyhow;
 use byteorder::{ByteOrder, LittleEndian};
 use comsrv_protocol::{

@@ -1,4 +1,4 @@
-use crate::bytestream::read_all;
+use crate::protocol::bytestream::read_all;
 use crate::Error;
 use anyhow::anyhow;
 use comsrv_protocol::{ScpiRequest, ScpiResponse};

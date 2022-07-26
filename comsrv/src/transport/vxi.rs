@@ -4,7 +4,7 @@ use std::net::{IpAddr, ToSocketAddrs};
 use tokio::time::{sleep, Duration};
 
 use crate::iotask::{IoContext, IoHandler, IoTask};
-use crate::{scpi, Error};
+use crate::{protocol::scpi, Error};
 use anyhow::anyhow;
 use comsrv_protocol::{ScpiRequest, ScpiResponse};
 

@@ -8,8 +8,8 @@ pub use params::SerialParams;
 
 use crate::inventory;
 use crate::iotask::{IoContext, IoHandler, IoTask};
-use crate::prologix::{handle_prologix_request, init_prologix};
-use crate::serial::params::{DataBits, Parity, StopBits};
+use crate::protocol::prologix::{handle_prologix_request, init_prologix};
+use crate::transport::serial::params::{DataBits, Parity, StopBits};
 use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse, ScpiRequest, ScpiResponse, SerialAddress};
 
 pub mod params;
@@ -121,7 +121,7 @@ impl IoHandler for Handler {
             }
             Request::Serial { params: _, req } => {
                 self.prologix_initialized = false;
-                crate::bytestream::handle(&mut serial, req).await.map(Response::Bytes)
+                crate::protocol::bytestream::handle(&mut serial, req).await.map(Response::Bytes)
             }
         };
         match &ret {
