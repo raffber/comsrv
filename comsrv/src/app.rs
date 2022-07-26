@@ -225,6 +225,7 @@ impl App {
         match ret {
             serial::Response::Bytes(x) => Ok(Response::Bytes(x)),
             serial::Response::Scpi(_) => Err(invalid_response_for_request()),
+            serial::Response::Done => Err(invalid_response_for_request()),
         }
     }
 
@@ -284,6 +285,7 @@ impl App {
         match ret {
             serial::Response::Bytes(_) => Err(invalid_response_for_request()),
             serial::Response::Scpi(x) => Ok(Response::Scpi(x)),
+            serial::Response::Done => Err(invalid_response_for_request()),
         }
     }
 
