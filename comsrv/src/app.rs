@@ -374,5 +374,5 @@ impl App {
 }
 
 fn invalid_response_for_request() -> crate::Error {
-    crate::Error::internal(anyhow!("Invalid resposne for request."))
+    crate::Error::internal(anyhow!("Invalid response for request."))
 }
