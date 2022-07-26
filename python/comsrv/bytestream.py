@@ -262,6 +262,12 @@ class ByteStreamPipe(BasePipe):
         )
         return result["String"]
 
+    async def disconnect(self):
+        self.request("Disconnect")
+
+    async def connect(self):
+        self.request("Connect")
+
     def modbus(
         self,
         station_address: int,

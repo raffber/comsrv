@@ -151,13 +151,6 @@ class Instrument(object):
     def to_json(self):
         raise NotImplementedError
 
-    @property
-    def enum_name(self):
-        raise NotImplementedError
-
-    def to_json_enum(self):
-        return {self.enum_name: self.to_json()}
-
 
 def duration_to_json(time_in_seconds: float):
     micros = int((time_in_seconds % 1.0) * 1000000)
@@ -237,6 +230,10 @@ class BasePipe(object):
         )
         self._lock = reply["Locked"]["lock_id"]
         return self
+
+    @property
+    def lock_id(self) -> Optional[str]:
+        return self._lock
 
     async def get(self, data, timeout=None):
         if timeout is None:

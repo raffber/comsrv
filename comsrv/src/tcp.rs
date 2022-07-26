@@ -105,6 +105,16 @@ impl IoHandler for Handler {
             self.set_options(opts);
             return Ok(TcpResponse::Done);
         }
+        if matches!(
+            req,
+            TcpRequest::Bytes {
+                request: ByteStreamRequest::Disconnect,
+                ..
+            }
+        ) {
+            self.stream.take();
+            return Ok(TcpResponse::Bytes(ByteStreamResponse::Done));
+        }
         if let TcpRequest::DropCheck = &req {
             let now = Instant::now();
             if now - self.last_request > self.drop_delay {

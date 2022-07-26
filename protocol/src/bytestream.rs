@@ -113,6 +113,8 @@ pub enum ModBusProtocol {
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ByteStreamRequest {
+    Connect,
+    Disconnect,
     Write(Vec<u8>),
     ReadToTerm {
         term: u8,

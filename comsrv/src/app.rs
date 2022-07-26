@@ -271,7 +271,7 @@ impl App {
     async fn handle_vxi(&self, instr: VxiInstrument, req: ScpiRequest, lock: Option<Uuid>) -> crate::Result<Response> {
         self.inventories
             .vxi
-            .wait_connect(&self.server, &instr.address, lock.as_ref())
+            .wait_connect(&self.server, &instr.host, lock.as_ref())
             .await?
             .request(req)
             .await

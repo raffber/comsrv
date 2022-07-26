@@ -4,7 +4,7 @@ use crate::bytestream::SerialAddress;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct VxiInstrument {
-    pub address: String,
+    pub host: String,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]

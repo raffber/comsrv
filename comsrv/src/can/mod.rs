@@ -152,12 +152,12 @@ impl Handler {
         match &req.inner {
             CanRequest::ListenRaw(en) => {
                 let _ = listener.send(ListenerMsg::EnableRaw(*en));
-                Ok(CanResponse::Started(self.addr.clone()))
+                Ok(CanResponse::Started)
             }
             CanRequest::StopAll => {
                 let _ = listener.send(ListenerMsg::EnableRaw(false));
                 let _ = listener.send(ListenerMsg::EnableGct(false));
-                Ok(CanResponse::Stopped(self.addr.clone()))
+                Ok(CanResponse::Stopped)
             }
             CanRequest::TxRaw(msg) => {
                 if self.loopback {
@@ -168,7 +168,7 @@ impl Handler {
             }
             CanRequest::ListenGct(en) => {
                 let _ = listener.send(ListenerMsg::EnableGct(*en));
-                Ok(CanResponse::Started(self.addr.clone()))
+                Ok(CanResponse::Started)
             }
             CanRequest::TxGct(msg) => {
                 let msgs = gct::encode(msg.clone())?;
@@ -298,13 +298,13 @@ impl Listener {
     }
 
     async fn err(&mut self, err: crate::Error) -> bool {
-        if let Some(device) = &self.device {
+        if let Some(_) = &self.device {
             self.server.broadcast(err.clone().into());
             // depending on error, continue listening or quit...
             match err {
                 crate::Error::Transport(_x) => {
                     let tx = Response::Can {
-                        response: CanResponse::Stopped(device.address()),
+                        response: CanResponse::Stopped,
                         source: self.address.clone(),
                     };
                     self.server.broadcast(tx);

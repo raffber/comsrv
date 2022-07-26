@@ -83,6 +83,16 @@ impl IoHandler for Handler {
     type Response = Response;
 
     async fn handle(&mut self, _ctx: &mut IoContext<Self>, req: Self::Request) -> crate::Result<Self::Response> {
+        if matches!(
+            req,
+            Request::Serial {
+                req: ByteStreamRequest::Disconnect,
+                ..
+            }
+        ) {
+            self.serial.take();
+            return Ok(Response::Bytes(ByteStreamResponse::Done));
+        }
         let new_params = req.params();
         let mut serial = match self.serial.take() {
             None => {

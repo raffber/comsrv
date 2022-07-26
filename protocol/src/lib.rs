@@ -41,14 +41,6 @@ impl From<std::time::Duration> for Duration {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub enum Instrument {
-    ByteStream(ByteStreamInstrument),
-    Scpi(ScpiInstrument),
-    Can(CanInstrument),
-    Hid(HidInstrument),
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Address {
     Tcp(TcpAddress),
     Ftdi(FtdiAddress),
