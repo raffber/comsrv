@@ -1,37 +1,18 @@
-use comsrv_protocol::Address;
-use comsrv_protocol::ByteStreamRequest;
-use comsrv_protocol::CanAddress;
-use comsrv_protocol::CanDeviceInfo;
-use comsrv_protocol::CanDriverType;
-use comsrv_protocol::CanRequest;
-use comsrv_protocol::FtdiInstrument;
-use comsrv_protocol::HidResponse;
-use comsrv_protocol::PrologixInstrument;
-use comsrv_protocol::PrologixRequest;
-use comsrv_protocol::ScpiRequest;
-use comsrv_protocol::SerialInstrument;
-use comsrv_protocol::TcpInstrument;
-use comsrv_protocol::VisaInstrument;
-use comsrv_protocol::VxiInstrument;
+use comsrv_protocol::{
+    Address, ByteStreamInstrument, ByteStreamRequest, CanAddress, CanDeviceInfo, CanDriverType, CanInstrument,
+    CanRequest, FtdiInstrument, HidResponse, PrologixInstrument, PrologixRequest, Request, Response, ScpiInstrument,
+    ScpiRequest, SerialInstrument, TcpInstrument, VisaInstrument, VxiInstrument,
+};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task;
 use uuid::Uuid;
 use wsrpc::server::{Requested, Server as WsrpcServer};
 
-use crate::transport::can;
-use crate::transport::ftdi;
-use crate::transport::ftdi::FtdiRequest;
-use crate::transport::hid;
-use crate::transport::serial;
-use crate::transport::sigrok;
-use crate::transport::tcp;
-use crate::transport::tcp::TcpRequest;
-use crate::transport::visa;
-use crate::transport::vxi;
+use crate::transport::{can, ftdi, hid, serial, sigrok, tcp, visa, vxi};
+use crate::transport::{ftdi::FtdiRequest, tcp::TcpRequest};
 
 use crate::inventory::Inventory;
 use anyhow::anyhow;
-use comsrv_protocol::{ByteStreamInstrument, CanInstrument, Request, Response, ScpiInstrument};
 use std::convert::TryInto;
 use std::sync::Arc;
 use std::time::Duration;
@@ -44,6 +25,7 @@ macro_rules! crate_version {
     };
 }
 
+/// Contains all the inventories, which contains all IO actors.
 #[derive(Default)]
 pub struct Inventories {
     serial: Inventory<serial::Instrument>,
@@ -61,6 +43,8 @@ impl Inventories {
     }
 }
 
+/// Captures the state of the application. Each request handler gets its own
+/// copy.
 #[derive(Clone)]
 pub struct App {
     pub server: Server,
@@ -77,6 +61,8 @@ impl App {
         (app, rx)
     }
 
+    /// Main actor - Listens to incoming messages on `rx` and spawns a new task for each
+    /// incoming request.
     pub async fn run(&self, mut rx: UnboundedReceiver<Requested<Request, Response>>) {
         while let Some(msg) = rx.recv().await {
             let (req, rep) = msg.split();
@@ -90,6 +76,7 @@ impl App {
         }
     }
 
+    /// Handle an incoming request
     async fn handle(&self, req: Request) -> crate::Result<Response> {
         match req {
             Request::Bytes {

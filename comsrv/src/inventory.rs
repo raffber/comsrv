@@ -42,7 +42,11 @@ impl Lock {
         let _ = self.unlock.send(()).await;
     }
 }
+
+/// The inventory uses an `InstrumentAddress` to find the matching instrument.
+/// Therefore, it must implement `Hash` as well as `PartialEq` and `Eq`.
 pub trait InstrumentAddress: 'static + Clone + Send + Hash + PartialEq + Eq + Debug {}
+
 impl<T: 'static + Clone + Send + Hash + PartialEq + Eq + Debug> InstrumentAddress for T {}
 
 pub trait Instrument: 'static + Clone + Send {

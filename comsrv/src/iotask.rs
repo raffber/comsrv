@@ -14,6 +14,8 @@ pub trait Message: 'static + Send {}
 
 impl<T: 'static + Send> Message for T {}
 
+/// An `IoContext` is passed to the actors `handle()` function and allows the actor to
+/// send messages to itself.
 pub struct IoContext<T: IoHandler> {
     tx: mpsc::UnboundedSender<RequestMsg<T>>,
 }
@@ -94,8 +96,7 @@ impl<T: 'static + IoHandler> IoTask<T> {
         let _ = self.tx.send(RequestMsg::Drop);
     }
 
-    /// Send a request and receive a response. In case the actor was dropped in the mean-time,
-    /// returns `Err(Error::Disconnected)`.
+    /// Send a request and receive a response.
     pub async fn request(&mut self, req: T::Request) -> crate::Result<T::Response> {
         let (tx, rx) = oneshot::channel();
         let msg = RequestMsg::Task { req, answer: Some(tx) };
