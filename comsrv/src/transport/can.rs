@@ -1,6 +1,7 @@
 /// This module is responsible for mapping CAN functionality a device to different backends
 use async_can::{Receiver, Sender};
 
+use async_trait::async_trait;
 use tokio::sync::broadcast;
 
 use tokio::sync::mpsc;
@@ -83,11 +84,16 @@ impl Instrument {
     }
 }
 
+#[async_trait]
 impl crate::inventory::Instrument for Instrument {
     type Address = CanAddress;
 
     fn connect(server: &Server, addr: &Self::Address) -> crate::Result<Self> {
         Ok(Instrument::new(server, addr))
+    }
+
+    async fn wait_for_closed(&self) {
+        self.io.wait_for_closed().await
     }
 }
 

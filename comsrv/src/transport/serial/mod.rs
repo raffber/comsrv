@@ -209,11 +209,16 @@ impl Instrument {
     }
 }
 
+#[async_trait]
 impl inventory::Instrument for Instrument {
     type Address = SerialAddress;
 
     fn connect(_server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
         Ok(Instrument::new(addr.port.clone()))
+    }
+
+    async fn wait_for_closed(&self) {
+        self.inner.wait_for_closed().await
     }
 }
 

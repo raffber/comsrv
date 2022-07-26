@@ -126,7 +126,7 @@ impl App {
             Request::ListConnectedInstruments => self.list_connected_instruments(),
             Request::Lock { addr, timeout } => self.lock(addr, timeout).await,
             Request::Unlock { addr, id } => self.unlock(addr, id).await,
-            Request::DropAll => self.drop_all(),
+            Request::DropAll => self.drop_all().await,
             Request::Shutdown => {
                 let _ = self.drop_all();
                 self.server.shutdown().await;
@@ -337,14 +337,14 @@ impl App {
         Ok(Response::Done)
     }
 
-    fn drop_all(&self) -> crate::Result<Response> {
-        self.inventories.tcp.disconnect_all();
-        self.inventories.vxi.disconnect_all();
-        self.inventories.hid.disconnect_all();
-        self.inventories.serial.disconnect_all();
-        self.inventories.visa.disconnect_all();
-        self.inventories.can.disconnect_all();
-        self.inventories.ftdi.disconnect_all();
+    async fn drop_all(&self) -> crate::Result<Response> {
+        self.inventories.tcp.disconnect_all().await;
+        self.inventories.vxi.disconnect_all().await;
+        self.inventories.hid.disconnect_all().await;
+        self.inventories.serial.disconnect_all().await;
+        self.inventories.visa.disconnect_all().await;
+        self.inventories.can.disconnect_all().await;
+        self.inventories.ftdi.disconnect_all().await;
         Ok(Response::Done)
     }
 

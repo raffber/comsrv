@@ -131,11 +131,16 @@ impl Instrument {
     }
 }
 
+#[async_trait]
 impl crate::inventory::Instrument for Instrument {
     type Address = HidIdentifier;
 
     fn connect(_server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
         Ok(Instrument::new(addr))
+    }
+
+    async fn wait_for_closed(&self) {
+        self.inner.wait_for_closed().await
     }
 }
 

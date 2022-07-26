@@ -190,6 +190,7 @@ impl Instrument {
     }
 }
 
+#[async_trait]
 impl inventory::Instrument for Instrument {
     type Address = TcpAddress;
 
@@ -201,5 +202,9 @@ impl inventory::Instrument for Instrument {
         } else {
             Err(crate::Error::argument(anyhow!("Invalid tcp socket address: {:?}", addr)))
         }
+    }
+
+    async fn wait_for_closed(&self) {
+        self.inner.wait_for_closed().await
     }
 }

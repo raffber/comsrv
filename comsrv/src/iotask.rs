@@ -91,6 +91,10 @@ impl<T: 'static + IoHandler> IoTask<T> {
         IoTask { tx }
     }
 
+    pub async fn wait_for_closed(&self) {
+        self.tx.closed().await;
+    }
+
     /// Drop the internal actor.
     pub fn disconnect(&mut self) {
         let _ = self.tx.send(RequestMsg::Drop);

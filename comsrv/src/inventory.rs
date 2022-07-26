@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
+use async_trait::async_trait;
 use std::fmt::Debug;
 use std::hash::Hash;
 use tokio::sync::mpsc;
@@ -49,10 +50,13 @@ pub trait InstrumentAddress: 'static + Clone + Send + Hash + PartialEq + Eq + De
 
 impl<T: 'static + Clone + Send + Hash + PartialEq + Eq + Debug> InstrumentAddress for T {}
 
+#[async_trait]
 pub trait Instrument: 'static + Clone + Send {
     type Address: InstrumentAddress;
 
     fn connect(server: &Server, addr: &Self::Address) -> crate::Result<Self>;
+
+    async fn wait_for_closed(&self);
 }
 
 /// Contains an instrument which can be locked
@@ -114,22 +118,36 @@ impl<T: Instrument> Inventory<T> {
 
     /// If there is instrument connected to the given address, this instrument is disconnected and
     /// dropped from the `Inventory`.
-    pub fn disconnect(&self, addr: &T::Address) {
+    pub async fn disconnect(&self, addr: &T::Address) {
         log::debug!("Dropping instrument: {:?}", addr);
-        let mut inner = self.0.lock().unwrap();
-        inner.instruments.remove(addr);
+        let instr = {
+            let mut inner = self.0.lock().unwrap();
+            inner.instruments.remove(addr)
+        };
+        if let Some(instr) = instr {
+            instr.instr.wait_for_closed().await;
+        }
     }
 
     pub async fn wait_disconnect(&self, addr: &T::Address, lock_id: Option<&Uuid>) {
         self.wait_for_lock(addr, lock_id).await;
-        self.disconnect(addr);
+        self.disconnect(addr).await;
     }
 
     /// Drops all instruments
-    pub fn disconnect_all(&self) {
+    pub async fn disconnect_all(&self) {
         log::debug!("Dropping all instruments");
-        let mut inner = self.0.lock().unwrap();
-        inner.instruments.clear();
+        let mut instruments = Vec::new();
+        {
+            let mut inner = self.0.lock().unwrap();
+            inner.instruments.clear();
+            for (_, instr) in inner.instruments.drain() {
+                instruments.push(instr);
+            }
+        }
+        for instr in instruments {
+            instr.instr.wait_for_closed().await;
+        }
     }
 
     /// Return a list of keys of instruments.

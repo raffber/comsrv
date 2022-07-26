@@ -76,11 +76,16 @@ impl Into<async_ftdi::SerialParams> for SerialParams {
     }
 }
 
+#[async_trait]
 impl crate::inventory::Instrument for Instrument {
     type Address = FtdiAddress;
 
     fn connect(_server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
         Ok(Self::new(&addr.port))
+    }
+
+    async fn wait_for_closed(&self) {
+        self.inner.wait_for_closed().await
     }
 }
 

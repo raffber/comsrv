@@ -1,6 +1,7 @@
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 
+use async_trait::async_trait;
 use tokio::sync::oneshot;
 
 use crate::Error;
@@ -10,7 +11,7 @@ use comsrv_protocol::{ScpiRequest, ScpiResponse};
 
 #[derive(Clone)]
 pub struct Instrument {
-    tx: mpsc::Sender<Msg>,
+    tx: Arc<Mutex<mpsc::Sender<Msg>>>,
 }
 
 enum Msg {
@@ -51,7 +52,9 @@ impl Instrument {
             }
         });
 
-        Instrument { tx }
+        Instrument {
+            tx: Arc::new(Mutex::new(tx)),
+        }
     }
 
     pub async fn request(self, req: ScpiRequest) -> crate::Result<ScpiResponse> {
@@ -60,19 +63,26 @@ impl Instrument {
             request: req,
             reply: tx,
         };
-        self.tx.send(thmsg).map_err(|_| Error::internal(anyhow!("Disconnected")))?;
+        self.tx
+            .lock()
+            .unwrap()
+            .send(thmsg)
+            .map_err(|_| Error::internal(anyhow!("Disconnected")))?;
         rx.await.map_err(|_| Error::internal(anyhow!("Disconnected")))?
     }
 
     pub fn disconnect(self) {
-        let _ = self.tx.send(Msg::Drop);
+        let _ = self.tx.lock().unwrap().send(Msg::Drop);
     }
 }
 
+#[async_trait]
 impl inventory::Instrument for Instrument {
     type Address = String;
 
     fn connect(_server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
         Ok(Instrument::new(addr))
     }
+
+    async fn wait_for_closed(&self) {}
 }
