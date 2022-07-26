@@ -43,10 +43,11 @@ class ScpiInstrument(Instrument):
     def address(self):
         return self._address
 
-    def parse(self, instrument: str):
+    @classmethod
+    def parse(cls, instrument: str):
         if instrument.startswith("vxi::"):
             splits = instrument.split("::")
-            if splits != 2:
+            if len(splits) != 2:
                 raise ValueError(
                     "Vxi address expected in the form `vxi::<host-name-or-ip>`"
                 )
@@ -56,7 +57,7 @@ class ScpiInstrument(Instrument):
             return VisaInstrument(VisaAddress(instrument))
         if instrument.startswith("prologix::"):
             splits = instrument.split("::")
-            if splits != 3:
+            if len(splits) != 3:
                 raise ValueError(
                     "Prologix address expected in the form `prologix::<serial-port>::<gpib-address>`"
                 )
@@ -71,12 +72,12 @@ class ScpiInstrument(Instrument):
 
 class VxiInstrument(ScpiInstrument):
     def to_json(self):
-        return {"host": self._address.to_json()}
+        return {"Vxi": {"host": self._address.to_json()}}
 
 
 class VisaInstrument(ScpiInstrument):
     def to_json(self):
-        return {"address": self._address.to_json()}
+        return {"Visa": {"address": self._address.to_json()}}
 
 
 class PrologixInstrument(ScpiInstrument):
@@ -89,7 +90,7 @@ class PrologixInstrument(ScpiInstrument):
         return self._gpib_address
 
     def to_json(self):
-        raise {"address": self._address.to_json()}
+        return {"address": self._address.to_json()}
 
 
 class Transport(object):
@@ -156,14 +157,14 @@ class ScpiPipe(BasePipe):
         await self._transport.request(request)
 
     async def query(self, msg: str) -> str:
-        result = await self.get({"QueryString": msg})
+        result = await self.request({"QueryString": msg})
         return result["String"]
 
     async def write(self, msg: str):
-        await self.get({"Write": msg})
+        await self.request({"Write": msg})
 
     async def query_binary(self, msg: str) -> bytes:
-        result = await self.get({"QueryBinary": msg})
+        result = await self.request({"QueryBinary": msg})
         data = result["Binary"]["data"]
         return base64.b64decode(data)
 

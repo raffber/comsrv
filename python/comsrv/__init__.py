@@ -334,7 +334,7 @@ class ComSrv(object):
             timeout = self._timeout
         return await self._rpc.get(data, timeout)
 
-    async def drop(self, addr, lock):
+    async def drop(self, addr, lock=None):
         result = await self.get({"Drop": {"addr": addr.to_json_enum(), "id": lock}})
         ComSrvError.check_raise(result)
 
@@ -350,6 +350,11 @@ class ComSrv(object):
         result = await self.get({"ListConnectedInstruments": None})
         ComSrvError.check_raise(result)
         return result["Instruments"]
+
+    async def list_hid_devices(self):
+        from .hid import enumerate_hid_devices
+
+        return await enumerate_hid_devices(rpc=self.rpc)
 
     async def list_serial_ports(self):
         result = await self.get({"ListSerialPorts": None})
