@@ -12,6 +12,8 @@ The address parts are separated with "::".
   * The `<settings>` string is formated according
       to [conventional notation](https://en.wikipedia.org/wiki/Serial_port#Conventional_notation)
   * Example: `serial::/dev/ttyUSB0::9600::8N1`
+* FTDI based serial ports: `ftdi::<serial-number>::<baud-rate>::<settings>`
+  * In case the device is FTDI based, makes use of the FTDI driver instead of the serial port driver.
 * Prologix instruments: `prologix::<path-to-serial>::<gpib-address>`
   * `<path-to-serial>` may be a file path on unix (e.g. `/dev/ttyS0`) or a com-port identifier on windows (
       e.g. `COM3`)

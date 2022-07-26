@@ -56,6 +56,8 @@ enum RequestMsg<T: IoHandler> {
 
 /// Allows wrapping an `IoHandler` and provides a type that implements `Send + Clone`. Thus
 /// it can be used to communicate with the actor from different threads.
+///
+/// Additionally it allows the task to be disconnected by calling the `disconnect()` function.
 pub struct IoTask<T: IoHandler> {
     tx: mpsc::UnboundedSender<RequestMsg<T>>,
 }

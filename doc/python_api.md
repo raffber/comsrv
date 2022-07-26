@@ -1,6 +1,6 @@
 # Python Interface
 
-All classes to interact with `comsrv` are found in `comsrv`.
+All classes to interact with `comsrv` are found in the `python/comsrv` directory.
 
 ## Connecting to Remote Servers
 
@@ -28,9 +28,6 @@ may be used:
 from comsrv import ComSrv
 
 comsrv = ComSrv()
-
-# drop a specific instrument
-await comsrv.drop('vxi::192.168.1.20')
 
 # drop all instrument
 await comsrv.drop_all()

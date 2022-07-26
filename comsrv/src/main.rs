@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::process::exit;
 
-use clap::{App as ClapApp, Arg};
+use clap::{crate_authors, crate_version, App as ClapApp, Arg};
 use tokio::runtime::Runtime;
 
 use comsrv::app::App;
@@ -9,17 +9,17 @@ use env_logger::Env;
 
 fn main() {
     let matches = ClapApp::new("Async communication server")
-        .version("0.1")
-        .author("Raphael Bernhard <beraphae@gmail.com>")
+        .author(crate_authors!())
+        .version(crate_version!())
         .about("Multiplex communication to instruments over RPC")
         .arg(
             Arg::with_name("port")
                 .long("port")
-                .short("p")
+                .short('p')
                 .default_value("5902")
                 .help("Define the port to listen on."),
         )
-        .arg(Arg::with_name("verbose").long("verbose").short("v").help("Log verbose output"))
+        .arg(Arg::with_name("verbose").long("verbose").short('v').help("Log verbose output"))
         .get_matches();
 
     let verbose = matches.is_present("verbose");

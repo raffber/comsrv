@@ -14,6 +14,11 @@ from pywsrpc.client import Client
 
 
 class ComSrvError(Exception):
+    """
+    Base exception for all comsrv errors.
+    All errors occuring on the remote comsrv will throw this error.
+    """
+
     @classmethod
     def parse(cls, data):
         if "Protocol" in data:
@@ -33,10 +38,19 @@ class ComSrvError(Exception):
 
 
 class TransportError(ComSrvError):
+    """
+    Captures all errors that occur in case a transport fails e.g. a TCP connection drops.
+    """
+
     pass
 
 
 class ProtocolError(ComSrvError):
+    """
+    Captures all errors that occur on protocol-level (as opposed to on transport level).
+    For example if a remote side sends an invalid ModBus-frame.
+    """
+
     @classmethod
     def parse(cls, data):
         if "Timeout" in data:
@@ -45,10 +59,19 @@ class ProtocolError(ComSrvError):
 
 
 class ProtocolTimeoutError(ProtocolError):
+    """
+    Occurs if an operation times out on protocol level.
+    For example if a device fails to reply in time.
+    """
+
     pass
 
 
 class InternalError(ComSrvError):
+    """
+    Thrown in case an internal error occurs in the comsrv. This points to a bug in the service.
+    """
+
     pass
 
 
@@ -58,6 +81,19 @@ _default_host = "127.0.0.1"
 
 
 def setup_default(host=None, http_port=None, ws_port=None):
+    """
+    Allows setting up default host and port to connect to if
+    no more specific parameters are provided to the creation
+    of `Rpc` services.
+
+    This function is particularly useful when interactively working on a remote
+    `comsrv`. Instead of specifing the `rpc=` argument for every
+    call one may use this function to configure a remote host
+    to be used everywhere.
+
+    Note that `Rpc` objects are default constructed if no
+    `rpc=` parameter is passed to most function.
+    """
     global _default_host
     global _default_http_port
     global _default_ws_port
@@ -73,40 +109,80 @@ def setup_default(host=None, http_port=None, ws_port=None):
 
 
 def get_default_http_url():
+    """
+    Returns the default HTTP URL to connect to when constructing
+    an `HttpRpc`.
+    """
     return "http://{}:{}".format(_default_host, _default_http_port)
 
 
 def get_default_ws_url():
+    """
+    Returns the default websocket URL to connect to when
+    constructing a `WsRpc`.
+    """
     return "ws://{}:{}".format(_default_host, _default_ws_port)
 
 
 async def connect_websocket_rpc(url=None) -> Client:
+    """
+    Construct and connect a `wsrpc.Client` to the specified url.
+
+    :param url: If `url` is None the default websocket URL is used.
+    """
     if url is None:
         url = get_default_ws_url()
     return await Client().connect(url)
 
 
 class Rpc(object):
-    async def get(self, data, timeout):
+    """
+    Base class for RPC service implementations.
+    """
+
+    async def get(self, request, timeout):
+        """
+        Send a request and wait for the response, but for at most `timeout`.
+        """
         raise NotImplementedError
 
     @classmethod
     def make_default(cls):
+        """
+        Create a default RPC service if no other information is provided.
+        """
         return HttpRpc()
 
 
 class HttpRpc(Rpc):
+    """
+    RPC service implementation using HTTP as transport
+
+    This is somewhat slower than using websockets, however
+    has the advantage that it is completely stateless.
+    If speed is not a concern, this should be the default choice.
+    """
+
     def __init__(self, url=None):
         if url is None:
             url = get_default_http_url()
         self._url = url
 
-    async def get(self, data, timeout):
-        # TODO: timeout
-        return await get(self._url, data)
+    async def get(self, request, timeout):
+        data = json.dumps(request).encode()
+        async with ClientSession(timeout=timeout) as session:
+            async with session.get(self._url, data=data) as resp:
+                data = json.loads(await resp.text())
+                if resp.status != 200:
+                    raise ComSrvError(data)
+                return data
 
 
 class WsRpc(Rpc):
+    """
+    RPC service implementation using WebSockets as transport
+    """
+
     def __init__(self, url=None):
         if url is None:
             url = get_default_ws_url()
@@ -118,20 +194,17 @@ class WsRpc(Rpc):
         return await self._client.request(data, timeout)
 
     async def connect(self, url=None):
+        """
+        Connect to the remote server
+        """
         return await self._client.connect(url)
 
 
-async def get(url, data):
-    data = json.dumps(data).encode()
-    async with ClientSession() as session:
-        async with session.get(url, data=data) as resp:
-            data = json.loads(await resp.text())
-            if resp.status != 200:
-                raise ComSrvError(data)
-            return data
-
-
 class Address(object):
+    """
+    Base class to represent instrument addresses.
+    """
+
     def to_json(self):
         raise NotImplementedError
 
@@ -144,6 +217,12 @@ class Address(object):
 
 
 class Instrument(object):
+    """
+    Base class to represent instrument configurations.
+    An instrument combines an `Address` with additional instrument configuration
+    such as a baudrate in case of serial port.
+    """
+
     @property
     def address(self) -> Address:
         raise NotImplementedError
@@ -153,15 +232,24 @@ class Instrument(object):
 
 
 def duration_to_json(time_in_seconds: float):
+    """
+    Serialize a duration in seconds to a RPC `Duration` object.
+    """
     micros = int((time_in_seconds % 1.0) * 1000000)
     seconds = round(time_in_seconds)
     return {"micros": micros, "seconds": seconds}
 
 
 class BasePipe(object):
+    """
+    Base class implementing functionality common to all instruments.
+
+    :param address: The address to connect to
+    """
+
     DEFAULT_TIMEOUT = 1.0
 
-    def __init__(self, address: Union[str, Address], rpc: Optional[Rpc] = None):
+    def __init__(self, address: Address, rpc: Optional[Rpc] = None):
         if rpc is None:
             rpc = Rpc.make_default()
         self._lock_time = 1.0
@@ -236,6 +324,11 @@ class BasePipe(object):
         return self._lock
 
     async def get(self, data, timeout=None):
+        """
+        Send a request and return the corresponding response but wait for at most `timeout`
+        seconds.
+        If `timeout` is not specified, `self.timeout` applies.
+        """
         if timeout is None:
             timeout = self._timeout
         return await self._rpc.get(data, timeout)
@@ -272,6 +365,9 @@ class BasePipe(object):
         return self
 
     async def drop(self):
+        """
+        Drop and disconnect the instrument.
+        """
         await ComSrv(rpc=self._rpc).drop(self.address.to_json_enum(), self._lock)
 
 

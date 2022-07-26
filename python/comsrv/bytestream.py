@@ -20,8 +20,22 @@ class ByteStreamAddress(Address):
 
 
 class ByteStreamInstrument(Instrument):
+    """
+    Represents an instrument capable of operating on a bytestream
+    """
+
     @classmethod
     def parse(cls, address_string: str):
+        """
+        Parse a resource string describing a bytestream capable instrument and construct the
+        correspoding instrument.
+
+        Supported strings are of the form:
+
+         - `serial::<path-to-serial>::<baud-rate>::<settings>` - For serial ports
+         - `ftdi::<serial-number>::<baud-rate>::<settings>` - For FTDI devices
+         - `tcp::<host_or_ip>:<port>` - Connect to TCP socket
+        """
         address_string = address_string.strip()
         if address_string.startswith("serial::"):
             address_string = address_string.removeprefix("serial::")
