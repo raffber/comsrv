@@ -175,6 +175,20 @@ class SerialInstrument(ByteStreamInstrument):
 
 
 class ByteStreamPipe(BasePipe):
+    """
+    Provides a communication interface that operates on bidirectional byte streams.
+    The underlying transport could be a TCP connection or a serial port.
+    The constructor accepts resource strings to describe the instrument and its configuration:
+
+    - `serial::<path-to-serial>::<baud-rate>::<settings>` - For serial ports
+    - `ftdi::<serial-number>::<baud-rate>::<settings>` - For FTDI devices
+    - `tcp::<host_or_ip>:<port>` - Connect to TCP socket
+
+    :param instrumnt: Either a `ByteStreamInstrument` or a resource string describing an appropriate
+        instrument.
+    :param rpc: An optional RPC service. Refer to `BasePipe` for details on the default implementation.
+    """
+
     def __init__(
         self, instrument: Union[str, ByteStreamInstrument], rpc: Optional[Rpc] = None
     ):
@@ -192,6 +206,9 @@ class ByteStreamPipe(BasePipe):
         return self._instrument.address
 
     async def request(self, request):
+        """
+        Send an RPC request to the bytestream handler of the RPC protocol.
+        """
         result = await self.get(
             {
                 "Bytes": {
@@ -205,14 +222,24 @@ class ByteStreamPipe(BasePipe):
         return result["Bytes"]
 
     async def write(self, data: bytes):
+        """
+        Write the bytes in `data` to the stream.
+        """
         result = await self.request({"Write": list(data)})
 
     async def read_all(self) -> bytes:
+        """
+        Read all data in the buffer of the stream and returns without
+        blocking on the stream.
+        """
         result = await self.request("ReadAll")
         data = bytes(result["Data"])
         return data
 
     async def read_to_term(self, term: int, timeout: float) -> bytes:
+        """
+        Read from the stream until the termination character is found.
+        """
         result = await self.request(
             {"ReadToTerm": {"term": term, "timeout": duration_to_json(timeout)}}
         )
@@ -220,6 +247,9 @@ class ByteStreamPipe(BasePipe):
         return data
 
     async def read_exact(self, count: int, timeout: float) -> bytes:
+        """
+        Read exactly `count` byte from the stream.
+        """
         result = await self.request(
             {"ReadExact": {"count": count, "timeout": duration_to_json(timeout)}}
         )
@@ -227,19 +257,31 @@ class ByteStreamPipe(BasePipe):
         return data
 
     async def read_upto(self, count: int) -> bytes:
+        """
+        Perform a read operation on the stream and return at most `count` bytes.
+        """
         result = await self.request({"ReadUpTo": count})
         data = bytes(result["Data"])
         return data
 
-    async def cobs_write(self, data):
+    async def cobs_write(self, data: bytes):
+        """
+        Apply the COBS framing to the provided `data` and write it to the stream.
+        """
         await self.request({"CobsWrite": list(data)})
 
     async def cobs_read(self, timeout):
+        """
+        Read a COBS encoded frame from stream.
+        """
         result = await self.request({"CobsRead": duration_to_json(timeout)})
         data = bytes(result["Data"])
         return data
 
     async def cobs_query(self, data, timeout):
+        """
+        This is a combination of `cobs_write` followed by a `cobs_read` call.
+        """
         result = await self.request(
             {"CobsQuery": {"data": list(data), "timeout": duration_to_json(timeout)}}
         )
@@ -247,12 +289,18 @@ class ByteStreamPipe(BasePipe):
         return data
 
     async def write_line(self, line: str, term: Union[int, str] = "\n"):
+        """
+        Write a string terminated with `term` to the stream.
+        """
         if isinstance(term, str):
             assert len(term) == 1
             term = ord(term)
         await self.request({"WriteLine": {"line": line, "term": term}})
 
     async def read_line(self, timeout, term: Union[int, str] = "\n"):
+        """
+        Read a string terminated with `term` from the stream.
+        """
         if isinstance(term, str):
             assert len(term) == 1
             term = ord(term)
@@ -262,6 +310,9 @@ class ByteStreamPipe(BasePipe):
         return result["String"]
 
     async def query_line(self, line: str, timeout, term: Union[int, str] = "\n"):
+        """
+        This is a combination of `write_line` followed by a `read_line` call.
+        """
         if isinstance(term, str):
             assert len(term) == 1
             term = ord(term)
@@ -277,9 +328,15 @@ class ByteStreamPipe(BasePipe):
         return result["String"]
 
     async def disconnect(self):
+        """
+        Disconnect the underlying handle.
+        """
         self.request("Disconnect")
 
     async def connect(self):
+        """
+        Connect the underlying handle
+        """
         self.request("Connect")
 
     def modbus(
@@ -288,6 +345,12 @@ class ByteStreamPipe(BasePipe):
         protocol=None,
         timeout=1.0,
     ):
+        """
+        Perform a ModBus transaction on the stream.
+
+        :param station_address: The station address (or Slave ID) of the ModBus Master
+        :param protocol: If not specified default to `RTU`.
+        """
         from .modbus import ModBusProtocol, ModBusDevice
 
         if protocol is None:
