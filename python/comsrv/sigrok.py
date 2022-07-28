@@ -2,14 +2,13 @@ from typing import List, Optional
 
 import numpy as np
 
-from . import get_default_http_url, get, ComSrvError
+from . import Rpc, get_default_http_url, ComSrvError
 
 
 class SigrokDevice(object):
-    def __init__(self, addr, url=None, desc=None):
-        if url is None:
-            url = get_default_http_url()
-        self._url = url
+    def __init__(self, addr, desc=None, rpc: Optional[Rpc] = None):
+        if rpc is None:
+            rpc = Rpc.make_default()
         self._addr = addr
         self._desc = desc
 
@@ -48,7 +47,7 @@ class SigrokDevice(object):
                 },
             }
         }
-        data = await get(self._url, request)
+        data = await self._rpc.get(self._url, request)
         ComSrvError.check_raise(data)
         data = data["Sigrok"]["Data"]
         tsample = data["tsample"]
@@ -61,13 +60,13 @@ class SigrokDevice(object):
         return t, ret
 
 
-async def list_devices(url=None) -> List[SigrokDevice]:
-    if url is None:
-        url = get_default_http_url()
-    ret = await get(url, {"ListSigrokDevices": None})
+async def list_devices(rpc: Optional[Rpc] = None) -> List[SigrokDevice]:
+    if rpc is None:
+        rpc = Rpc.make_default()
+    ret = await rpc.get({"ListSigrokDevices": None})
     ComSrvError.check_raise(ret)
     devices = ret["Sigrok"]["Devices"]
     ret = []
     for dev in devices:
-        ret.append(SigrokDevice(dev["addr"], url=url, desc=dev["desc"]))
+        ret.append(SigrokDevice(dev["addr"], desc=dev["desc"], rpc=rpc))
     return ret
