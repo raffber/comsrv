@@ -2,7 +2,6 @@ import enum
 from typing import List, Optional, Tuple, Union
 
 from comsrv.bytestream import (
-    ByteStreamInstrument,
     ByteStreamPipe,
     SerialAddress,
     SerialInstrument,
@@ -88,9 +87,19 @@ def parse_modbus_address(
 
 
 class ModBusDevice(object):
+    """
+    Interface to a device talking ModBus.
+
+    The ModBus protocol runs on an underlying bi-directional bytestream,
+    hence it owns a `ByteStreamPipe`.
+    Instead of a `ByteStreamPipe` a resource descriptor string may be provided.
+    In this case, the optional `rpc = None` parameter is used to construct the
+    `ByteStreamPipe`.
+    """
+
     def __init__(
         self,
-        bs_pipe: Union[str, ByteStreamInstrument],
+        bs_pipe: Union[str, ByteStreamPipe],
         rpc=None,
         protocol: Optional[ModBusProtocol] = None,
         station_address: int = 1,

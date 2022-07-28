@@ -2,7 +2,7 @@ from typing import List, Optional
 
 import numpy as np
 
-from . import Rpc, get_default_http_url, ComSrvError
+from . import Rpc, ComSrvError
 
 
 class SigrokDevice(object):
