@@ -5,3 +5,5 @@ venv
 __pycache__
 python/build
 *.egg-info
+client/target
+protocol/target
