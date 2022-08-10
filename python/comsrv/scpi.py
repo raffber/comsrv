@@ -154,7 +154,7 @@ class ScpiPipe(BasePipe):
         super().__init__(instrument.address, rpc)
 
     async def request(self, request):
-        await self._transport.request(request)
+        return await self._transport.request(request)
 
     async def query(self, msg: str) -> str:
         result = await self.request({"QueryString": msg})
