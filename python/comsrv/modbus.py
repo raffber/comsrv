@@ -245,9 +245,9 @@ class ModBusDevice(object):
                 "Ddp": {
                     "sub_cmd": sub_cmd,
                     "ddp_cmd": ddp_cmd,
-                    "reponse": response,
+                    "response": response,
                     "data": list(data),
                 }
             },
         )
-        return result["Data"]
+        return bytes(result["Data"])
