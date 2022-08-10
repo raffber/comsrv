@@ -47,7 +47,7 @@ where
 {
     let to_serialize = AnyHowError {
         description: error.to_string(),
-        backtrace: format!("{:?}", error.backtrace()),
+        backtrace: format!("{}", error.backtrace()),
     };
     to_serialize.serialize(serializer)
 }

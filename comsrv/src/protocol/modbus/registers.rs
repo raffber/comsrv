@@ -31,7 +31,7 @@ impl FunctionCode for ReadU16Registers {
 
     fn format_request(&self, data: &mut Vec<u8>) {
         data.extend(&self.address.to_be_bytes());
-        data.extend(&self.cnt.to_be_bytes());
+        data.extend(&(self.cnt as u16).to_be_bytes());
     }
 
     fn get_header_length(&self) -> usize {
@@ -206,6 +206,7 @@ impl<'a> FunctionCode for WriteRegisters<'a> {
     fn format_request(&self, data: &mut Vec<u8>) {
         data.extend(self.address.to_be_bytes());
         data.extend((self.data.len() as u16).to_be_bytes());
+        data.push(2 * self.data.len() as u8);
         for x in self.data {
             data.extend(&x.to_be_bytes());
         }

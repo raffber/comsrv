@@ -9,7 +9,7 @@ from enum import Enum
 from math import prod
 from typing import List, Optional, Union
 
-from aiohttp import ClientSession
+from aiohttp import ClientSession, ClientTimeout
 from pywsrpc.client import Client
 
 
@@ -55,6 +55,10 @@ class ProtocolError(ComSrvError):
     def parse(cls, data):
         if "Timeout" in data:
             return ProtocolTimeoutError()
+        if "Other" in data:
+            return ProtocolError(
+                data["Other"]["description"], data["Other"]["backtrace"]
+            )
         return ProtocolError(data)
 
 
@@ -170,6 +174,7 @@ class HttpRpc(Rpc):
 
     async def get(self, request, timeout):
         data = json.dumps(request).encode()
+        timeout = ClientTimeout(total=None, sock_connect=timeout, sock_read=timeout)
         async with ClientSession(timeout=timeout) as session:
             async with session.get(self._url, data=data) as resp:
                 data = json.loads(await resp.text())

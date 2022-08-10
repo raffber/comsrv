@@ -18,6 +18,7 @@ impl<T: FunctionCode> RtuHandler<T> {
     ) -> crate::Result<T::Output> {
         let mut request = Vec::new();
         request.extend(&[transaction.station_address, self.function_code.function_code()]);
+        self.function_code.format_request(&mut request);
         let l = request.len();
         if l > u8::MAX as usize {
             return Err(crate::Error::argument(anyhow!("ModBus frame over length.")));
@@ -37,15 +38,21 @@ impl<T: FunctionCode> RtuHandler<T> {
         } else if parsed_function_code != self.function_code.function_code() {
             return Err(crate::Error::protocol(anyhow!("Invalid frame")));
         }
-        let mut header = vec![0_u8; self.function_code.get_header_length()];
-        stream.read_exact(&mut header).await.map_err(crate::Error::transport)?;
-        let data_len = self.function_code.get_data_length_from_header(&header)?;
-        let mut data = vec![0_u8; data_len + 2];
-        stream.read_exact(&mut data).await.map_err(crate::Error::transport)?;
+        let fun_header_len = self.function_code.get_header_length();
+        let mut fun_header = vec![0_u8; fun_header_len];
+        stream.read_exact(&mut fun_header).await.map_err(crate::Error::transport)?;
+        let data_len = self.function_code.get_data_length_from_header(&fun_header)?;
+        let mut data = vec![0_u8; data_len + 2 + 2 + fun_header_len];
+        data[0..2].copy_from_slice(&header);
+        data[2..2 + fun_header_len].copy_from_slice(&fun_header);
+        stream
+            .read_exact(&mut data[2 + fun_header_len..])
+            .await
+            .map_err(crate::Error::transport)?;
         if crc(&data) != 0 {
             return Err(crate::Error::protocol(anyhow!("Invalid CRC in answer")));
         }
-        self.function_code.parse_frame(&data[0..data.len() - 2])
+        self.function_code.parse_frame(&data[2 + fun_header_len..data.len() - 2])
     }
 }
 

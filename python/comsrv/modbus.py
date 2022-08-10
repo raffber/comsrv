@@ -167,7 +167,7 @@ class ModBusDevice(object):
             }
         )
         ComSrvError.check_raise(result)
-        return result["Bytes"]["ModBus"]
+        return result["ModBus"]
 
     async def write_registers(self, addr: int, data: List[int]):
         result = await self.request(
