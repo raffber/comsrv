@@ -95,12 +95,12 @@ impl<T: Instrument> Inventory<T> {
     /// in the `Inventory`. However, it does not perform any io, however it may fail
     /// due to invalid arguments.
     pub fn connect(&self, server: &Server, addr: &T::Address) -> crate::Result<T> {
-        log::debug!("Opening instrument: {:?}", addr);
         let mut inner = self.0.lock().unwrap();
 
         if let Some(ret) = inner.instruments.get(addr) {
             return Ok(ret.instr.clone());
         }
+        log::debug!("Opening instrument: {:?}", addr);
         let ret = T::connect(server, addr)?;
 
         let instr = LockableInstrument {
