@@ -1,3 +1,3 @@
--e git+https://github.com/raffber/wsrpc.git@release/v1.0.0#egg=wsrpc
+-e git+https://github.com/raffber/wsrpc.git@a34e4f18249674699854ff1b3e90f327f10e0241#egg=wsrpc
 aiohttp~=3.7
 numpy~=1.22

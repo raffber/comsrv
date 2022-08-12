@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::process::exit;
 
-use clap::{App as ClapApp, Arg};
+use clap::{crate_authors, crate_version, App as ClapApp, Arg};
 use tokio::runtime::Runtime;
 
 use comsrv::app::App;
@@ -9,24 +9,26 @@ use env_logger::Env;
 
 fn main() {
     let matches = ClapApp::new("Async communication server")
-        .version("0.1")
-        .author("Raphael Bernhard <beraphae@gmail.com>")
+        .author(crate_authors!())
+        .version(crate_version!())
         .about("Multiplex communication to instruments over RPC")
         .arg(
             Arg::with_name("port")
                 .long("port")
-                .short("p")
+                .short('p')
                 .default_value("5902")
                 .help("Define the port to listen on."),
         )
         .arg(
-            Arg::with_name("verbose")
-                .long("verbose")
-                .short("v")
-                .help("Log verbose output"),
+            Arg::with_name("broadcast_reqrep")
+                .long("broadcast-requests")
+                .short('b')
+                .help("Broadcast requests and responses on the RPC bus."),
         )
+        .arg(Arg::with_name("verbose").long("verbose").short('v').help("Log verbose output"))
         .get_matches();
 
+    let broadcast_reqrep = matches.is_present("broadcast_reqrep");
     let verbose = matches.is_present("verbose");
     if verbose {
         env_logger::Builder::from_env(Env::default().default_filter_or("comsrv=debug")).init();
@@ -46,7 +48,7 @@ fn main() {
     let rt = Runtime::new().unwrap();
     rt.block_on(async move {
         let (app, rx) = App::new();
-
+        app.server.enable_broadcast_reqrep(broadcast_reqrep);
         let url = format!("0.0.0.0:{}", port);
         let http_addr: SocketAddr = format!("0.0.0.0:{}", port + 1).parse().unwrap();
         println!("Listening on ws://{}", url);

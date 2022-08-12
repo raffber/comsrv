@@ -2,14 +2,13 @@ from typing import List, Optional
 
 import numpy as np
 
-from . import get_default_http_url, get, ComSrvError
+from . import Rpc, ComSrvError
 
 
 class SigrokDevice(object):
-    def __init__(self, addr, url=None, desc=None):
-        if url is None:
-            url = get_default_http_url()
-        self._url = url
+    def __init__(self, addr, desc=None, rpc: Optional[Rpc] = None):
+        if rpc is None:
+            rpc = Rpc.make_default()
         self._addr = addr
         self._desc = desc
 
@@ -21,45 +20,53 @@ class SigrokDevice(object):
     def address(self):
         return self._addr
 
-    async def read(self, channels: Optional[List[str]] = None, samplerate=48e6, num_samples=None, time=None):
+    async def read(
+        self,
+        channels: Optional[List[str]] = None,
+        samplerate=48e6,
+        num_samples=None,
+        time=None,
+    ):
         if time is not None and num_samples is not None:
             raise ValueError("Specifiy only one of time or num_samples")
         if time is not None:
-            acquire = {'Time': float(time)}
+            acquire = {"Time": float(time)}
         elif num_samples is not None:
-            acquire = {'Samples': int(num_samples)}
+            acquire = {"Samples": int(num_samples)}
         else:
-            raise ValueError('Neither time nor num_samples is given')
+            raise ValueError("Neither time nor num_samples is given")
         if channels is None:
             channels = []
-        request = {'Sigrok': {
-            'addr': self._addr,
-            'task': {
-                'channels': channels,
-                'sample_rate': int(samplerate),
-                'acquire': acquire
+        request = {
+            "Sigrok": {
+                "instrument": {"address": self._addr},
+                "request": {
+                    "channels": channels,
+                    "sample_rate": int(samplerate),
+                    "acquire": acquire,
+                },
             }
-        }}
-        data = await get(self._url, request)
+        }
+        data = await self._rpc.get(self._url, request)
         ComSrvError.check_raise(data)
-        data = data['Sigrok']['Data']
-        tsample = data['tsample']
-        length = data['length']
+        data = data["Sigrok"]["Data"]
+        tsample = data["tsample"]
+        length = data["length"]
         t = np.arange(0, length) * tsample
         ret = {}
-        for (k, v) in data['channels'].items():
+        for (k, v) in data["channels"].items():
             base = np.array(v, dtype=np.uint8)
-            ret[k] = np.unpackbits(base, count=length, bitorder='little')
+            ret[k] = np.unpackbits(base, count=length, bitorder="little")
         return t, ret
 
 
-async def list_devices(url=None) -> List[SigrokDevice]:
-    if url is None:
-        url = get_default_http_url()
-    ret = await get(url, {'ListSigrokDevices': None})
+async def list_devices(rpc: Optional[Rpc] = None) -> List[SigrokDevice]:
+    if rpc is None:
+        rpc = Rpc.make_default()
+    ret = await rpc.get({"ListSigrokDevices": None})
     ComSrvError.check_raise(ret)
-    devices = ret['Sigrok']['Devices']
+    devices = ret["Sigrok"]["Devices"]
     ret = []
     for dev in devices:
-        ret.append(SigrokDevice(dev['addr'], url=url, desc=dev['desc']))
+        ret.append(SigrokDevice(dev["addr"], desc=dev["desc"], rpc=rpc))
     return ret

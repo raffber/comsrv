@@ -8,7 +8,10 @@
             "type": "shell",
             "command": "cd comsrv && cargo build",
             "problemMatcher": [],
-            "group": "build"
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
         },
         {
             "label": "comsrv-check",
@@ -17,8 +20,15 @@
             "problemMatcher": [],
             "group": {
                 "kind": "build",
-                "isDefault": true
+                "isDefault": false
             }
+        },
+        {
+            "label": "client-check",
+            "type": "shell",
+            "command": "cd client && cargo check",
+            "problemMatcher": [],
+            "group": "build"
         }
     ]
 }

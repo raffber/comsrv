@@ -1,25 +1,21 @@
+use comsrv_protocol::{
+    Address, ByteStreamInstrument, ByteStreamRequest, CanAddress, CanDeviceInfo, CanDriverType, CanInstrument,
+    CanRequest, FtdiInstrument, HidResponse, PrologixInstrument, PrologixRequest, Request, Response, ScpiInstrument,
+    ScpiRequest, SerialInstrument, TcpInstrument, VisaInstrument, VxiInstrument,
+};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task;
+use uuid::Uuid;
 use wsrpc::server::{Requested, Server as WsrpcServer};
 
-use crate::address::Address;
-use crate::can::Request as InternalCanRequest;
-use crate::ftdi::{self, FtdiRequest, FtdiResponse};
-use crate::instrument::Instrument;
-use crate::inventory::Inventory;
-use crate::modbus::{ModBusAddress, ModBusTransport};
-use crate::serial::Response as SerialResponse;
-use crate::serial::{Request as SerialRequest, SerialParams};
-use crate::tcp::{TcpRequest, TcpResponse};
-use crate::{sigrok, Error};
-use comsrv_protocol::{
-    ByteStreamRequest, ByteStreamResponse, CanDeviceInfo, CanRequest, CanResponse, ModBusRequest,
-    ModBusResponse, Request, Response, ScpiRequest, ScpiResponse, CanDriverType,
-};
-use comsrv_protocol::{HidRequest, HidResponse};
+use crate::transport::{can, ftdi, hid, serial, sigrok, tcp, visa, vxi};
+use crate::transport::{ftdi::FtdiRequest, tcp::TcpRequest};
 
+use crate::inventory::Inventory;
+use anyhow::anyhow;
+use std::convert::TryInto;
+use std::sync::Arc;
 use std::time::Duration;
-use uuid::Uuid;
 
 pub type Server = WsrpcServer<Request, Response>;
 
@@ -29,10 +25,30 @@ macro_rules! crate_version {
     };
 }
 
+/// Contains all the inventories, which contains all IO actors.
+#[derive(Default)]
+pub struct Inventories {
+    serial: Inventory<serial::Instrument>,
+    can: Inventory<can::Instrument>,
+    ftdi: Inventory<ftdi::Instrument>,
+    tcp: Inventory<tcp::Instrument>,
+    visa: Inventory<visa::Instrument>,
+    vxi: Inventory<vxi::Instrument>,
+    hid: Inventory<hid::Instrument>,
+}
+
+impl Inventories {
+    fn new() -> Self {
+        Default::default()
+    }
+}
+
+/// Captures the state of the application. Each request handler gets its own
+/// copy.
 #[derive(Clone)]
 pub struct App {
     pub server: Server,
-    pub inventory: Inventory,
+    pub inventories: Arc<Inventories>,
 }
 
 impl App {
@@ -40,373 +56,94 @@ impl App {
         let (server, rx) = Server::new();
         let app = App {
             server,
-            inventory: Inventory::new(),
+            inventories: Arc::new(Inventories::new()),
         };
         (app, rx)
     }
 
+    /// Main actor - Listens to incoming messages on `rx` and spawns a new task for each
+    /// incoming request.
     pub async fn run(&self, mut rx: UnboundedReceiver<Requested<Request, Response>>) {
         while let Some(msg) = rx.recv().await {
             let (req, rep) = msg.split();
             let app = self.clone();
-            log::debug!(
-                "Incoming[{}]: {}",
-                rep.request_id(),
-                serde_json::to_string(&req).unwrap()
-            );
+            log::debug!("Incoming[{}]: {}", rep.request_id(), serde_json::to_string(&req).unwrap());
             task::spawn(async move {
-                let response = app.handle_request(req).await;
+                let response = app.handle(req).await.into();
                 log::debug!("Answering: {}", serde_json::to_string(&response).unwrap());
                 rep.answer(response);
             });
         }
     }
 
-    async fn handle_scpi(
-        &self,
-        addr: String,
-        task: ScpiRequest,
-        lock: Option<Uuid>,
-    ) -> Result<ScpiResponse, Error> {
-        let addr = Address::parse(&addr)?;
-        self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
-        match self.inventory.connect(&self.server, &addr) {
-            Instrument::Visa(instr) => instr.request(task).await,
-            Instrument::Serial(mut instr) => match addr {
-                Address::Prologix {
-                    file: _,
-                    gpib_addr: gpib,
-                } => {
-                    let response = instr
-                        .request(SerialRequest::Prologix {
-                            gpib_addr: gpib,
-                            req: task,
-                        })
-                        .await;
-                    match response {
-                        Ok(SerialResponse::Scpi(resp)) => Ok(resp),
-                        Ok(_) => Err(Error::NotSupported),
-                        Err(x) => Err(x),
-                    }
-                }
-                _ => Err(Error::NotSupported),
-            },
-            Instrument::Vxi(mut instr) => instr.request(task).await,
-            _ => Err(Error::NotSupported),
-        }
-    }
-
-    async fn handle_modbus(
-        &self,
-        addr: String,
-        task: ModBusRequest,
-        lock: Option<Uuid>,
-    ) -> Result<ModBusResponse, Error> {
-        let addr = Address::parse(&addr)?;
-        self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
-        let instr = self.inventory.connect(&self.server, &addr);
-        let (modbus_addr, transport, slave_id) = match addr.clone() {
-            Address::Modbus {
-                addr,
-                transport,
-                slave_id,
-            } => (addr, transport, slave_id),
-            Address::Serial { path, params } => {
-                let addr = ModBusAddress::Serial { path, params };
-                let transport = ModBusTransport::Rtu;
-                let slave_id = task.slave_id();
-                (addr, transport, slave_id)
-            }
-            Address::Tcp { addr } => {
-                let addr = ModBusAddress::Tcp { addr };
-                let transport = ModBusTransport::Rtu;
-                let slave_id = task.slave_id();
-                (addr, transport, slave_id)
-            }
-            Address::Ftdi { addr } => {
-                let addr = ModBusAddress::Ftdi { addr };
-                let transport = ModBusTransport::Rtu;
-                let slave_id = task.slave_id();
-                (addr, transport, slave_id)
-            }
-            _ => return Err(Error::InvalidAddress),
-        };
-
-        match modbus_addr {
-            ModBusAddress::Serial { path: _, params } => match transport {
-                ModBusTransport::Tcp => return Err(Error::NotSupported),
-                ModBusTransport::Rtu => {
-                    let req = SerialRequest::ModBus {
-                        params,
-                        req: task,
-                        slave_addr: slave_id,
-                    };
-                    let mut instr = instr.into_serial().ok_or(Error::NotSupported)?;
-                    let ret = instr.request(req).await;
-                    match ret {
-                        Ok(SerialResponse::ModBus(ret)) => Ok(ret),
-                        Err(x) => Err(x),
-                        _ => {
-                            log::error!("SerialResponse was not ModBus but request was");
-                            return Err(Error::NotSupported);
-                        }
-                    }
-                }
-            },
-            ModBusAddress::Tcp { .. } => match transport {
-                ModBusTransport::Rtu => {
-                    let mut instr = instr.into_tcp().ok_or(Error::NotSupported)?;
-                    let ret = instr
-                        .request(TcpRequest::ModBus {
-                            slave_id,
-                            req: task,
-                        })
-                        .await;
-                    match ret {
-                        Ok(TcpResponse::ModBus(ret)) => Ok(ret),
-                        Err(x) => Err(x),
-                        _ => {
-                            log::error!("TcpResponse was not ModBus but request was");
-                            return Err(Error::NotSupported);
-                        }
-                    }
-                }
-                ModBusTransport::Tcp => {
-                    let mut instr = instr.into_modbus_tcp().ok_or(Error::NotSupported)?;
-                    instr.request(task, slave_id).await
-                }
-            },
-            ModBusAddress::Ftdi { addr } => match transport {
-                ModBusTransport::Rtu => {
-                    let req = FtdiRequest::ModBus {
-                        params: addr.params,
-                        req: task,
-                        slave_addr: slave_id,
-                    };
-                    let mut instr = instr.into_ftdi().ok_or(Error::NotSupported)?;
-                    let ret = instr.request(req).await;
-                    match ret {
-                        Ok(FtdiResponse::ModBus(ret)) => Ok(ret),
-                        Err(x) => Err(x),
-                        _ => {
-                            log::error!("FtdiResponse was not ModBus but request was");
-                            return Err(Error::NotSupported);
-                        }
-                    }
-                }
-                ModBusTransport::Tcp => return Err(Error::NotSupported),
-            },
-        }
-    }
-
-    async fn handle_serial(
-        &self,
-        addr: &Address,
-        params: &SerialParams,
-        task: ByteStreamRequest,
-    ) -> Result<ByteStreamResponse, Error> {
-        let params = params.clone();
-        let req = SerialRequest::Serial { params, req: task };
-        let mut instr = self
-            .inventory
-            .connect(&self.server, &addr)
-            .into_serial()
-            .ok_or(Error::NotSupported)?;
-        match instr.request(req).await {
-            Ok(x) => match x {
-                SerialResponse::Bytes(x) => Ok(x),
-                _ => panic!("Invalid answer. This is a bug"),
-            },
-            Err(x) => Err(x),
-        }
-    }
-
-    async fn handle_tcp(
-        &self,
-        addr: &Address,
-        task: ByteStreamRequest,
-    ) -> Result<ByteStreamResponse, Error> {
-        let mut instr = self
-            .inventory
-            .connect(&self.server, &addr)
-            .into_tcp()
-            .ok_or(Error::NotSupported)?;
-        match instr.request(TcpRequest::Bytes(task.clone())).await {
-            Ok(TcpResponse::Bytes(x)) => Ok(x),
-            Err(x) => Err(x),
-            _ => panic!(),
-        }
-    }
-
-    async fn handle_bytes(
-        &self,
-        addr: &str,
-        task: ByteStreamRequest,
-        lock: Option<Uuid>,
-    ) -> Result<ByteStreamResponse, Error> {
-        let addr = Address::parse(&addr)?;
-        self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
-        match &addr {
-            Address::Serial { path: _, params } => self.handle_serial(&addr, params, task).await,
-            Address::Tcp { .. } => self.handle_tcp(&addr, task).await,
-            Address::Ftdi { addr: ftdi_address } => {
-                let mut instr = self
-                    .inventory
-                    .connect(&self.server, &addr)
-                    .into_ftdi()
-                    .ok_or(Error::NotSupported)?;
-                match instr
-                    .request(FtdiRequest::Bytes {
-                        req: task,
-                        params: ftdi_address.params.clone(),
-                    })
-                    .await
-                {
-                    Ok(FtdiResponse::Bytes(x)) => Ok(x),
-                    Err(x) => Err(x),
-                    _ => panic!(),
-                }
-            }
-            _ => Err(Error::NotSupported),
-        }
-    }
-
-    async fn handle_can(
-        &self,
-        addr: &str,
-        task: CanRequest,
-        lock: Option<Uuid>,
-    ) -> Result<CanResponse, Error> {
-        let addr = Address::parse(&addr)?;
-        let mut device = match self.inventory.connect(&self.server, &addr) {
-            Instrument::Can(device) => device,
-            _ => return Err(Error::NotSupported),
-        };
-        self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
-        let request = InternalCanRequest::from_request_and_address(task, addr)?;
-        device.request(request).await
-    }
-
-    async fn handle_hid(
-        &self,
-        addr: &str,
-        task: HidRequest,
-        lock: Option<Uuid>,
-    ) -> Result<HidResponse, Error> {
-        let addr = Address::parse(&addr)?;
-        let mut device = match self.inventory.connect(&self.server, &addr) {
-            Instrument::Hid(device) => device,
-            _ => return Err(Error::NotSupported),
-        };
-        self.inventory.wait_for_lock(&addr, lock.as_ref()).await;
-        device.request(task).await
-    }
-
-    pub async fn shutdown(&self) {
-        self.inventory.disconnect_all();
-        self.server.shutdown().await;
-    }
-
-    async fn handle_request(&self, req: Request) -> Response {
+    /// Handle an incoming request
+    async fn handle(&self, req: Request) -> crate::Result<Response> {
         match req {
-            Request::Scpi { addr, task, lock } => match self.handle_scpi(addr, task, lock).await {
-                Ok(result) => Response::Scpi(result),
-                Err(err) => err.into(),
-            },
-            Request::ListInstruments => Response::Instruments(self.inventory.list()),
-            Request::ModBus { addr, task, lock } => {
-                match self.handle_modbus(addr, task, lock).await {
-                    Ok(result) => Response::ModBus(result),
-                    Err(err) => err.into(),
-                }
+            Request::Bytes {
+                instrument: ByteStreamInstrument::Ftdi(instrument),
+                request,
+                lock,
+            } => self.handle_bytestream_ftdi(instrument, request, lock).await,
+            Request::Bytes {
+                instrument: ByteStreamInstrument::Serial(instr),
+                request,
+                lock,
+            } => self.handle_bytestream_serial(instr, request, lock).await,
+            Request::Bytes {
+                instrument: ByteStreamInstrument::Tcp(instr),
+                request,
+                lock,
+            } => self.handle_bytestream_tcp(instr, request, lock).await,
+            Request::Can {
+                instrument,
+                request,
+                lock,
+            } => self.handle_can(instrument, request, lock).await,
+            Request::Scpi {
+                instrument: ScpiInstrument::Visa(instr),
+                request,
+                lock,
+            } => self.handle_visa(instr, request, lock).await,
+            Request::Scpi {
+                instrument: ScpiInstrument::Vxi(instr),
+                request,
+                lock,
+            } => self.handle_vxi(instr, request, lock).await,
+            Request::Prologix {
+                instrument,
+                request,
+                lock,
+            } => self.handle_prologix(instrument, request, lock).await,
+            Request::Sigrok { instrument, request } => {
+                sigrok::read(&instrument.address, request).await.map(Response::Sigrok)
             }
-            Request::Bytes { addr, task, lock } => match self.handle_bytes(&addr, task, lock).await
-            {
-                Ok(result) => Response::Bytes(result),
-                Err(err) => err.into(),
-            },
-            Request::Can { addr, task, lock } => match self.handle_can(&addr, task, lock).await {
-                Ok(result) => Response::Can(result),
-                Err(err) => err.into(),
-            },
-            Request::DropAll => {
-                self.inventory.disconnect_all();
-                Response::Done
-            }
+            Request::Hid {
+                instrument,
+                request,
+                lock,
+            } => self.handle_hid(instrument, request, lock).await,
+            Request::ListSigrokDevices => sigrok::list().await.map(Response::Sigrok),
+            Request::ListConnectedInstruments => self.list_connected_instruments(),
+            Request::Lock { addr, timeout } => self.lock(addr, timeout).await,
+            Request::Unlock { addr, id } => self.unlock(addr, id).await,
+            Request::DropAll => self.drop_all().await,
             Request::Shutdown => {
-                self.shutdown().await;
-                Response::Done
+                let _ = self.drop_all();
+                self.server.shutdown().await;
+                Ok(Response::Done)
             }
-            Request::Drop(addr) => match Address::parse(&addr) {
-                Ok(addr) => {
-                    self.inventory.disconnect(&addr);
-                    Response::Done
-                }
-                Err(err) => err.into(),
-            },
-            Request::Sigrok { addr, task } => {
-                let addr = match Address::parse(&addr) {
-                    Ok(addr) => addr,
-                    Err(err) => return err.into(),
-                };
-                let device = match addr {
-                    Address::Sigrok { device } => device,
-                    _ => return Error::NotSupported.into(),
-                };
-                match sigrok::read(device, task).await {
-                    Ok(resp) => Response::Sigrok(resp),
-                    Err(err) => err.into(),
-                }
-            }
-            Request::ListSigrokDevices => match sigrok::list().await {
-                Ok(resp) => Response::Sigrok(resp),
-                Err(err) => err.into(),
-            },
-            Request::Lock { addr, timeout_ms } => {
-                let addr = match Address::parse(&addr) {
-                    Ok(addr) => addr,
-                    Err(err) => return err.into(),
-                };
-                let timeout = Duration::from_millis(timeout_ms as u64);
-                self.inventory.wait_for_lock(&addr, None).await;
-                let ret = self.inventory.lock(&self.server, &addr, timeout).await;
-                Response::Locked {
-                    addr: addr.to_string(),
-                    lock_id: ret,
-                }
-            }
-            Request::Unlock(id) => {
-                self.inventory.unlock(id).await;
-                Response::Done
-            }
-            Request::Hid { addr, task, lock } => match self.handle_hid(&addr, task, lock).await {
-                Ok(x) => Response::Hid(x),
-                Err(x) => x.into(),
-            },
-            Request::ListHidDevices => match crate::hid::list_devices().await {
-                Ok(result) => Response::Hid(HidResponse::List(result)),
-                Err(x) => x.into(),
-            },
+            Request::ListHidDevices => hid::list_devices().await.map(|x| Response::Hid(HidResponse::List(x))),
             Request::Version => {
                 let version = crate_version!();
-                let version: Vec<_> = version
-                    .split(".")
-                    .map(|x| x.parse::<u32>().unwrap())
-                    .collect();
-                Response::Version {
+                let version: Vec<_> = version.split(".").map(|x| x.parse::<u32>().unwrap()).collect();
+                Ok(Response::Version {
                     major: version[0],
                     minor: version[1],
                     build: version[2],
-                }
+                })
             }
-            Request::ListSerialPorts => match crate::serial::list_devices().await {
-                Ok(x) => Response::SerialPorts(x),
-                Err(x) => x.into(),
-            },
-            Request::ListFtdiDevices => match ftdi::list_ftdi().await {
-                Ok(x) => Response::FtdiDevices(x),
-                Err(x) => x.into(),
-            },
+            Request::ListSerialPorts => serial::list_devices().await.map(Response::SerialPorts),
+            Request::ListFtdiDevices => ftdi::list_ftdi().await.map(Response::FtdiDevices),
             Request::ListCanDevices => match async_can::list_devices().await {
                 Ok(x) => {
                     #[cfg(target_os = "linux")]
@@ -420,10 +157,222 @@ impl App {
                             driver_type: driver_type.clone(),
                         })
                         .collect();
-                    Response::CanDevices(ret)
+                    Ok(Response::CanDevices(ret))
                 }
-                Err(_) => todo!(),
+                Err(x) => Err(crate::Error::transport(anyhow!(x))),
             },
+            Request::Drop { addr, id } => self.drop(addr, id.as_ref()).await,
         }
     }
+
+    async fn handle_bytestream_ftdi(
+        &self,
+        instr: FtdiInstrument,
+        req: ByteStreamRequest,
+        lock: Option<Uuid>,
+    ) -> crate::Result<Response> {
+        self.inventories
+            .ftdi
+            .wait_connect(&self.server, &instr.address, lock.as_ref())
+            .await?
+            .request(FtdiRequest {
+                request: req,
+                port_config: instr.port_config,
+                options: instr.options,
+            })
+            .await
+            .map(Response::Bytes)
+    }
+
+    async fn handle_bytestream_tcp(
+        &self,
+        instr: TcpInstrument,
+        req: ByteStreamRequest,
+        lock: Option<Uuid>,
+    ) -> crate::Result<Response> {
+        let ret = self
+            .inventories
+            .tcp
+            .wait_connect(&self.server, &instr.address, lock.as_ref())
+            .await?
+            .request(TcpRequest::Bytes {
+                request: req,
+                options: instr.options,
+            })
+            .await?;
+        match ret {
+            tcp::TcpResponse::Bytes(x) => Ok(Response::Bytes(x)),
+            _ => Err(invalid_response_for_request()),
+        }
+    }
+
+    async fn handle_bytestream_serial(
+        &self,
+        instr: SerialInstrument,
+        req: ByteStreamRequest,
+        lock: Option<Uuid>,
+    ) -> crate::Result<Response> {
+        let ret = self
+            .inventories
+            .serial
+            .wait_connect(&self.server, &instr.address, lock.as_ref())
+            .await?
+            .request(serial::Request::Serial {
+                params: instr.port_config.try_into()?,
+                req,
+            })
+            .await?;
+        match ret {
+            serial::Response::Bytes(x) => Ok(Response::Bytes(x)),
+            serial::Response::Scpi(_) => Err(invalid_response_for_request()),
+            serial::Response::Done => Err(invalid_response_for_request()),
+        }
+    }
+
+    async fn handle_can(&self, instr: CanInstrument, req: CanRequest, lock: Option<Uuid>) -> crate::Result<Response> {
+        let bitrate = instr.bitrate();
+        let addr: CanAddress = instr.into();
+        self.inventories
+            .can
+            .wait_connect(&self.server, &addr, lock.as_ref())
+            .await?
+            .request(can::Request { inner: req, bitrate })
+            .await
+            .map(|response| Response::Can { source: addr, response })
+    }
+
+    async fn handle_visa(
+        &self,
+        instr: VisaInstrument,
+        req: ScpiRequest,
+        lock: Option<Uuid>,
+    ) -> crate::Result<Response> {
+        self.inventories
+            .visa
+            .wait_connect(&self.server, &instr.address, lock.as_ref())
+            .await?
+            .request(req)
+            .await
+            .map(Response::Scpi)
+    }
+
+    async fn handle_vxi(&self, instr: VxiInstrument, req: ScpiRequest, lock: Option<Uuid>) -> crate::Result<Response> {
+        self.inventories
+            .vxi
+            .wait_connect(&self.server, &instr.host, lock.as_ref())
+            .await?
+            .request(req)
+            .await
+            .map(Response::Scpi)
+    }
+
+    async fn handle_prologix(
+        &self,
+        instr: PrologixInstrument,
+        req: PrologixRequest,
+        lock: Option<Uuid>,
+    ) -> crate::Result<Response> {
+        let ret = self
+            .inventories
+            .serial
+            .wait_connect(&self.server, &instr.address, lock.as_ref())
+            .await?
+            .request(serial::Request::Prologix {
+                gpib_addr: req.addr,
+                req: req.scpi,
+            })
+            .await?;
+        match ret {
+            serial::Response::Bytes(_) => Err(invalid_response_for_request()),
+            serial::Response::Scpi(x) => Ok(Response::Scpi(x)),
+            serial::Response::Done => Err(invalid_response_for_request()),
+        }
+    }
+
+    async fn handle_hid(
+        &self,
+        instrument: comsrv_protocol::HidInstrument,
+        request: comsrv_protocol::HidRequest,
+        lock: Option<Uuid>,
+    ) -> crate::Result<Response> {
+        self.inventories
+            .hid
+            .wait_connect(&self.server, &instrument.address, lock.as_ref())
+            .await?
+            .request(request)
+            .await
+            .map(Response::Hid)
+    }
+
+    async fn lock(
+        &self,
+        addr: comsrv_protocol::Address,
+        timeout: comsrv_protocol::Duration,
+    ) -> crate::Result<Response> {
+        let timeout: Duration = timeout.into();
+        let lock_id = match addr {
+            comsrv_protocol::Address::Tcp(x) => self.inventories.tcp.wait_and_lock(&self.server, &x, timeout).await,
+            comsrv_protocol::Address::Ftdi(x) => self.inventories.ftdi.wait_and_lock(&self.server, &x, timeout).await,
+            comsrv_protocol::Address::Hid(x) => self.inventories.hid.wait_and_lock(&self.server, &x, timeout).await,
+            comsrv_protocol::Address::Serial(x) => {
+                self.inventories.serial.wait_and_lock(&self.server, &x, timeout).await
+            }
+            comsrv_protocol::Address::Vxi(x) => self.inventories.vxi.wait_and_lock(&self.server, &x, timeout).await,
+            comsrv_protocol::Address::Visa(x) => self.inventories.visa.wait_and_lock(&self.server, &x, timeout).await,
+            comsrv_protocol::Address::Can(x) => self.inventories.can.wait_and_lock(&self.server, &x, timeout).await,
+        }?;
+        Ok(Response::Locked { lock_id })
+    }
+
+    async fn unlock(&self, addr: comsrv_protocol::Address, id: Uuid) -> crate::Result<Response> {
+        match addr {
+            comsrv_protocol::Address::Tcp(_) => self.inventories.tcp.unlock(id).await,
+            comsrv_protocol::Address::Ftdi(_) => self.inventories.ftdi.unlock(id).await,
+            comsrv_protocol::Address::Hid(_) => self.inventories.hid.unlock(id).await,
+            comsrv_protocol::Address::Serial(_) => self.inventories.serial.unlock(id).await,
+            comsrv_protocol::Address::Vxi(_) => self.inventories.vxi.unlock(id).await,
+            comsrv_protocol::Address::Visa(_) => self.inventories.visa.unlock(id).await,
+            comsrv_protocol::Address::Can(_) => self.inventories.can.unlock(id).await,
+        }
+        Ok(Response::Done)
+    }
+
+    async fn drop_all(&self) -> crate::Result<Response> {
+        self.inventories.tcp.disconnect_all().await;
+        self.inventories.vxi.disconnect_all().await;
+        self.inventories.hid.disconnect_all().await;
+        self.inventories.serial.disconnect_all().await;
+        self.inventories.visa.disconnect_all().await;
+        self.inventories.can.disconnect_all().await;
+        self.inventories.ftdi.disconnect_all().await;
+        Ok(Response::Done)
+    }
+
+    fn list_connected_instruments(&self) -> crate::Result<Response> {
+        let mut ret: Vec<Address> = self.inventories.tcp.list().drain(..).map(Address::Tcp).collect();
+        ret.extend(self.inventories.can.list().drain(..).map(Address::Can));
+        ret.extend(self.inventories.ftdi.list().drain(..).map(Address::Ftdi));
+        ret.extend(self.inventories.vxi.list().drain(..).map(Address::Vxi));
+        ret.extend(self.inventories.hid.list().drain(..).map(Address::Hid));
+        ret.extend(self.inventories.serial.list().drain(..).map(Address::Serial));
+        ret.extend(self.inventories.visa.list().drain(..).map(Address::Visa));
+        Ok(Response::Instruments(ret))
+    }
+
+    async fn drop(&self, addr: Address, id: Option<&Uuid>) -> crate::Result<Response> {
+        match addr {
+            Address::Tcp(x) => self.inventories.tcp.wait_disconnect(&x, id).await,
+            Address::Ftdi(x) => self.inventories.ftdi.wait_disconnect(&x, id).await,
+            Address::Hid(x) => self.inventories.hid.wait_disconnect(&x, id).await,
+            Address::Serial(x) => self.inventories.serial.wait_disconnect(&x, id).await,
+            Address::Vxi(x) => self.inventories.vxi.wait_disconnect(&x, id).await,
+            Address::Visa(x) => self.inventories.visa.wait_disconnect(&x, id).await,
+            Address::Can(x) => self.inventories.can.wait_disconnect(&x, id).await,
+        }
+        Ok(Response::Done)
+    }
+}
+
+fn invalid_response_for_request() -> crate::Error {
+    crate::Error::internal(anyhow!("Invalid response for request."))
 }

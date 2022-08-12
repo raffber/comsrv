@@ -6,15 +6,16 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
+use async_trait::async_trait;
+use std::fmt::Debug;
+use std::hash::Hash;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::time::sleep;
 use uuid::Uuid;
 
-use crate::address::{Address, HandleId};
 use crate::app::Server;
-use crate::instrument::Instrument;
 
 /// Used to lock/unlock an instrument. Allows waiting
 /// for the lock because internally an AsyncMutex is used.
@@ -43,28 +44,43 @@ impl Lock {
     }
 }
 
+/// The inventory uses an `InstrumentAddress` to find the matching instrument.
+/// Therefore, it must implement `Hash` as well as `PartialEq` and `Eq`.
+pub trait InstrumentAddress: 'static + Clone + Send + Hash + PartialEq + Eq + Debug {}
+
+impl<T: 'static + Clone + Send + Hash + PartialEq + Eq + Debug> InstrumentAddress for T {}
+
+#[async_trait]
+pub trait Instrument: 'static + Clone + Send {
+    type Address: InstrumentAddress;
+
+    fn connect(server: &Server, addr: &Self::Address) -> crate::Result<Self>;
+
+    async fn wait_for_closed(&self);
+}
+
 /// Contains an instrument which can be locked
 #[derive(Clone)]
-struct LockableInstrument {
-    instr: Instrument,
+struct LockableInstrument<T: Instrument> {
+    instr: T,
     lock: Option<Lock>,
 }
 
-struct InventoryShared {
-    instruments: HashMap<HandleId, LockableInstrument>,
-    locks: HashMap<Uuid, HandleId>,
+struct InventoryShared<T: Instrument> {
+    instruments: HashMap<T::Address, LockableInstrument<T>>,
+    locks: HashMap<Uuid, T::Address>,
 }
 
 /// A collect of instruments, public API of this module
 #[derive(Clone)]
-pub struct Inventory(Arc<Mutex<InventoryShared>>);
+pub struct Inventory<T: Instrument>(Arc<Mutex<InventoryShared<T>>>);
 
 /// The `Inventory` type allows storing and retrieving instruments.
 /// Also, access to instruments may be locked for a given amount of time. During this time, only
 /// the task accesssing the instrument has access to the instrument.
 ///
 /// `Inventory` as well as `Instrument` are `Clone + Send` and can thus be shared between threads.
-impl Inventory {
+impl<T: Instrument> Inventory<T> {
     /// Create a new inventory
     pub fn new() -> Self {
         let inner = InventoryShared {
@@ -76,55 +92,76 @@ impl Inventory {
     }
 
     /// Connect a new instrument. This function creates a new instrument and registers it
-    /// in the `Inventory`. However, it does not perform any io, and thus cannot fail.
-    ///
-    /// # Panics
-    ///
-    /// This function panics if the there is no `Instrument` associated with the given address type.
-    pub fn connect(&self, server: &Server, addr: &Address) -> Instrument {
-        log::debug!("Opening instrument: {} with {:?}", addr, addr.handle_id());
+    /// in the `Inventory`. However, it does not perform any io, however it may fail
+    /// due to invalid arguments.
+    pub fn connect(&self, server: &Server, addr: &T::Address) -> crate::Result<T> {
         let mut inner = self.0.lock().unwrap();
-        if let Some(ret) = inner.instruments.get(&addr.handle_id()) {
-            return ret.instr.clone();
+
+        if let Some(ret) = inner.instruments.get(addr) {
+            return Ok(ret.instr.clone());
         }
-        let ret = Instrument::connect(&server, addr).unwrap();
+        log::debug!("Opening instrument: {:?}", addr);
+        let ret = T::connect(server, addr)?;
+
         let instr = LockableInstrument {
             instr: ret.clone(),
             lock: None,
         };
-        inner.instruments.insert(addr.handle_id(), instr);
-        ret
+        inner.instruments.insert(addr.clone(), instr);
+        Ok(ret)
+    }
+
+    pub async fn wait_connect(&self, server: &Server, addr: &T::Address, lock_id: Option<&Uuid>) -> crate::Result<T> {
+        self.wait_for_lock(addr, lock_id).await;
+        self.connect(server, addr)
     }
 
     /// If there is instrument connected to the given address, this instrument is disconnected and
     /// dropped from the `Inventory`.
-    pub fn disconnect(&self, addr: &Address) {
-        log::debug!("Dropping instrument: {} with {:?}", addr, addr.handle_id());
-        let mut inner = self.0.lock().unwrap();
-        if let Some(x) = inner.instruments.remove(&addr.handle_id()) {
-            x.instr.disconnect();
+    pub async fn disconnect(&self, addr: &T::Address) {
+        log::debug!("Dropping instrument: {:?}", addr);
+        let instr = {
+            let mut inner = self.0.lock().unwrap();
+            inner.instruments.remove(addr)
+        };
+        if let Some(instr) = instr {
+            instr.instr.wait_for_closed().await;
         }
     }
 
+    pub async fn wait_disconnect(&self, addr: &T::Address, lock_id: Option<&Uuid>) {
+        self.wait_for_lock(addr, lock_id).await;
+        self.disconnect(addr).await;
+    }
+
     /// Drops all instruments
-    pub fn disconnect_all(&self) {
+    pub async fn disconnect_all(&self) {
         log::debug!("Dropping all instruments");
-        let mut inner = self.0.lock().unwrap();
-        inner.instruments.clear();
+        let mut instruments = Vec::new();
+        {
+            let mut inner = self.0.lock().unwrap();
+            inner.instruments.clear();
+            for (_, instr) in inner.instruments.drain() {
+                instruments.push(instr);
+            }
+        }
+        for instr in instruments {
+            instr.instr.wait_for_closed().await;
+        }
     }
 
     /// Return a list of keys of instruments.
-    pub fn list(&self) -> Vec<String> {
+    pub fn list(&self) -> Vec<T::Address> {
         let inner = self.0.lock().unwrap();
-        inner.instruments.keys().map(|x| x.to_string()).collect()
+        inner.instruments.keys().cloned().collect()
     }
 
     /// Wait for the lock on a given instrument. If a `lock_id` is provided and matches the
     /// lock which is currently held, access to the `Instrument` is granted.
-    pub async fn wait_for_lock(&self, addr: &Address, lock_id: Option<&Uuid>) {
+    pub async fn wait_for_lock(&self, addr: &T::Address, lock_id: Option<&Uuid>) {
         let mutex = {
             let inner = self.0.lock().unwrap();
-            match inner.instruments.get(&addr.handle_id()) {
+            match inner.instruments.get(&addr) {
                 Some(LockableInstrument {
                     instr: _,
                     lock: Some(lock),
@@ -144,17 +181,22 @@ impl Inventory {
         log::debug!("Lock acquired, proceeding.");
     }
 
+    pub async fn wait_and_lock(&self, server: &Server, addr: &T::Address, timeout: Duration) -> crate::Result<Uuid> {
+        self.wait_for_lock(addr, None).await;
+        self.lock(server, addr, timeout).await
+    }
+
     /// Lock the given instrument for a given duration and returns an ID representing the
     /// newly created lock. If a lock is still present on the address, the lock is removed and
     /// unlocked.
     /// If this behavior is undesirable, call wait_for_lock() before calling this function.
-    pub async fn lock(&self, server: &Server, addr: &Address, timeout: Duration) -> Uuid {
+    pub async fn lock(&self, server: &Server, addr: &T::Address, timeout: Duration) -> crate::Result<Uuid> {
         let ret = Uuid::new_v4();
 
         let (lock, mut unlock) = {
             let mut inner = self.0.lock().unwrap();
             let (lock, unlock) = Lock::new(ret);
-            match inner.instruments.get_mut(&addr.handle_id()) {
+            match inner.instruments.get_mut(&addr) {
                 Some(mut instr) => {
                     if let Some(old_lock) = instr.lock.take() {
                         tokio::task::spawn(async move {
@@ -165,16 +207,15 @@ impl Inventory {
                     instr.lock = Some(lock.clone());
                 }
                 None => {
-                    let instr = Instrument::connect(&server, addr).unwrap();
+                    let instr = Instrument::connect(&server, addr)?;
                     let instr = LockableInstrument {
                         instr,
                         lock: Some(lock.clone()),
                     };
-                    inner.instruments.insert(addr.handle_id(), instr);
+                    inner.instruments.insert(addr.clone(), instr);
                 }
             };
-            let handle_id = addr.handle_id();
-            inner.locks.insert(ret, handle_id);
+            inner.locks.insert(ret, addr.clone());
             (lock, unlock)
         };
 
@@ -197,7 +238,7 @@ impl Inventory {
             inv.unlock(lock_id).await;
         });
         let _ = rx.await;
-        ret
+        Ok(ret)
     }
 
     /// Unlock an instrument.
@@ -217,7 +258,7 @@ impl Inventory {
     }
 }
 
-impl Default for Inventory {
+impl<T: Instrument> Default for Inventory<T> {
     fn default() -> Self {
         Self::new()
     }
