@@ -186,12 +186,15 @@ class HttpRpc(Rpc):
 class WsRpc(Rpc):
     """
     RPC service implementation using WebSockets as transport
+
+    :param kw: Passed to `pywsrpc.client.Client.connect()`
     """
 
-    def __init__(self, url=None):
+    def __init__(self, url=None, **kw):
         if url is None:
             url = get_default_ws_url()
         self._url = url
+        self._kw = kw
         self._client = Client()
 
     async def get(self, data, timeout):
@@ -202,7 +205,7 @@ class WsRpc(Rpc):
         """
         Connect to the remote server
         """
-        return await self._client.connect(url)
+        return await self._client.connect(url, **new_kw)
 
 
 class Address(object):

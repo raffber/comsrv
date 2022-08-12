@@ -93,16 +93,18 @@ class CanBus(object):
         self._client = client
         self._device = device
 
-    async def connect(self, url=None):
+    async def connect(self, url=None, **kw):
         """
         Connect to the server managing the CAN bus and start listening for RAW and GCT messages.
+
         :param url: The URL to the communication server
+        :param **kw: Passed to `pywsrpc.client.Client.connect()`
         """
         if self._client.connected:
             return self
         if url is None:
             url = get_default_ws_url()
-        await self._client.connect(url)
+        await self._client.connect(url, **kw)
         await self.listen_gct()
         await self.listen_raw()
         return self
