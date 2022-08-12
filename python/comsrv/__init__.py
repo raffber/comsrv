@@ -205,7 +205,7 @@ class WsRpc(Rpc):
         """
         Connect to the remote server
         """
-        return await self._client.connect(url, **new_kw)
+        return await self._client.connect(url, **self._kw)
 
 
 class Address(object):
