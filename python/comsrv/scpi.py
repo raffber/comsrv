@@ -2,7 +2,7 @@ import base64
 from typing import Optional, Union
 
 from . import Address, ComSrvError, BasePipe, Instrument, Rpc
-from .bytestream import ByteStreamPipe, SerialAddress
+from .bytestream import ByteStreamInstrument, ByteStreamPipe, SerialAddress
 
 
 class ScpiAddress(Address):
@@ -176,7 +176,9 @@ class ScpiPipe(BasePipe):
 
 
 class SerialScpiPipe(BasePipe):
-    def __init__(self, bs_pipe: ByteStreamPipe, term="\n", timeout=1.0):
+    def __init__(self, bs_pipe: Union[str, ByteStreamPipe], term="\n", timeout=1.0):
+        if isinstance(bs_pipe, str):
+            bs_pipe = ByteStreamPipe(bs_pipe)
         self._inner = bs_pipe
         self._timeout = timeout
         self._term = term
