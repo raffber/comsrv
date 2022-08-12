@@ -467,7 +467,7 @@ def gct_filter(msg):
         return None
     if "Can" not in msg["Notify"]:
         return None
-    can = msg["Notify"]["Can"]
+    can = msg["Notify"]["Can"]["response"]
     if "Gct" in can:
         msg = can["Gct"]
         return GctMessage.from_comsrv(msg)
@@ -479,7 +479,7 @@ def raw_filter(msg):
         return None
     if "Can" not in msg["Notify"]:
         return None
-    can = msg["Notify"]["Can"]
+    can = msg["Notify"]["Can"]["response"]
     if "Raw" in can:
         msg = can["Raw"]
         return CanMessage.from_comsrv(msg)
