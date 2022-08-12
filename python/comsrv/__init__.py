@@ -255,7 +255,7 @@ class BasePipe(object):
     :param address: The address to connect to
     """
 
-    DEFAULT_TIMEOUT = 1.0
+    DEFAULT_TIMEOUT = 2.0
 
     def __init__(self, address: Address, rpc: Optional[Rpc] = None):
         if rpc is None:
