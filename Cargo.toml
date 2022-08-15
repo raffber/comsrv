@@ -6,11 +6,7 @@ members = [
     "client",
 ]
 
-
 [profile.release]
-lto = true
-opt-level = 3
-codegen-units = 1
 debug = 0
 
 [patch.crates-io]
