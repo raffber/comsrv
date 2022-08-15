@@ -1,0 +1,17 @@
+[workspace]
+
+members = [
+    "comsrv",
+    "protocol",
+    "client",
+]
+
+
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1
+debug = 0
+
+[patch.crates-io]
+libftd2xx-ffi = {git = "https://github.com/raffber/libftd2xx-ffi.git", rev="b14b48ce338b178f2bc25297e60f0eff5e23526c"}
