@@ -6,7 +6,7 @@ to instruments.
 import json
 from argparse import ArgumentError
 from enum import Enum
-from math import prod
+from math import floor, prod
 from typing import List, Optional, Union
 
 from aiohttp import ClientSession, ClientTimeout
@@ -244,7 +244,7 @@ def duration_to_json(time_in_seconds: float):
     Serialize a duration in seconds to a RPC `Duration` object.
     """
     micros = int((time_in_seconds % 1.0) * 1000000)
-    seconds = round(time_in_seconds)
+    seconds = floor(time_in_seconds)
     return {"micros": micros, "seconds": seconds}
 
 
@@ -466,11 +466,7 @@ class ComSrv(object):
         return result["SerialPorts"]
 
     async def list_ftdis(self) -> List[FtdiDeviceInfo]:
-        result = await self.get(
-            {
-                "ListFtdiDevices": None,
-            }
-        )
+        result = await self.get({"ListFtdiDevices": None})
         ComSrvError.check_raise(result)
         ret = []
         for x in result["FtdiDevices"]:
