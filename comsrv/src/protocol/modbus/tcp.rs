@@ -36,10 +36,10 @@ impl<T: FunctionCode> TcpHandler<T> {
             return Err(crate::Error::argument(anyhow!("ModBus frame shorter than header")));
         }
         let data_len = self.function_code.get_data_length_from_header(&reply[0..header_len])?;
-        if reply.len() - header_len < data_len {
+        if reply.len() < data_len + header_len {
             return Err(crate::Error::argument(anyhow!("ModBus frame data part shorter than expected")));
         }
-        self.function_code.parse_frame(&reply)
+        self.function_code.parse_frame(&reply[header_len..])
     }
 }
 
