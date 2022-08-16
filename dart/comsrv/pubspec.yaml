@@ -11,7 +11,7 @@ dependencies:
   wsrpc:
     git:
       url: https://github.com/raffber/wsrpc.git
-      ref: 972273a2b24e7f5fc393000801cd23565ab7b18a
+      ref: release/v1.1.1
       path: dart/wsrpc
   uuid: ^3.0.6
 

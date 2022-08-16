@@ -1,7 +1,24 @@
 library comsrv;
 
+import 'dart:convert';
+
 import 'package:uuid/uuid.dart';
 import 'package:wsrpc/wsrpc.dart';
+
+class ComSrvError implements Exception {
+  String message;
+  ComSrvError(this.message);
+
+  static ComSrvError fromJson(JsonObject json) {
+    return ComSrvError(jsonEncode(json));
+  }
+
+  static void checkAndThrow(JsonObject reply) {
+    if (reply.containsKey("Error")) {
+      ComSrvError.fromJson(reply["Error"]);
+    }
+  }
+}
 
 abstract class Address {
   JsonObject toJson();
@@ -53,24 +70,44 @@ class ComSrv {
 
   ComSrv(this.rpc);
 
+  Future<JsonObject> request(JsonObject request) async {
+    final reply = await rpc.request({"Shutdown": null});
+    ComSrvError.checkAndThrow(reply);
+    return reply;
+  }
+
   Future<void> shutdown() async {
-    await rpc.request({"Shutdown": null});
+    await request({"Shutdown": null});
   }
 
   Future<void> dropAll() async {
-    await rpc.request({"DropAll": null});
+    await request({"DropAll": null});
   }
 
   Future<void> drop(Address addr, Lock? lock) async {
-    await rpc.request({
+    await request({
       "Drop": {"addr": addr.toJsonEnum(), "id": lock?.id}
     });
   }
 
   Future<Version> version() async {
-    final reply = await rpc.request({
+    final reply = await request({
       "Version": null,
     });
     return Version.fromJson(reply["Version"]);
+  }
+
+  Future<Lock> lock(Address addr, Duration timeout) async {
+    final response = await request({
+      "Lock": {"addr": addr.toJsonEnum(), "timeout": timeout.toJson()}
+    });
+    final id = response["Locked"]["lock_id"] as String;
+    return Lock(UuidValue(id));
+  }
+
+  Future<void> unlock(Address addr, Lock lock) async {
+    await request({
+      "Unlock": {"addr": addr.toJsonEnum(), "id": lock.toString()}
+    });
   }
 }
