@@ -67,8 +67,8 @@ pub struct Handler {
 }
 
 impl Handler {
-    async fn open_serial_port(&self, params: &SerialParams) -> crate::Result<SerialStream> {
-        let serial_stream = tokio_serial::new(&self.path, params.baud)
+    async fn open_serial_port(path: &str, params: &SerialParams) -> crate::Result<SerialStream> {
+        let serial_stream = tokio_serial::new(path, params.baud)
             .parity(params.parity.into())
             .stop_bits(params.stop_bits.into())
             .data_bits(params.data_bits.into())
@@ -80,7 +80,7 @@ impl Handler {
             if let Err(x) = linux_low_latency::apply_low_latency(&serial_stream) {
                 log::error!("Cannot set ASYNC_LOW_LATENCY on serial port: {}", x)
             }
-            log::info!("Applied ASYNC_LOW_LATENCY to {}", &self.path);
+            log::info!("Applied ASYNC_LOW_LATENCY to {}", &path);
         }
         Ok(serial_stream)
     }
@@ -115,7 +115,7 @@ impl Handler {
             None => {
                 log::debug!("Opening {}", self.path);
                 self.prologix_initialized = false;
-                self.open_serial_port(&new_params).await?
+                Self::open_serial_port(&self.path, &new_params).await?
             }
             Some((serial, old_params)) => {
                 if old_params == *new_params {
@@ -124,7 +124,7 @@ impl Handler {
                     drop(serial);
                     self.prologix_initialized = false;
                     log::debug!("Reopening {}", self.path);
-                    self.open_serial_port(&new_params).await?
+                    Self::open_serial_port(&self.path, &new_params).await?
                 }
             }
         };
