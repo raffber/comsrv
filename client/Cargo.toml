@@ -2,6 +2,7 @@
 name = "comsrv_client"
 version = "0.1.0"
 edition = "2018"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 wsrpc = { git = "https://github.com/raffber/wsrpc.git", tag = "release/v1.0.0" }
