@@ -23,6 +23,5 @@ This behavior provides following benefits:
 * Many instruments contain buggy IP stacks, the actors attempt to work around those bug by dropping/re-establishing connections
 automatically.
 
-To implement actiors, refer to the `IoTask`
-
-## Code Map
+To implement actiors, refer to the `comsrv.IoTask` helper, it already handles cancelling actors as well as it allows sending requests to itself.
+Note that each actor must also implement `Instrument` as this is a requirement for the actor to be registered in an `Inventory`.

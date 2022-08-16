@@ -1,3 +1,10 @@
+/// This module implements the protocol for the Prologix USB to GPIB dongle.
+/// http://prologix.biz/gpib-usb-controller.html
+/// Generally we don't recommend to buy those adapters.
+/// At least older versions have very poor hardware implementations, as the MCU pins pretty much directly
+/// connect to the GPIB bus without any bus drivers. Also, they are not isolated, which makes them suspetive to noise.
+///
+/// The ethernet to GPIB version may work as well but has not been tested.
 use crate::protocol::bytestream::read_all;
 use crate::Error;
 use anyhow::anyhow;

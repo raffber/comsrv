@@ -1,3 +1,7 @@
+/// ModBus protocol implementation for ModBus TCP and RTU
+///
+/// Note that the ModBus protocol implementation all operate on bytestreams (i.e. `AsyncRead + AsyncWrite`). On a typical OS it is not
+/// possible to implement ModBus RTU with timer-based framing.
 mod ddp;
 mod registers;
 mod rtu;
@@ -76,6 +80,8 @@ enum ModBusFrameError {
     NotEnoughData,
 }
 
+/// Function code handler. Both the RTU and the TCP handler implementations
+/// get the necessary information from these handlers to perform the framing
 pub trait FunctionCode {
     type Output;
 

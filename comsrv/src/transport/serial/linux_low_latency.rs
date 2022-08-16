@@ -1,3 +1,8 @@
+/// On linux to get lower latency on serial ports a special flag needs to be set on serial ports
+/// Refer to https://stackoverflow.com/questions/13126138/low-latency-serial-communication-on-linux
+///
+/// Note there does not really seem to be an equivalent on windows. There, serial ports are just very
+/// slow.
 use std::{
     mem,
     os::{raw::c_schar, unix::prelude::AsRawFd},
