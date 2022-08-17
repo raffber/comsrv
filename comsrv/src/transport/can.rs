@@ -2,6 +2,7 @@
 use async_can::{Receiver, Sender};
 
 use async_trait::async_trait;
+use comsrv_protocol::CanInstrument;
 use tokio::sync::broadcast;
 
 use tokio::sync::mpsc;
@@ -57,18 +58,17 @@ pub struct Instrument {
 
 pub struct Request {
     pub inner: CanRequest,
-    pub bitrate: Option<u32>,
+    pub instrument: CanInstrument,
 }
 
 impl Instrument {
-    pub fn new(server: &Server, addr: &CanAddress) -> Self {
+    pub fn new(server: &Server) -> Self {
         let handler = Handler {
-            addr: addr.clone(),
             server: server.clone(),
             sender: None,
             listener: None,
             loopback: false,
-            bitrate: None,
+            last_instrument: None,
         };
         Self {
             io: IoTask::new(handler),
@@ -88,8 +88,8 @@ impl Instrument {
 impl crate::inventory::Instrument for Instrument {
     type Address = CanAddress;
 
-    fn connect(server: &Server, addr: &Self::Address) -> crate::Result<Self> {
-        Ok(Instrument::new(server, addr))
+    fn connect(server: &Server, _addr: &Self::Address) -> crate::Result<Self> {
+        Ok(Instrument::new(server))
     }
 
     async fn wait_for_closed(&self) {
@@ -98,11 +98,10 @@ impl crate::inventory::Instrument for Instrument {
 }
 
 struct Handler {
-    addr: CanAddress,
+    last_instrument: Option<CanInstrument>,
     server: Server,
     sender: Option<CanSender>,
     listener: Option<UnboundedSender<ListenerMsg>>,
-    bitrate: Option<u32>,
     loopback: bool,
 }
 
@@ -123,30 +122,34 @@ impl Handler {
             let (tx, rx) = oneshot::channel();
             if listener.send(ListenerMsg::Close(tx)).is_ok() {
                 let _ = rx.await;
-                log::debug!("{:?} - Listener closed", self.addr);
+                log::debug!("{:?} - Listener closed", self.last_instrument);
             } // else it's already gone
         }
     }
 
-    async fn update_bitrate(&mut self, req: &Request) {
-        let bitrate = match req.bitrate {
-            Some(x) => x,
-            None => return,
-        };
-        match self.addr {
-            CanAddress::PCan { .. } => {
-                log::debug!("{:?} - Updating Bitrate", self.addr);
-                self.close_listener().await;
-                if let Some(sender) = self.sender.take() {
-                    let _ = sender.close().await;
+    async fn update_bitrate(&mut self, instr: &CanInstrument) {
+        match instr {
+            CanInstrument::PCan { address: _, bitrate } => {
+                if let Some(CanInstrument::PCan {
+                    address: _,
+                    bitrate: old_bitrate,
+                }) = &self.last_instrument
+                {
+                    if old_bitrate != bitrate {
+                        log::debug!("{:?} - Updating Bitrate", instr);
+                        self.close_listener().await;
+                        if let Some(sender) = self.sender.take() {
+                            let _ = sender.close().await;
+                        }
+                        log::debug!("{:?} - Sender closed", instr);
+                    }
                 }
-                log::debug!("{:?} - Sender closed", self.addr);
-                self.bitrate = Some(bitrate);
             }
             _ => {
-                log::debug!("Updating Bitrate not supported for {:?}", self.addr);
+                log::debug!("Updating Bitrate not supported for {:?}", instr);
             }
         };
+        self.last_instrument = Some(instr.clone());
     }
 
     async fn handle_request(&mut self, req: &Request) -> crate::Result<CanResponse> {
@@ -191,6 +194,14 @@ impl Handler {
             }
         }
     }
+
+    fn make_sender(&self, instr: &CanInstrument) -> crate::Result<CanSender> {
+        CanSender::new(instr)
+    }
+
+    fn make_receiver(&self, instr: &CanInstrument) -> crate::Result<CanReceiver> {
+        CanReceiver::new(instr)
+    }
 }
 
 #[async_trait::async_trait]
@@ -200,17 +211,17 @@ impl IoHandler for Handler {
 
     async fn handle(&mut self, _ctx: &mut IoContext<Self>, req: Self::Request) -> crate::Result<Self::Response> {
         self.check_listener().await;
-        self.update_bitrate(&req).await;
+        self.update_bitrate(&req.instrument).await;
 
         if self.sender.is_none() {
-            log::debug!("{:?} - Initializing new Sender", self.addr);
-            self.sender.replace(CanSender::new(self.addr.clone())?);
+            log::debug!("{:?} - Initializing new Sender", req.instrument);
+            self.sender.replace(self.make_sender(&req.instrument)?);
         }
         if self.listener.is_none() {
-            log::debug!("{:?} - Initializing new Receiver", self.addr);
-            let device = CanReceiver::new(self.addr.clone())?;
+            log::debug!("{:?} - Initializing new Receiver", req.instrument);
+            let device = self.make_receiver(&req.instrument)?;
             let (tx, rx) = mpsc::unbounded_channel();
-            let fut = listener_task(rx, device, self.server.clone(), self.addr.clone());
+            let fut = listener_task(rx, device, self.server.clone(), req.instrument.clone());
             task::spawn(fut);
             self.listener.replace(tx);
         }
@@ -249,7 +260,7 @@ struct Listener {
     decoder: Decoder,
     server: Server,
     device: Option<CanReceiver>,
-    address: CanAddress,
+    instr: CanInstrument,
 }
 
 impl Listener {
@@ -284,7 +295,7 @@ impl Listener {
         log::debug!("CAN received - ID = {:x}", msg.id());
         if self.listen_raw {
             let tx = Response::Can {
-                source: self.address.clone(),
+                source: self.instr.clone().into(),
                 response: CanResponse::Raw(msg.clone()),
             };
             log::debug!("Broadcast raw CAN message: {}", serde_json::to_string(&msg).unwrap());
@@ -294,7 +305,7 @@ impl Listener {
             if let Some(msg) = self.decoder.decode(msg) {
                 log::debug!("Broadcast GCT CAN message: {}", serde_json::to_string(&msg).unwrap());
                 let msg = Response::Can {
-                    source: self.address.clone(),
+                    source: self.instr.clone().into(),
                     response: CanResponse::Gct(msg),
                 };
                 self.server.broadcast(msg);
@@ -310,7 +321,7 @@ impl Listener {
                 crate::Error::Transport(_x) => {
                     let tx = Response::Can {
                         response: CanResponse::Stopped,
-                        source: self.address.clone(),
+                        source: self.instr.clone().into(),
                     };
                     self.server.broadcast(tx);
                     false
@@ -334,7 +345,7 @@ async fn listener_task(
     mut rx: UnboundedReceiver<ListenerMsg>,
     device: CanReceiver,
     server: Server,
-    address: CanAddress,
+    instr: CanInstrument,
 ) {
     let mut listener = Listener {
         listen_gct: true,
@@ -342,7 +353,7 @@ async fn listener_task(
         decoder: Decoder::new(),
         server,
         device: Some(device),
-        address,
+        instr,
     };
     loop {
         tokio::select! {
@@ -373,12 +384,13 @@ mod tests {
 
         let mut client = srv.loopback().await;
 
-        let mut instr = Instrument::new(&srv, &CanAddress::Loopback);
+        let mut instr = Instrument::new(&srv);
 
         let req = Request {
             inner: CanRequest::ListenRaw(true),
-            bitrate: None,
+            instrument: CanInstrument::Loopback,
         };
+
         let resp = instr.request(req).await;
         let _expected_resp = CanResponse::Started;
         assert!(matches!(resp, Ok(_expected_resp)));
@@ -390,7 +402,7 @@ mod tests {
         });
         let req = Request {
             inner: CanRequest::TxRaw(msg),
-            bitrate: None,
+            instrument: CanInstrument::Loopback,
         };
         let sent = instr.request(req).await;
         assert!(matches!(sent, Ok(CanResponse::Ok)));
@@ -460,15 +472,17 @@ impl CanReceiver {
 
 #[cfg(target_os = "linux")]
 impl CanSender {
-    pub fn new(addr: CanAddress) -> crate::Result<Self> {
-        let addr2 = addr.clone();
-        match addr {
-            CanAddress::PCan { .. } => Err(crate::Error::internal(anyhow!("Not Supported"))),
-            CanAddress::SocketCan { interface } => {
+    pub fn new(instr: &CanInstrument) -> crate::Result<Self> {
+        match instr {
+            CanInstrument::PCan { .. } => Err(crate::Error::internal(anyhow!("Not Supported"))),
+            CanInstrument::SocketCan { interface } => {
                 let device = Sender::connect(interface.clone()).map_err(map_error)?;
-                Ok(CanSender::Bus { device, addr: addr2 })
+                Ok(CanSender::Bus {
+                    device,
+                    addr: instr.clone().into(),
+                })
             }
-            CanAddress::Loopback => Ok(CanSender::Loopback(LoopbackDevice::new())),
+            CanInstrument::Loopback => Ok(CanSender::Loopback(LoopbackDevice::new())),
         }
     }
 
@@ -479,15 +493,19 @@ impl CanSender {
 
 #[cfg(target_os = "linux")]
 impl CanReceiver {
-    pub fn new(addr: CanAddress) -> crate::Result<Self> {
-        let addr2 = addr.clone();
-        match addr {
-            CanAddress::PCan { .. } => Err(crate::Error::internal(anyhow!("Not supported"))),
-            CanAddress::SocketCan { interface } => {
+    pub fn new(instr: &CanInstrument) -> crate::Result<Self> {
+        match instr {
+            CanInstrument::PCan { .. } => Err(crate::Error::internal(anyhow!("Not supported"))),
+            CanInstrument::SocketCan { interface } => {
                 let device = Receiver::connect(interface.clone()).map_err(map_error)?;
-                Ok(CanReceiver::Bus { device, addr: addr2 })
+                Ok(CanReceiver::Bus {
+                    device,
+                    addr: CanAddress::SocketCan {
+                        interface: interface.clone(),
+                    },
+                })
             }
-            CanAddress::Loopback => Ok(CanReceiver::Loopback(LoopbackDevice::new())),
+            CanInstrument::Loopback => Ok(CanReceiver::Loopback(LoopbackDevice::new())),
         }
     }
 
@@ -498,44 +516,41 @@ impl CanReceiver {
 
 #[cfg(target_os = "windows")]
 impl CanSender {
-    pub fn new(addr: CanAddress) -> crate::Result<Self> {
-        match &addr {
-            CanAddress::PCan { ifname, bitrate } => {
-                let device = Sender::connect(ifname, *bitrate).map_err(|x| crate::Error::Can {
-                    addr: addr.interface(),
-                    err: x.into(),
-                })?;
-                Ok(Self::Bus { device, addr })
+    pub fn new(instr: &CanInstrument) -> crate::Result<Self> {
+        match instr {
+            CanInstrument::PCan { address, bitrate } => {
+                let device = Sender::connect(address, *bitrate).map_err(map_error)?;
+                Ok(Self::Bus {
+                    device,
+                    addr: instr.clone().into(),
+                })
             }
-            CanAddress::Socket(_) => Err(crate::Error::NotSupported),
-            CanAddress::Loopback => Ok(Self::Loopback(LoopbackDevice::new())),
+            CanInstrument::SocketCan { .. } => Err(crate::Error::internal(anyhow!("Not supported"))),
+            CanInstrument::Loopback => Ok(Self::Loopback(LoopbackDevice::new())),
         }
     }
 
     pub async fn close(self) -> crate::Result<()> {
         match self {
             CanSender::Loopback(_) => Ok(()),
-            CanSender::Bus { device, addr } => device.close().await.map_err(|x| crate::Error::Can {
-                addr: addr.interface(),
-                err: x.into(),
-            }),
+            CanSender::Bus { device, addr: _ } => device.close().await.map_err(map_error),
         }
     }
 }
 
 #[cfg(target_os = "windows")]
 impl CanReceiver {
-    pub fn new(addr: CanAddress) -> crate::Result<Self> {
-        match &addr {
-            CanAddress::PCan { ifname, bitrate } => {
-                let device = Receiver::connect(ifname, *bitrate).map_err(|x| crate::Error::Can {
-                    addr: addr.interface(),
-                    err: x.into(),
-                })?;
-                Ok(Self::Bus { device, addr })
+    pub fn new(instr: &CanInstrument) -> crate::Result<Self> {
+        match instr {
+            CanInstrument::PCan { address, bitrate } => {
+                let device = Receiver::connect(address, *bitrate).map_err(map_error)?;
+                Ok(Self::Bus {
+                    device,
+                    addr: instr.clone().into(),
+                })
             }
-            CanAddress::Socket(_) => Err(crate::Error::NotSupported),
-            CanAddress::Loopback => Ok(Self::Loopback(LoopbackDevice::new())),
+            CanInstrument::SocketCan { .. } => Err(crate::Error::internal(anyhow!("Not supported"))),
+            CanInstrument::Loopback => Ok(Self::Loopback(LoopbackDevice::new())),
         }
     }
 

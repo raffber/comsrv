@@ -14,6 +14,16 @@
             }
         },
         {
+            "label": "comsrv-build-msvc",
+            "type": "shell",
+            "command": "cd comsrv && cargo xwin build --target x86_64-pc-windows-msvc",
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
             "label": "comsrv-check",
             "type": "shell",
             "command": "cd comsrv && cargo check",

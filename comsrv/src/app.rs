@@ -230,13 +230,15 @@ impl App {
     }
 
     async fn handle_can(&self, instr: CanInstrument, req: CanRequest, lock: Option<Uuid>) -> crate::Result<Response> {
-        let bitrate = instr.bitrate();
-        let addr: CanAddress = instr.into();
+        let addr: CanAddress = instr.clone().into();
         self.inventories
             .can
             .wait_connect(&self.server, &addr, lock.as_ref())
             .await?
-            .request(can::Request { inner: req, bitrate })
+            .request(can::Request {
+                inner: req,
+                instrument: instr,
+            })
             .await
             .map(|response| Response::Can { source: addr, response })
     }
