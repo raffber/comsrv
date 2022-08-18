@@ -7,4 +7,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+      - name: Download artifact
+        uses: dawidd6/action-download-artifact@v2.22.0
+        with:
+          path: ${{ github.workspace }}/out
+          commit: e277b23354573288d66a2fbc91af60c197ae6ecc
+          workflow: build.yml
+          github_token: ${{secrets.GITHUB_TOKEN}}
+          artifact_name: comsrv
+          workflow_conclusion: success
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        body_path: ${{ github.workspace }}/CHANGELOG.md
+        files: |
+          out/comsrv
+          out/comsrv.exe
+

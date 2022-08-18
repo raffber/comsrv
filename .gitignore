@@ -9,3 +9,6 @@ client/target
 protocol/target
 target
 out
+.github/workflows/build.yml
+
+tmp/
