@@ -26,5 +26,5 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           body_path: CHANGELOG.md
-          files: out/comsrv/*
+          files: out/*
 
