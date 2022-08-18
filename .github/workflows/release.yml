@@ -8,6 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      # - name: Trigger build
+      #   uses: ./.github/workflows/build.yml
       - name: Download artifact
         uses: dawidd6/action-download-artifact@v2.22.0
         with:
@@ -21,7 +23,5 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           body_path: CHANGELOG.md
-          files: |
-            out/comsrv
-            out/comsrv.exe
+          files: out/*
 
