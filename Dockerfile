@@ -42,8 +42,7 @@ RUN set -eux; \
     apt-get remove -y --auto-remove; \
     rm -rf /var/lib/apt/lists/*;
 
-RUN cargo install cargo-xwin && \
-    rustup target add x86_64-pc-windows-msvc && \
+RUN rustup target add x86_64-pc-windows-msvc && \
     cargo install xwin 
 
 RUN mkdir /cache && \

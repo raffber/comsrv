@@ -1,0 +1,20 @@
+name: Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # - name: Trigger build
+      #   uses: ./.github/workflows/build.yml
+      - name: Download Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: comsrv
+          path: ${{ github.workspace }}/out/
+      - name: List artifacts
+        run: ls ${{ github.workspace }}/out/
+
+      
