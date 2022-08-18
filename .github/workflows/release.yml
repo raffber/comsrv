@@ -15,7 +15,7 @@ jobs:
         uses: dawidd6/action-download-artifact@v2.22.0
         with:
           path: ${{ github.workspace }}/out
-          commit: e277b23354573288d66a2fbc91af60c197ae6ecc
+          commit: ${{ env.GITHUB_SHA }}
           workflow: build.yml
           github_token: ${{secrets.GITHUB_TOKEN}}
           artifact_name: comsrv
