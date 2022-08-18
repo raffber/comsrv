@@ -1,11 +1,13 @@
-name: Release
+name: CD
 
 on:
-  workflow_dispatch:
+  push:
+    tags:
+      - 'release/*'
 
 jobs:
   run-build:
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/ci.yml
   release:
     runs-on: ubuntu-latest
     needs: run-build
@@ -16,7 +18,7 @@ jobs:
         with:
           path: ${{ github.workspace }}/out
           commit: ${{ env.GITHUB_SHA }}
-          workflow: build.yml
+          workflow: ci.yml
           github_token: ${{secrets.GITHUB_TOKEN}}
           name: comsrv
           workflow_conclusion: success
