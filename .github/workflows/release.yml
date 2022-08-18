@@ -18,7 +18,7 @@ jobs:
           commit: ${{ env.GITHUB_SHA }}
           workflow: build.yml
           github_token: ${{secrets.GITHUB_TOKEN}}
-          artifact_name: comsrv
+          name: comsrv
           workflow_conclusion: success
       - name: Release
         uses: softprops/action-gh-release@v1
