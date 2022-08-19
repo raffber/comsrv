@@ -12,3 +12,4 @@ out
 .github/workflows/build.yml
 
 tmp/
+python/dist

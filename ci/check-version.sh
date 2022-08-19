@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euxfo pipefail
+set -eufo pipefail
 
 cd $(dirname "$0")
 

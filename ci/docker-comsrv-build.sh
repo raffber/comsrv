@@ -7,5 +7,5 @@ rootdir=$(realpath "$curdir"/..)
 
 rm -rf "$rootdir"/comsrv/target
 
-docker run -v "$rootdir":/data -w /data/ comsrv-agent ./jenkins/comsrv-build.sh "$(id -u)" "$(id -g)" 
+docker run -v "$rootdir":/data -w /data/ comsrv-agent ./ci/comsrv-build.sh "$(id -u)" "$(id -g)" 
 

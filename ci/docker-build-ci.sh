@@ -7,5 +7,5 @@ cd "$curdir/.."
 
 docker build . -t comsrv-agent
 
-docker run -it -v $PWD:/workspace comsrv-agent jenkins/build-ci.sh
+docker run -it -v $PWD:/workspace comsrv-agent ci/build-ci.sh
 

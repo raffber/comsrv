@@ -57,7 +57,7 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM chef as builder
 
 RUN apt-get update && \
-    apt-get install --yes build-essential libudev-dev udev pkg-config libusb-1.0-0-dev curl sudo 
+    apt-get install --yes build-essential libudev-dev udev pkg-config libusb-1.0-0-dev curl sudo python3-wheel python3-setuptools
 
 COPY --from=planner /workspace/recipe.json recipe.json
 RUN cargo chef cook --release  --recipe-path recipe.json && mv target /cache/linux-release-cache
@@ -68,7 +68,6 @@ ENV CC_x86_64_pc_windows_msvc="clang-cl" \
     CL_FLAGS="-Wno-unused-command-line-argument -fuse-ld=lld-link /imsvc/xwin/crt/include /imsvc/xwin/sdk/include/ucrt /imsvc/xwin/sdk/include/um /imsvc/xwin/sdk/include/shared" \
     CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER="lld-link" \
     CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS="-Lnative=/xwin/crt/lib/x86_64 -Lnative=/xwin/sdk/lib/um/x86_64 -Lnative=/xwin/sdk/lib/ucrt/x86_64"
-
 
 ENV CFLAGS_x86_64_pc_windows_msvc="$CL_FLAGS" CXXFLAGS_x86_64_pc_windows_msvc="$CL_FLAGS"
 

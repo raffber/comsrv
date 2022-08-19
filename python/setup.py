@@ -1,4 +1,9 @@
 import setuptools
+from os.path import dirname, join
+from subprocess import check_output
+
+curdir = dirname(__file__)
+version = check_output([join(curdir, "..", "ci", "get-version.sh")]).decode().strip()
 
 with open("../README.md") as f:
     long_description = f.read()
@@ -9,9 +14,10 @@ requirements = [
     "wsrpc @ git+https://github.com/raffber/wsrpc.git@release/v1.0.0#egg=wsrpc",
 ]
 
+
 setuptools.setup(
     name="comsrv",
-    version="0.2.0",
+    version=version,
     author="Raphael Bernhard",
     author_email="beraphae@gmail.com",
     description="A communication relay for interfacing with instruments",
