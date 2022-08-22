@@ -186,7 +186,7 @@ impl<T: Rpc> ByteStreamPipe<T> {
         }
     }
 
-    fn modbus(&self, station_address: u8, protocol: ModBusProtocol) -> ModBusPipe<T> {
+    pub fn modbus(&self, station_address: u8, protocol: ModBusProtocol) -> ModBusPipe<T> {
         ModBusPipe::new(
             self.rpc.clone(),
             self.instrument.clone(),

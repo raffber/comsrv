@@ -30,6 +30,7 @@ struct Handler {
 
 #[derive(Clone)]
 pub enum TcpRequest {
+    #[allow(dead_code)]
     SetOptions(TcpOptions),
     Bytes {
         request: ByteStreamRequest,
@@ -183,10 +184,6 @@ impl Instrument {
 
     pub async fn request(&mut self, req: TcpRequest) -> crate::Result<TcpResponse> {
         self.inner.request(req).await
-    }
-
-    pub fn disconnect(mut self) {
-        self.inner.disconnect()
     }
 }
 

@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::io;
 use std::time::Duration;
 
@@ -158,9 +156,7 @@ pub async fn unlock<T: Rpc>(rpc: &mut T, addr: &Address, uuid: Uuid) -> crate::R
         addr: addr.clone(),
         id: uuid,
     };
-    rpc.request(req, DEFAULT_RPC_TIMEOUT)
-        .await
-        .map(|_| ())
+    rpc.request(req, DEFAULT_RPC_TIMEOUT).await.map(|_| ())
 }
 
 pub async fn list_serial_ports<T: Rpc>(rpc: &mut T) -> crate::Result<Vec<String>> {

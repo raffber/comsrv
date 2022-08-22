@@ -46,10 +46,6 @@ impl Instrument {
     pub async fn request(&mut self, req: FtdiRequest) -> crate::Result<ByteStreamResponse> {
         self.inner.request(req).await
     }
-
-    pub fn disconnect(mut self) {
-        self.inner.disconnect()
-    }
 }
 
 impl From<SerialParams> for async_ftdi::SerialParams {

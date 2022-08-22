@@ -78,10 +78,6 @@ impl Instrument {
     pub async fn request(&mut self, req: Request) -> crate::Result<CanResponse> {
         self.io.request(req).await
     }
-
-    pub fn disconnect(mut self) {
-        self.io.disconnect();
-    }
 }
 
 #[async_trait]
@@ -459,13 +455,6 @@ impl CanReceiver {
         match self {
             CanReceiver::Loopback(lo) => lo.recv().await,
             CanReceiver::Bus { device, addr: _ } => Ok(into_protocol_message(device.recv().await.map_err(map_error)?)),
-        }
-    }
-
-    pub fn address(&self) -> CanAddress {
-        match self {
-            CanReceiver::Loopback(_) => CanAddress::Loopback,
-            CanReceiver::Bus { device: _, addr } => addr.clone(),
         }
     }
 }

@@ -106,7 +106,6 @@ fn handle_request(device: &mut HidApiDevice, idn: &HidIdentifier, req: HidReques
 
 #[derive(Clone)]
 pub struct Instrument {
-    idn: HidIdentifier,
     inner: IoTask<Handler>,
 }
 
@@ -117,17 +116,12 @@ impl Instrument {
             idn: idn.clone(),
         };
         Self {
-            idn: idn.clone(),
             inner: IoTask::new(handler),
         }
     }
 
     pub async fn request(&mut self, req: HidRequest) -> crate::Result<HidResponse> {
         self.inner.request(req).await
-    }
-
-    pub fn disconnect(mut self) {
-        self.inner.disconnect()
     }
 }
 

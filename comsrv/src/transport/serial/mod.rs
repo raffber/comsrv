@@ -203,10 +203,6 @@ impl Instrument {
     pub async fn request(&mut self, req: Request) -> crate::Result<Response> {
         self.inner.request(req).await
     }
-
-    pub fn disconnect(mut self) {
-        self.inner.disconnect()
-    }
 }
 
 #[async_trait]

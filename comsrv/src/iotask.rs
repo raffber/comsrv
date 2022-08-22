@@ -98,6 +98,7 @@ impl<T: 'static + IoHandler> IoTask<T> {
     }
 
     /// Drop the internal actor.
+    #[allow(dead_code)]
     pub fn disconnect(&mut self) {
         let _ = self.tx.send(RequestMsg::Drop);
     }

@@ -1,3 +1,6 @@
+#![allow(unsafe_code)]
+#![allow(non_snake_case)]
+
 use std::ffi::{CStr, CString};
 use std::fmt::{Display, Formatter};
 use std::io::Write;

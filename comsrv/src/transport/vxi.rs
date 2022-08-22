@@ -53,10 +53,6 @@ impl Instrument {
         }
     }
 
-    pub fn disconnect(mut self) {
-        self.inner.disconnect();
-    }
-
     pub async fn request(&mut self, req: ScpiRequest) -> crate::Result<ScpiResponse> {
         let req = Request::Scpi(req);
         match self.inner.request(req).await? {

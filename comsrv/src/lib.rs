@@ -1,5 +1,4 @@
-#![allow(non_snake_case)]
-#![allow(dead_code)]
+#![deny(unsafe_code)]
 
 #[macro_use]
 extern crate dlopen_derive;

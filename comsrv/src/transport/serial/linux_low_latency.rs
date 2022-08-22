@@ -1,3 +1,5 @@
+#![allow(unsafe_code)]
+
 /// On linux to get lower latency on serial ports a special flag needs to be set on serial ports
 /// Refer to https://stackoverflow.com/questions/13126138/low-latency-serial-communication-on-linux
 ///

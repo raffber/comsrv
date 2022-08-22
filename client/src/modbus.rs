@@ -75,7 +75,7 @@ impl<T: Rpc> ModBusPipe<T> {
         self.station_address = station_address;
     }
 
-    fn station_address(&self) -> u8 {
+    pub fn station_address(&self) -> u8 {
         self.station_address
     }
 

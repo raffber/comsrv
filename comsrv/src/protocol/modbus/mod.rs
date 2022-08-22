@@ -19,6 +19,8 @@ use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 mod function_codes {
+    #![allow(dead_code)]
+
     pub const READ_COILS: u8 = 1;
     pub const READ_DISCRETES: u8 = 2;
     pub const READ_HOLDINGS: u8 = 3;
@@ -74,12 +76,6 @@ impl ModBusException {
     }
 }
 
-#[derive(Error, Debug)]
-enum ModBusFrameError {
-    #[error("Not enough data")]
-    NotEnoughData,
-}
-
 /// Function code handler. Both the RTU and the TCP handler implementations
 /// get the necessary information from these handlers to perform the framing
 pub trait FunctionCode {
@@ -132,17 +128,13 @@ impl<T: FunctionCode> Handler<T> {
 pub struct TransactionInfo {
     transaction_id: u16,
     station_address: u8,
-    protocol: ModBusProtocol,
-    timeout: Duration,
 }
 
 impl TransactionInfo {
-    pub fn new(station_address: u8, protocol: ModBusProtocol, timeout: Duration) -> Self {
+    pub fn new(station_address: u8) -> Self {
         Self {
             transaction_id: rand::random(),
             station_address,
-            protocol,
-            timeout,
         }
     }
 }
@@ -157,7 +149,7 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
     crate::protocol::bytestream::read_all(stream)
         .await
         .map_err(crate::Error::transport)?;
-    let transaction = TransactionInfo::new(station_address, protocol, timeout);
+    let transaction = TransactionInfo::new(station_address);
     let ret = match request {
         ModBusRequest::Ddp {
             sub_cmd,
