@@ -135,7 +135,7 @@ impl App {
             Request::ListHidDevices => hid::list_devices().await.map(|x| Response::Hid(HidResponse::List(x))),
             Request::Version => {
                 let version = crate_version!();
-                let version: Vec<_> = version.split(".").map(|x| x.parse::<u32>().unwrap()).collect();
+                let version: Vec<_> = version.split('.').map(|x| x.parse::<u32>().unwrap()).collect();
                 Ok(Response::Version {
                     major: version[0],
                     minor: version[1],

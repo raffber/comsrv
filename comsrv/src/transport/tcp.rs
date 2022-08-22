@@ -132,7 +132,7 @@ impl IoHandler for Handler {
             let stream = if let Some(stream) = self.stream.take() {
                 stream
             } else {
-                let addr = self.addr.clone();
+                let addr = self.addr;
                 match connect_tcp_stream(addr, self.connection_timeout).await {
                     Ok(stream) => stream,
                     Err(x) => {
@@ -148,7 +148,7 @@ impl IoHandler for Handler {
                 Ok(ret) => {
                     self.stream.replace(stream);
                     let mut ctx = ctx.clone();
-                    let drop_delay = self.drop_delay.clone();
+                    let drop_delay = self.drop_delay;
                     self.drop_delay_task = Some(task::spawn(async move {
                         sleep(drop_delay + Duration::from_millis(100)).await;
                         let _ = ctx.send(TcpRequest::DropCheck);

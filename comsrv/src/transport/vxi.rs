@@ -110,7 +110,7 @@ impl Handler {
     }
 
     async fn connect(&self) -> crate::Result<CoreClient> {
-        let fut = CoreClient::connect(self.addr.clone());
+        let fut = CoreClient::connect(self.addr);
         let ret = tokio::time::timeout(DEFAULT_CONNECTION_TIMEOUT, fut)
             .await
             .map_err(|_| crate::Error::protocol_timeout())?;
@@ -163,10 +163,10 @@ impl Handler {
 
     fn spawn_drop_check(&mut self, ctx: &mut IoContext<Self>) {
         let mut ctx = ctx.clone();
-        let drop_delay = self.drop_delay.clone();
+        let drop_delay = self.drop_delay;
         self.drop_delay_task = Some(task::spawn(async move {
             sleep(drop_delay + Duration::from_millis(100)).await;
-            let _ = ctx.send(Request::DropCheck);
+            ctx.send(Request::DropCheck);
         }));
     }
 }

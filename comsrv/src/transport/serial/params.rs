@@ -8,20 +8,20 @@ use anyhow::anyhow;
 use comsrv_protocol::SerialPortConfig;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum StopBits {
     One,
     Two,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum Parity {
     None,
     Odd,
     Even,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Serialize, Deserialize, Hash)]
 pub enum DataBits {
     Seven,
     Eight,
@@ -52,7 +52,7 @@ pub fn parse_serial_settings(settings: &str) -> crate::Result<(DataBits, Parity,
     Ok((data_bits, parity, stop_bits))
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Hash)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]
 pub struct SerialParams {
     pub baud: u32,
     pub data_bits: DataBits,
@@ -91,7 +91,7 @@ impl SerialParams {
         let baud_rate: u32 = addr_parts[0]
             .parse()
             .map_err(|_| crate::Error::argument(anyhow!("Invalid Address")))?;
-        let (bits, parity, stop) = parse_serial_settings(&addr_parts[1])?;
+        let (bits, parity, stop) = parse_serial_settings(addr_parts[1])?;
 
         Ok(SerialParams {
             baud: baud_rate,

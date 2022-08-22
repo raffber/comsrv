@@ -52,23 +52,23 @@ impl Instrument {
     }
 }
 
-impl Into<async_ftdi::SerialParams> for SerialParams {
-    fn into(self) -> async_ftdi::SerialParams {
-        let data_bits = match self.data_bits {
+impl From<SerialParams> for async_ftdi::SerialParams {
+    fn from(val: SerialParams) -> Self {
+        let data_bits = match val.data_bits {
             DataBits::Seven => async_ftdi::DataBits::Seven,
             DataBits::Eight => async_ftdi::DataBits::Eight,
         };
-        let parity = match self.parity {
+        let parity = match val.parity {
             Parity::Even => async_ftdi::Parity::Even,
             Parity::Odd => async_ftdi::Parity::Odd,
             Parity::None => async_ftdi::Parity::None,
         };
-        let stop_bits = match self.stop_bits {
+        let stop_bits = match val.stop_bits {
             StopBits::One => async_ftdi::StopBits::One,
             StopBits::Two => async_ftdi::StopBits::Two,
         };
         async_ftdi::SerialParams {
-            baud: self.baud,
+            baud: val.baud,
             data_bits,
             stop_bits,
             parity,

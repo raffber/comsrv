@@ -25,9 +25,9 @@ pub struct Duration {
     pub seconds: u32,
 }
 
-impl Into<std::time::Duration> for Duration {
-    fn into(self) -> std::time::Duration {
-        std::time::Duration::from_micros((self.seconds as u64 * 1000000_u64) + (self.micros as u64))
+impl From<Duration> for std::time::Duration {
+    fn from(val: Duration) -> Self {
+        std::time::Duration::from_micros((val.seconds as u64 * 1000000_u64) + (val.micros as u64))
     }
 }
 

@@ -137,9 +137,7 @@ impl DdpDecoderV2 {
         }
         // check if we got all parts
         for k in 0..(self.max_part_idx + 1) {
-            if self.parts.get(&k).is_none() {
-                return None;
-            }
+            self.parts.get(&k)?;
         }
         // yes complete..., try decoding
         let mut data = Vec::with_capacity((self.max_part_idx + 1) as usize * 8);
@@ -197,10 +195,10 @@ impl Decoder {
                 let decoder_v2 = self.ddp_v2.entry(dst).or_insert_with(|| DdpDecoderV2::new(dst));
                 let msg_v1 = decoder_v1.decode(&msg);
                 let msg_v2 = decoder_v2.decode(msg);
-                if let Some(msg) = msg_v1 {
-                    Some(msg)
-                } else if let Some(msg) = msg_v2 {
-                    Some(msg)
+                if msg_v1.is_some() {
+                    msg_v1
+                } else if msg_v2.is_some() {
+                    msg_v2
                 } else {
                     None
                 }
@@ -233,7 +231,7 @@ fn encode_ddp_v1(src: u8, dst: u8, mut data: Vec<u8>) -> Vec<CanMessage> {
 }
 
 fn encode_ddp_v2(src: u8, dst: u8, mut data: Vec<u8>) -> Vec<CanMessage> {
-    if data.len() == 0 {
+    if data.is_empty() {
         return vec![];
     }
     let crc = crc16(&data);
@@ -259,7 +257,7 @@ fn encode_ddp_v2(src: u8, dst: u8, mut data: Vec<u8>) -> Vec<CanMessage> {
 }
 
 pub fn encode(msg: GctMessage) -> crate::Result<Vec<CanMessage>> {
-    if let Err(_) = msg.validate() {
+    if msg.validate().is_err() {
         return Err(crate::Error::argument(anyhow!("Invalid")));
     }
     let ret = match msg {

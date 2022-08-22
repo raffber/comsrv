@@ -2,11 +2,10 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use comsrv_protocol::{
-    ByteStreamInstrument, ByteStreamRequest, ByteStreamResponse, ModBusProtocol, ModBusRequest,
-    Request, Response,
+    ByteStreamInstrument, ByteStreamRequest, ByteStreamResponse, ModBusProtocol, Request, Response,
 };
 
-use crate::{lock, Lock, LockGuard, Locked, Rpc, DEFAULT_RPC_TIMEOUT};
+use crate::{lock, modbus::ModBusPipe, Lock, LockGuard, Locked, Rpc, DEFAULT_RPC_TIMEOUT};
 
 pub struct ByteStreamPipe<T: Rpc> {
     rpc: T,
@@ -187,30 +186,12 @@ impl<T: Rpc> ByteStreamPipe<T> {
         }
     }
 
-    pub async fn modbus_ddp(
-        &mut self,
-        station_address: u8,
-        protocol: ModBusProtocol,
-        sub_cmd: u8,
-        ddp_cmd: u8,
-        response: bool,
-        data: &[u8],
-        timeout: Duration,
-    ) -> crate::Result<Vec<u8>> {
-        let req = ByteStreamRequest::ModBus {
-            timeout: timeout.into(),
+    fn modbus(&self, station_address: u8, protocol: ModBusProtocol) -> ModBusPipe<T> {
+        ModBusPipe::new(
+            self.rpc.clone(),
+            self.instrument.clone(),
             station_address,
             protocol,
-            request: ModBusRequest::Ddp {
-                sub_cmd,
-                ddp_cmd,
-                response,
-                data: data.to_vec(),
-            },
-        };
-        match self.request(req).await? {
-            ByteStreamResponse::Data(x) => Ok(x),
-            _ => Err(crate::Error::UnexpectdResponse),
-        }
+        )
     }
 }

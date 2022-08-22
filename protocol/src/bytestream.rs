@@ -37,9 +37,9 @@ pub struct SerialInstrument {
     pub options: Option<SerialOptions>,
 }
 
-impl Into<SerialAddress> for SerialInstrument {
-    fn into(self) -> SerialAddress {
-        self.address
+impl From<SerialInstrument> for SerialAddress {
+    fn from(val: SerialInstrument) -> Self {
+        val.address
     }
 }
 
@@ -51,9 +51,9 @@ pub struct FtdiInstrument {
     pub options: Option<SerialOptions>,
 }
 
-impl Into<FtdiAddress> for FtdiInstrument {
-    fn into(self) -> FtdiAddress {
-        self.address
+impl From<FtdiInstrument> for FtdiAddress {
+    fn from(val: FtdiInstrument) -> Self {
+        val.address
     }
 }
 
@@ -72,9 +72,9 @@ pub struct TcpInstrument {
     pub options: Option<TcpOptions>,
 }
 
-impl Into<TcpAddress> for TcpInstrument {
-    fn into(self) -> TcpAddress {
-        self.address
+impl From<TcpInstrument> for TcpAddress {
+    fn from(val: TcpInstrument) -> Self {
+        val.address
     }
 }
 
@@ -85,9 +85,9 @@ pub enum ByteStreamInstrument {
     Tcp(TcpInstrument),
 }
 
-impl Into<Address> for ByteStreamInstrument {
-    fn into(self) -> Address {
-        match self {
+impl From<ByteStreamInstrument> for Address {
+    fn from(val: ByteStreamInstrument) -> Self {
+        match val {
             ByteStreamInstrument::Serial(x) => Address::Serial(x.into()),
             ByteStreamInstrument::Ftdi(x) => Address::Ftdi(x.into()),
             ByteStreamInstrument::Tcp(x) => Address::Tcp(x.into()),

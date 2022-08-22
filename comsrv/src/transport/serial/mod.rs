@@ -115,7 +115,7 @@ impl Handler {
             None => {
                 log::debug!("Opening {}", self.path);
                 self.prologix_initialized = false;
-                Self::open_serial_port(&self.path, &new_params).await?
+                Self::open_serial_port(&self.path, new_params).await?
             }
             Some((serial, old_params)) => {
                 if old_params == *new_params {
@@ -124,7 +124,7 @@ impl Handler {
                     drop(serial);
                     self.prologix_initialized = false;
                     log::debug!("Reopening {}", self.path);
-                    Self::open_serial_port(&self.path, &new_params).await?
+                    Self::open_serial_port(&self.path, new_params).await?
                 }
             }
         };
@@ -168,7 +168,7 @@ impl IoHandler for Handler {
                 self.serial.replace((serial, new_params));
 
                 let mut ctx = ctx.clone();
-                let drop_delay = self.drop_delay.clone();
+                let drop_delay = self.drop_delay;
                 self.drop_delay_task = Some(task::spawn(async move {
                     sleep(drop_delay + Duration::from_millis(100)).await;
                     let _ = ctx.send(Request::DropCheck);
@@ -228,7 +228,7 @@ pub async fn list_devices() -> crate::Result<Vec<String>> {
             let ports = x.iter().map(|x| x.port_name.clone()).collect();
             Ok(ports)
         }
-        Err(err) => Err(crate::Error::transport(anyhow!(err.description)).into()),
+        Err(err) => Err(crate::Error::transport(anyhow!(err.description))),
     })
     .await
     .unwrap()

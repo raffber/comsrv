@@ -123,8 +123,8 @@ impl<T: FunctionCode> Handler<T> {
         transaction: &TransactionInfo,
     ) -> crate::Result<T::Output> {
         match self {
-            Handler::Tcp(x) => x.handle(&transaction, stream).await,
-            Handler::Rtu(x) => x.handle(&transaction, stream).await,
+            Handler::Tcp(x) => x.handle(transaction, stream).await,
+            Handler::Rtu(x) => x.handle(transaction, stream).await,
         }
     }
 }
@@ -157,7 +157,7 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
     crate::protocol::bytestream::read_all(stream)
         .await
         .map_err(crate::Error::transport)?;
-    let transaction = TransactionInfo::new(station_address, protocol.clone(), timeout);
+    let transaction = TransactionInfo::new(station_address, protocol, timeout);
     let ret = match request {
         ModBusRequest::Ddp {
             sub_cmd,

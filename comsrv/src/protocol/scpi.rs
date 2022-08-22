@@ -7,7 +7,7 @@ fn invalid_binary_header() -> crate::Error {
 
 /// Parse an SCPI binary header.
 pub fn parse_binary_header(rx: &[u8]) -> crate::Result<(usize, usize)> {
-    let begin = rx.iter().position(|x| *x == b'#').ok_or(invalid_binary_header())?;
+    let begin = rx.iter().position(|x| *x == b'#').ok_or_else(invalid_binary_header)?;
 
     const DEFAULT_LENGTH_BEFORE_BLOCK: usize = 25;
 

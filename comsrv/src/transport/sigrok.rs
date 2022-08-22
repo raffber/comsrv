@@ -51,12 +51,12 @@ fn do_list() -> crate::Result<SigrokResponse> {
         let mut parts = line.split('-').map(|x| x.trim());
         let addr = parts
             .next()
-            .ok_or(crate::Error::transport(anyhow!("Invalid Output")))?
+            .ok_or_else(|| crate::Error::transport(anyhow!("Invalid Output")))?
             .to_string();
         let addr = format!("sigrok::{}", addr);
         let desc = parts
             .next()
-            .ok_or(crate::Error::transport(anyhow!("Invalid Output")))?
+            .ok_or_else(|| crate::Error::transport(anyhow!("Invalid Output")))?
             .to_string();
         let device = SigrokDevice { addr, desc };
         ret.push(device)

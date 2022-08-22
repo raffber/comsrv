@@ -1,6 +1,7 @@
 use byteorder::{ByteOrder, LittleEndian};
 use serde::{Deserialize, Serialize};
 use std::iter::repeat;
+use thiserror::Error;
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, Hash, PartialEq)]
 pub enum CanAddress {
@@ -102,7 +103,7 @@ pub enum CanResponse {
     Gct(GctMessage),
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum SysCtrlType {
     Value,
     Query,
@@ -162,8 +163,14 @@ pub const MSGTYPE_HEARTBEAT: u8 = 14;
 pub const MAX_DDP_DATA_LEN_V1: usize = 61; // 8 message * 8bytes - crc - cmd
 pub const MAX_DDP_DATA_LEN_V2: usize = 8 * 256 - 3; // 256 message * 8bytes - crc - cmd
 
+#[derive(Error, Debug)]
+pub enum ValidationError {
+    #[error("Invalid Param")]
+    InvalidParam,
+}
+
 impl GctMessage {
-    pub fn validate(&self) -> Result<(), ()> {
+    pub fn validate(&self) -> Result<(), ValidationError> {
         let ok = match self {
             GctMessage::SysCtrl {
                 src,
@@ -212,7 +219,7 @@ impl GctMessage {
         if ok {
             Ok(())
         } else {
-            Err(())
+            Err(ValidationError::InvalidParam)
         }
     }
 

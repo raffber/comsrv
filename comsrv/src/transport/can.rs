@@ -314,7 +314,7 @@ impl Listener {
     }
 
     async fn err(&mut self, err: crate::Error) -> bool {
-        if let Some(_) = &self.device {
+        if self.device.is_some() {
             self.server.broadcast(err.clone().into());
             // depending on error, continue listening or quit...
             match err {

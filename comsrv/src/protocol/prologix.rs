@@ -11,7 +11,7 @@ use anyhow::anyhow;
 use comsrv_protocol::{ScpiRequest, ScpiResponse};
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tokio::time::{sleep, timeout};
+use tokio::time::timeout;
 
 const PROLOGIX_TIMEOUT: f32 = 1.0;
 
@@ -50,11 +50,8 @@ pub async fn handle_prologix_request<T: AsyncRead + AsyncWrite + Unpin>(
             )))
         }
         ScpiRequest::ReadRaw => {
-            write(serial, "++read eoi\n").await?;
-            sleep(Duration::from_millis(100)).await;
-            let mut ret = Vec::new();
-            serial.read(&mut ret).await.map_err(Error::transport)?;
-            Ok(ScpiResponse::Binary { data: ret })
+            log::error!("ScpiRequest::ReadRaw not implemented for Prologix.");
+            Err(Error::argument(anyhow!("ScpiRequest::ReadRaw not implemented for Prologix.")))
         }
     }
 }
@@ -79,8 +76,6 @@ async fn read_prologix<T: AsyncRead + Unpin>(serial: &mut T) -> crate::Result<St
             Ok(Ok(_)) => {
                 let x = x[0];
                 if x == b'\n' {
-                    let mut garbage = Vec::new();
-                    serial.read(&mut garbage).await.map_err(Error::transport)?;
                     break;
                 }
                 ret.push(x);

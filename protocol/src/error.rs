@@ -195,9 +195,9 @@ impl Error {
     }
 }
 
-impl Into<Response> for Error {
-    fn into(self) -> Response {
-        Response::Error(self)
+impl From<Error> for Response {
+    fn from(val: Error) -> Self {
+        Response::Error(val)
     }
 }
 

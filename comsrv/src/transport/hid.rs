@@ -162,5 +162,5 @@ fn list_devices_blocking() -> crate::Result<Vec<HidDeviceInfo>> {
 }
 
 pub async fn list_devices() -> crate::Result<Vec<HidDeviceInfo>> {
-    task::spawn_blocking(|| list_devices_blocking()).await.unwrap()
+    task::spawn_blocking(list_devices_blocking).await.unwrap()
 }

@@ -30,7 +30,7 @@ impl<T: FunctionCode> TcpHandler<T> {
         request[4] = len_buf[0];
         request[5] = len_buf[1];
         stream.write_all(&request).await.map_err(crate::Error::transport)?;
-        let reply = read_tcp_frame(&transaction, self.function_code.function_code(), stream).await?;
+        let reply = read_tcp_frame(transaction, self.function_code.function_code(), stream).await?;
         let header_len = self.function_code.get_header_length();
         if reply.len() < header_len {
             return Err(crate::Error::argument(anyhow!("ModBus frame shorter than header")));

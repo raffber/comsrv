@@ -50,6 +50,12 @@ impl HttpRpc {
     }
 }
 
+impl Default for HttpRpc {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl Rpc for HttpRpc {
     async fn request(&mut self, request: Request, timeout: Duration) -> crate::Result<Response> {

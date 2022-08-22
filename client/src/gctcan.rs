@@ -1,5 +1,5 @@
-use std::time::Duration;
 use anyhow::anyhow;
+use std::time::Duration;
 
 use comsrv_protocol::{GctMessage, SysCtrlType};
 
@@ -66,9 +66,9 @@ impl NodeId {
     }
 }
 
-impl Into<u8> for NodeId {
-    fn into(self) -> u8 {
-        self.0
+impl From<NodeId> for u8 {
+    fn from(val: NodeId) -> Self {
+        val.0
     }
 }
 

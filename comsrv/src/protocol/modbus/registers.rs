@@ -118,7 +118,7 @@ impl FunctionCode for ReadBoolRegisters {
                 if ret.len() == expected_byte_count as usize {
                     break 'outer;
                 }
-                x = x >> 1;
+                x >>= 1;
             }
         }
         Ok(ret)
@@ -136,7 +136,7 @@ pub struct WriteCoils<'a> {
 
 impl<'a> WriteCoils<'a> {
     pub fn new(address: u16, data: &'a [bool]) -> crate::Result<Self> {
-        if data.len() == 0 {
+        if data.is_empty() {
             return Err(crate::Error::argument(anyhow!("Number of write coils must be > 0")));
         }
         if data.len() > 0x7B0 {
@@ -154,12 +154,10 @@ impl<'a> FunctionCode for WriteCoils<'a> {
         data.extend((self.data.len() as u16).to_be_bytes());
         for chunk in self.data.chunks(8) {
             let mut byte: u8 = 0;
-            let mut k = 0;
-            for x in chunk {
+            for (k, x) in chunk.iter().enumerate() {
                 if *x {
                     byte |= 1 << k;
                 }
-                k += 1;
             }
             data.push(byte);
         }
@@ -190,7 +188,7 @@ pub struct WriteRegisters<'a> {
 
 impl<'a> WriteRegisters<'a> {
     pub fn new(address: u16, data: &'a [u16]) -> crate::Result<Self> {
-        if data.len() == 0 {
+        if data.is_empty() {
             return Err(crate::Error::argument(anyhow!("Number of write coils must be > 0")));
         }
         if data.len() > 125 {
@@ -239,5 +237,5 @@ fn check_write_header(reply: &[u8], addr: u16, num_regs: usize) -> crate::Result
     if num_regs != num_outputs as usize {
         return Err(crate::Error::protocol(anyhow!("Unexpected register length")));
     }
-    return Ok(());
+    Ok(())
 }

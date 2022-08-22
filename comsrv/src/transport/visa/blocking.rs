@@ -14,14 +14,8 @@ const DEFAULT_CHUNK_SIZE: usize = 20 * 1024;
 // from pyvisa
 const DEFAULT_TERMINATION: &str = "\n";
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub struct VisaOptions {}
-
-impl Default for VisaOptions {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 pub struct Instrument {
     instr: VisaInstrument,

@@ -161,7 +161,7 @@ impl<T: Instrument> Inventory<T> {
     pub async fn wait_for_lock(&self, addr: &T::Address, lock_id: Option<&Uuid>) {
         let mutex = {
             let inner = self.0.lock().unwrap();
-            match inner.instruments.get(&addr) {
+            match inner.instruments.get(addr) {
                 Some(LockableInstrument {
                     instr: _,
                     lock: Some(lock),
@@ -196,7 +196,7 @@ impl<T: Instrument> Inventory<T> {
         let (lock, mut unlock) = {
             let mut inner = self.0.lock().unwrap();
             let (lock, unlock) = Lock::new(ret);
-            match inner.instruments.get_mut(&addr) {
+            match inner.instruments.get_mut(addr) {
                 Some(mut instr) => {
                     if let Some(old_lock) = instr.lock.take() {
                         tokio::task::spawn(async move {
@@ -207,7 +207,7 @@ impl<T: Instrument> Inventory<T> {
                     instr.lock = Some(lock.clone());
                 }
                 None => {
-                    let instr = Instrument::connect(&server, addr)?;
+                    let instr = Instrument::connect(server, addr)?;
                     let instr = LockableInstrument {
                         instr,
                         lock: Some(lock.clone()),

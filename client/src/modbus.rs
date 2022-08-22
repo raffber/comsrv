@@ -197,4 +197,25 @@ impl<T: Rpc> ModBusPipe<T> {
             _ => Err(crate::Error::UnexpectdResponse),
         }
     }
+
+    pub async fn ddp(
+        &mut self,
+        sub_cmd: u8,
+        ddp_cmd: u8,
+        response: bool,
+        data: &[u8],
+    ) -> crate::Result<Vec<u8>> {
+        match self
+            .request(ModBusRequest::Ddp {
+                sub_cmd,
+                ddp_cmd,
+                response,
+                data: data.to_vec(),
+            })
+            .await?
+        {
+            ModBusResponse::Data(x) => Ok(x),
+            _ => Err(crate::Error::UnexpectdResponse),
+        }
+    }
 }

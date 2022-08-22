@@ -109,7 +109,6 @@ impl<T: 'static + IoHandler> IoTask<T> {
         self.tx
             .send(msg)
             .map_err(|_| Error::internal(anyhow!("Channel disconnected")))?;
-        let ret = rx.await.map_err(|_| Error::internal(anyhow!("Channel disconnected")))?;
-        ret
+        rx.await.map_err(|_| Error::internal(anyhow!("Channel disconnected")))?
     }
 }
