@@ -1,3 +1,25 @@
+//! # Client Library for the `comsrv` Communication Relay
+//!
+//! This library provides some easy-to-use types to facilitate interaction.
+//! It's just a slim layer combining `comsrv_protocol` and `wsrpc` crate.
+//!
+//! Errors are captured in the [`enum@Error`] type.
+//!
+//! The types used for communication with the `comsrv` accept an [`Rpc`] argument. This `#[asnc_trait]` abstracts
+//! over the communication interface to communicate with the `comsrv` tool. There 2 concrete implementations:
+//!
+//!  * [`http::HttpRpc`] - Communicate over http. This is a reasonable default, but comes at some cost in terms of speed.
+//!     Also, it does not allow listening to notifications.
+//!  * [`ws::WsRpc`] - Communicate over WebSocket. This is fast and allows listening to notification. However, it comes at comes at the
+//!     cost of maintaining some state in the application (the TCP connection).
+//!
+//! This crate comes with some types that provide an easy-to-use interface to interact with device connected to the `comsrv`:
+//!
+//!  * [`bytestream::ByteStreamPipe`] - To communicate with devices attached to bytestream-like communication devices (SerialPorts, TCP streams, FTDIs, ..)
+//!  * [`modbus::ModBusPipe`] - ModBus/TCP and ModBus/RTU client operating on any [`bytestream::ByteStreamPipe`]
+//!  * [`can::CanBus`] - To interact with a CAN bus.
+//!  * [`gctcan::GctCanDevice`] - Abstracts over the communication protocol used with a node on a GCT-CAN network
+//!
 use std::io;
 use std::time::Duration;
 
@@ -20,8 +42,10 @@ pub mod ws;
 
 pub use comsrv_protocol as protocol;
 
+/// The default timeout for all requests. Most functions offer some way to define custom timeout.
 pub const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_millis(1000);
 
+/// Error type unifing errors that may occur on the RPC layer or remote errors i.e. an error occurring in the  `comsrv`.
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("IO Error occurred: {0}")]
@@ -57,16 +81,20 @@ impl From<ClientError> for Error {
     }
 }
 
+/// An `#[async_trait]` defining a request-response interface to the `comsrv`.
 #[async_trait]
 pub trait Rpc: Clone + Send + 'static {
     async fn request(&mut self, request: Request, timeout: Duration) -> crate::Result<Response>;
 }
 
+/// An `#[async_trait]` which defines a lockable resource of the `comsrv`.
 #[async_trait]
-pub trait Lock<T: Rpc> {
+pub trait Lockable<T: Rpc> {
     async fn lock(&mut self, timeout: Duration) -> crate::Result<LockGuard<T>>;
 }
 
+/// A lock guard returned by a [`Lockable::lock`] implementation. If dropped, unlocks
+/// the resource.
 pub struct LockGuard<T: Rpc> {
     rpc: T,
     lock_id: Uuid,
@@ -84,10 +112,13 @@ impl<T: Rpc> LockGuard<T> {
         }
     }
 
+    /// Manually unlock the resource and returns once the lock was released.
     pub async fn unlock(mut self) -> crate::Result<()> {
         unlock(&mut self.rpc, &self.addr, self.lock_id).await
     }
 
+    /// Each locked is assigned an [uuid::Uuid]. It can be used to access the instrument
+    /// or to release the lock.
     pub fn lock_id(&self) -> Uuid {
         self.lock_id
     }
@@ -131,6 +162,8 @@ impl Locked {
     }
 }
 
+/// Lock an instrument returning a [`LockGuard`]. Once the [`LockGuard`] is dropped, the
+/// instrument is unlocked.
 pub async fn lock<T: Rpc>(
     rpc: &mut T,
     addr: &Address,
@@ -151,6 +184,7 @@ pub async fn lock<T: Rpc>(
     }
 }
 
+/// Release a lock based on the given [`Uuid`]. Refer to [`LockGuard::lock_id`].
 pub async fn unlock<T: Rpc>(rpc: &mut T, addr: &Address, uuid: Uuid) -> crate::Result<()> {
     let req = Request::Unlock {
         addr: addr.clone(),
@@ -159,6 +193,7 @@ pub async fn unlock<T: Rpc>(rpc: &mut T, addr: &Address, uuid: Uuid) -> crate::R
     rpc.request(req, DEFAULT_RPC_TIMEOUT).await.map(|_| ())
 }
 
+/// List all serial ports connected to the system
 pub async fn list_serial_ports<T: Rpc>(rpc: &mut T) -> crate::Result<Vec<String>> {
     match rpc
         .request(Request::ListSerialPorts, DEFAULT_RPC_TIMEOUT)
@@ -171,6 +206,7 @@ pub async fn list_serial_ports<T: Rpc>(rpc: &mut T) -> crate::Result<Vec<String>
     }
 }
 
+/// List all FTDIs connected to the systmem
 pub async fn list_ftdis<T: Rpc>(rpc: &mut T) -> crate::Result<Vec<FtdiDeviceInfo>> {
     match rpc
         .request(Request::ListFtdiDevices, DEFAULT_RPC_TIMEOUT)

@@ -5,7 +5,7 @@ use comsrv_protocol::{
     ByteStreamInstrument, ByteStreamRequest, ByteStreamResponse, ModBusProtocol, Request, Response,
 };
 
-use crate::{lock, modbus::ModBusPipe, Lock, LockGuard, Locked, Rpc, DEFAULT_RPC_TIMEOUT};
+use crate::{lock, modbus::ModBusPipe, LockGuard, Lockable, Locked, Rpc, DEFAULT_RPC_TIMEOUT};
 
 pub struct ByteStreamPipe<T: Rpc> {
     rpc: T,
@@ -26,7 +26,7 @@ impl<T: Rpc> Clone for ByteStreamPipe<T> {
 }
 
 #[async_trait]
-impl<T: Rpc> Lock<T> for ByteStreamPipe<T> {
+impl<T: Rpc> Lockable<T> for ByteStreamPipe<T> {
     async fn lock(&mut self, timeout: Duration) -> crate::Result<LockGuard<T>> {
         let ret = lock(&mut self.rpc, &self.instrument.address(), timeout).await?;
         self.lock = ret.locked();

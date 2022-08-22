@@ -1,4 +1,4 @@
-use crate::{lock, Lock, LockGuard, Locked, Rpc, DEFAULT_RPC_TIMEOUT};
+use crate::{lock, LockGuard, Lockable, Locked, Rpc, DEFAULT_RPC_TIMEOUT};
 use async_trait::async_trait;
 use comsrv_protocol::{
     ByteStreamInstrument, ByteStreamRequest, ByteStreamResponse, ModBusProtocol, ModBusRequest,
@@ -16,7 +16,7 @@ pub struct ModBusPipe<T: Rpc> {
 }
 
 #[async_trait]
-impl<T: Rpc> Lock<T> for ModBusPipe<T> {
+impl<T: Rpc> Lockable<T> for ModBusPipe<T> {
     async fn lock(&mut self, timeout: Duration) -> crate::Result<LockGuard<T>> {
         let ret = lock(&mut self.rpc, &self.instrument.clone().into(), timeout).await?;
         self.lock = ret.locked();
