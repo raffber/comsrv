@@ -1,5 +1,7 @@
 # `comsrv` Communication Relay
 
+[![Rust Stable](https://github.com/raffber/comsrv/actions/workflows/ci.yml/badge.svg)](https://github.com/raffber/comsrv/actions/workflows/ci.yml)
+
 The `comsrv` utility exposes an [RPC interface](https://github.com/raffber/wsrpc) mainly intended for communicating with lab instruments.
 Currently, the following type of instruments are supported:
 
