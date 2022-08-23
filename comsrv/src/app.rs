@@ -1,3 +1,8 @@
+//! This module implements the state and request handlers of the `comsrv`.
+//!
+//! Each request is spawned as a separate task and receives the application state as the [`App`] struct.
+//! The [`App`] collects instruments actors in `Inventory` instances.
+
 use comsrv_protocol::{
     Address, ByteStreamInstrument, ByteStreamRequest, CanAddress, CanDeviceInfo, CanDriverType, CanInstrument,
     CanRequest, FtdiInstrument, HidResponse, PrologixInstrument, PrologixRequest, Request, Response, ScpiInstrument,
@@ -25,6 +30,14 @@ macro_rules! crate_version {
     };
 }
 
+/// Captures the state of the application. Each request handler gets its own
+/// copy.
+#[derive(Clone)]
+pub struct App {
+    pub server: Server,
+    pub inventories: Arc<Inventories>,
+}
+
 /// Contains all the inventories, which contains all IO actors.
 #[derive(Default)]
 pub struct Inventories {
@@ -41,14 +54,6 @@ impl Inventories {
     fn new() -> Self {
         Default::default()
     }
-}
-
-/// Captures the state of the application. Each request handler gets its own
-/// copy.
-#[derive(Clone)]
-pub struct App {
-    pub server: Server,
-    pub inventories: Arc<Inventories>,
 }
 
 impl App {
