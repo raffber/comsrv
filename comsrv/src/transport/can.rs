@@ -15,7 +15,9 @@ use crate::protocol::can::gct::Decoder;
 use anyhow::anyhow;
 use async_can::CanFrameError;
 use async_can::Error as CanError;
-use comsrv_protocol::{CanAddress, CanMessage, CanRequest, CanResponse, DataFrame, RemoteFrame, Response};
+use comsrv_protocol::{
+    CanAddress, CanDeviceInfo, CanDriverType, CanMessage, CanRequest, CanResponse, DataFrame, RemoteFrame, Response,
+};
 use tokio::sync::oneshot;
 
 pub fn map_error(err: CanError) -> crate::Error {
@@ -48,6 +50,40 @@ pub fn into_async_can_message(msg: CanMessage) -> Result<async_can::Message, Can
     match msg {
         CanMessage::Data(x) => async_can::Message::new_data(x.id, x.ext_id, &x.data),
         CanMessage::Remote(x) => async_can::Message::new_remote(x.id, x.ext_id, x.dlc),
+    }
+}
+
+pub async fn list_can_devices() -> crate::Result<Vec<CanDeviceInfo>> {
+    #[cfg(target_os = "linux")]
+    match async_can::socketcan::list_devices().await {
+        Ok(x) => {
+            let driver_type = CanDriverType::SocketCAN;
+            let ret = x
+                .iter()
+                .map(|y| CanDeviceInfo {
+                    interface_name: y.interface_name.clone(),
+                    driver_type: driver_type.clone(),
+                })
+                .collect();
+            Ok(ret)
+        }
+        Err(x) => Err(crate::Error::transport(anyhow!(x))),
+    }
+
+    #[cfg(target_os = "windows")]
+    match async_can::pcan::list_devices().await {
+        Ok(x) => {
+            let driver_type = CanDriverType::PCAN;
+            let ret = x
+                .iter()
+                .map(|y| CanDeviceInfo {
+                    interface_name: y.interface_name().unwrap().clone(),
+                    driver_type: driver_type.clone(),
+                })
+                .collect();
+            Ok(ret)
+        }
+        Err(x) => Err(crate::Error::transport(anyhow!(x))),
     }
 }
 
@@ -107,7 +143,7 @@ impl Handler {
             if tx.is_closed() {
                 self.listener.take();
                 if let Some(device) = self.sender.take() {
-                    let _ = device.close().await;
+                    drop(device);
                 }
             }
         }
@@ -135,7 +171,7 @@ impl Handler {
                         log::debug!("{:?} - Updating Bitrate", instr);
                         self.close_listener().await;
                         if let Some(sender) = self.sender.take() {
-                            let _ = sender.close().await;
+                            drop(sender);
                         }
                         log::debug!("{:?} - Sender closed", instr);
                     }
@@ -150,7 +186,7 @@ impl Handler {
 
     async fn handle_request(&mut self, req: &Request) -> crate::Result<CanResponse> {
         // save because we just created it
-        let device = self.sender.as_ref().unwrap();
+        let device = self.sender.as_mut().unwrap();
         let listener = self.listener.as_ref().unwrap();
 
         match &req.inner {
@@ -279,7 +315,7 @@ impl Listener {
             }
             ListenerMsg::Close(fut) => {
                 if let Some(device) = self.device.take() {
-                    let _ = device.close().await;
+                    let _ = drop(device);
                     let _ = fut.send(());
                 }
                 false
@@ -427,16 +463,22 @@ mod tests {
 
 pub enum CanSender {
     Loopback(LoopbackDevice),
-    Bus { device: Sender, addr: CanAddress },
+    Bus {
+        device: Box<dyn Sender + Send>,
+        addr: CanAddress,
+    },
 }
 
 pub enum CanReceiver {
     Loopback(LoopbackDevice),
-    Bus { device: Receiver, addr: CanAddress },
+    Bus {
+        device: Box<dyn Receiver + Send>,
+        addr: CanAddress,
+    },
 }
 
 impl CanSender {
-    pub async fn send(&self, msg: CanMessage) -> crate::Result<()> {
+    pub async fn send(&mut self, msg: CanMessage) -> crate::Result<()> {
         match self {
             CanSender::Loopback(lo) => {
                 lo.send(msg);
@@ -465,18 +507,14 @@ impl CanSender {
         match instr {
             CanInstrument::PCan { .. } => Err(crate::Error::internal(anyhow!("Not Supported"))),
             CanInstrument::SocketCan { interface } => {
-                let device = Sender::connect(interface.clone()).map_err(map_error)?;
+                let device = async_can::socketcan::Sender::connect(interface.clone()).map_err(map_error)?;
                 Ok(CanSender::Bus {
-                    device,
+                    device: Box::new(device),
                     addr: instr.clone().into(),
                 })
             }
             CanInstrument::Loopback => Ok(CanSender::Loopback(LoopbackDevice::new())),
         }
-    }
-
-    pub async fn close(self) -> crate::Result<()> {
-        Ok(())
     }
 }
 
@@ -486,9 +524,9 @@ impl CanReceiver {
         match instr {
             CanInstrument::PCan { .. } => Err(crate::Error::internal(anyhow!("Not supported"))),
             CanInstrument::SocketCan { interface } => {
-                let device = Receiver::connect(interface.clone()).map_err(map_error)?;
+                let device = async_can::socketcan::Receiver::connect(interface.clone()).map_err(map_error)?;
                 Ok(CanReceiver::Bus {
-                    device,
+                    device: Box::new(device),
                     addr: CanAddress::SocketCan {
                         interface: interface.clone(),
                     },
@@ -497,10 +535,6 @@ impl CanReceiver {
             CanInstrument::Loopback => Ok(CanReceiver::Loopback(LoopbackDevice::new())),
         }
     }
-
-    pub async fn close(self) -> crate::Result<()> {
-        Ok(())
-    }
 }
 
 #[cfg(target_os = "windows")]
@@ -508,21 +542,14 @@ impl CanSender {
     pub fn new(instr: &CanInstrument) -> crate::Result<Self> {
         match instr {
             CanInstrument::PCan { address, bitrate } => {
-                let device = Sender::connect(address, *bitrate).map_err(map_error)?;
+                let device = async_can::pcan::Sender::connect(address, *bitrate).map_err(map_error)?;
                 Ok(Self::Bus {
-                    device,
+                    device: Box::new(device),
                     addr: instr.clone().into(),
                 })
             }
             CanInstrument::SocketCan { .. } => Err(crate::Error::internal(anyhow!("Not supported"))),
             CanInstrument::Loopback => Ok(Self::Loopback(LoopbackDevice::new())),
-        }
-    }
-
-    pub async fn close(self) -> crate::Result<()> {
-        match self {
-            CanSender::Loopback(_) => Ok(()),
-            CanSender::Bus { device, addr: _ } => device.close().await.map_err(map_error),
         }
     }
 }
@@ -532,19 +559,15 @@ impl CanReceiver {
     pub fn new(instr: &CanInstrument) -> crate::Result<Self> {
         match instr {
             CanInstrument::PCan { address, bitrate } => {
-                let device = Receiver::connect(address, *bitrate).map_err(map_error)?;
+                let device = async_can::pcan::Receiver::connect(address, *bitrate).map_err(map_error)?;
                 Ok(Self::Bus {
-                    device,
+                    device: Box::new(device),
                     addr: instr.clone().into(),
                 })
             }
             CanInstrument::SocketCan { .. } => Err(crate::Error::internal(anyhow!("Not supported"))),
             CanInstrument::Loopback => Ok(Self::Loopback(LoopbackDevice::new())),
         }
-    }
-
-    pub async fn close(self) -> crate::Result<()> {
-        Ok(())
     }
 }
 

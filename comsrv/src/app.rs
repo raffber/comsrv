@@ -4,9 +4,9 @@
 //! The [`App`] collects instruments actors in `Inventory` instances.
 
 use comsrv_protocol::{
-    Address, ByteStreamInstrument, ByteStreamRequest, CanAddress, CanDeviceInfo, CanDriverType, CanInstrument,
-    CanRequest, FtdiInstrument, HidResponse, PrologixInstrument, PrologixRequest, Request, Response, ScpiInstrument,
-    ScpiRequest, SerialInstrument, TcpInstrument, VisaInstrument, VxiInstrument,
+    Address, ByteStreamInstrument, ByteStreamRequest, CanAddress, CanInstrument, CanRequest, FtdiInstrument,
+    HidResponse, PrologixInstrument, PrologixRequest, Request, Response, ScpiInstrument, ScpiRequest, SerialInstrument,
+    TcpInstrument, VisaInstrument, VxiInstrument,
 };
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task;
@@ -149,23 +149,7 @@ impl App {
             }
             Request::ListSerialPorts => serial::list_devices().await.map(Response::SerialPorts),
             Request::ListFtdiDevices => ftdi::list_ftdi().await.map(Response::FtdiDevices),
-            Request::ListCanDevices => match async_can::list_devices().await {
-                Ok(x) => {
-                    #[cfg(target_os = "linux")]
-                    let driver_type = CanDriverType::SocketCAN;
-                    #[cfg(target_os = "windows")]
-                    let driver_type = CanDriverType::PCAN;
-                    let ret = x
-                        .iter()
-                        .map(|y| CanDeviceInfo {
-                            interface_name: y.interface_name.clone(),
-                            driver_type: driver_type.clone(),
-                        })
-                        .collect();
-                    Ok(Response::CanDevices(ret))
-                }
-                Err(x) => Err(crate::Error::transport(anyhow!(x))),
-            },
+            Request::ListCanDevices => can::list_can_devices().await.map(Response::CanDevices),
             Request::Drop { addr, id } => self.drop(addr, id.as_ref()).await,
         }
     }
