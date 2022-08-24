@@ -237,6 +237,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "broadcast_wsrpc"
+version = "1.0.0"
+source = "git+https://github.com/raffber/wsrpc.git?rev=9565f8f03502e93c21e5159fba48e2779a429b2d#9565f8f03502e93c21e5159fba48e2779a429b2d"
+dependencies = [
+ "async-tungstenite",
+ "env_logger 0.9.0",
+ "futures",
+ "hyper",
+ "log",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -348,6 +367,7 @@ dependencies = [
  "async-trait",
  "async-vxi11",
  "bitvec",
+ "broadcast_wsrpc",
  "byteorder",
  "cfg-if 0.1.10",
  "clap 3.2.17",
@@ -371,7 +391,6 @@ dependencies = [
  "tokio-serial",
  "url",
  "uuid",
- "wsrpc",
 ]
 
 [[package]]

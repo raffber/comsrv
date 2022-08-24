@@ -3,6 +3,7 @@
 //! Each request is spawned as a separate task and receives the application state as the [`App`] struct.
 //! The [`App`] collects instruments actors in `Inventory` instances.
 
+use broadcast_wsrpc::server::{Requested, Server as WsrpcServer};
 use comsrv_protocol::{
     Address, ByteStreamInstrument, ByteStreamRequest, CanAddress, CanInstrument, CanRequest, FtdiInstrument,
     HidResponse, PrologixInstrument, PrologixRequest, Request, Response, ScpiInstrument, ScpiRequest, SerialInstrument,
@@ -11,7 +12,6 @@ use comsrv_protocol::{
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task;
 use uuid::Uuid;
-use wsrpc::server::{Requested, Server as WsrpcServer};
 
 use crate::transport::{can, ftdi, hid, serial, sigrok, tcp, visa, vxi};
 use crate::transport::{ftdi::FtdiRequest, tcp::TcpRequest};
