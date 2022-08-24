@@ -501,11 +501,17 @@ impl CanReceiver {
     }
 }
 
-#[cfg(target_os = "linux")]
 impl CanSender {
     pub fn new(instr: &CanInstrument) -> crate::Result<Self> {
         match instr {
-            CanInstrument::PCan { .. } => Err(crate::Error::internal(anyhow!("Not Supported"))),
+            CanInstrument::PCan { address, bitrate } => {
+                let device = async_can::pcan::Sender::connect(address, *bitrate).map_err(map_error)?;
+                Ok(CanSender::Bus {
+                    device: Box::new(device),
+                    addr: instr.clone().into(),
+                })
+            }
+            #[cfg(target_os = "linux")]
             CanInstrument::SocketCan { interface } => {
                 let device = async_can::socketcan::Sender::connect(interface.clone()).map_err(map_error)?;
                 Ok(CanSender::Bus {
@@ -513,16 +519,24 @@ impl CanSender {
                     addr: instr.clone().into(),
                 })
             }
+            #[cfg(target_os = "windows")]
+            CanInstrument::SocketCan { .. } => Err(crate::Error::internal(anyhow!("Not supported"))),
             CanInstrument::Loopback => Ok(CanSender::Loopback(LoopbackDevice::new())),
         }
     }
 }
 
-#[cfg(target_os = "linux")]
 impl CanReceiver {
     pub fn new(instr: &CanInstrument) -> crate::Result<Self> {
         match instr {
-            CanInstrument::PCan { .. } => Err(crate::Error::internal(anyhow!("Not supported"))),
+            CanInstrument::PCan { address, bitrate } => {
+                let device = async_can::pcan::Receiver::connect(address, *bitrate).map_err(map_error)?;
+                Ok(CanReceiver::Bus {
+                    device: Box::new(device),
+                    addr: instr.clone().into(),
+                })
+            }
+            #[cfg(target_os = "linux")]
             CanInstrument::SocketCan { interface } => {
                 let device = async_can::socketcan::Receiver::connect(interface.clone()).map_err(map_error)?;
                 Ok(CanReceiver::Bus {
@@ -532,41 +546,9 @@ impl CanReceiver {
                     },
                 })
             }
+            #[cfg(target_os = "windows")]
+            CanInstrument::SocketCan { .. } => Err(crate::Error::internal(anyhow!("Not supported"))),
             CanInstrument::Loopback => Ok(CanReceiver::Loopback(LoopbackDevice::new())),
-        }
-    }
-}
-
-#[cfg(target_os = "windows")]
-impl CanSender {
-    pub fn new(instr: &CanInstrument) -> crate::Result<Self> {
-        match instr {
-            CanInstrument::PCan { address, bitrate } => {
-                let device = async_can::pcan::Sender::connect(address, *bitrate).map_err(map_error)?;
-                Ok(Self::Bus {
-                    device: Box::new(device),
-                    addr: instr.clone().into(),
-                })
-            }
-            CanInstrument::SocketCan { .. } => Err(crate::Error::internal(anyhow!("Not supported"))),
-            CanInstrument::Loopback => Ok(Self::Loopback(LoopbackDevice::new())),
-        }
-    }
-}
-
-#[cfg(target_os = "windows")]
-impl CanReceiver {
-    pub fn new(instr: &CanInstrument) -> crate::Result<Self> {
-        match instr {
-            CanInstrument::PCan { address, bitrate } => {
-                let device = async_can::pcan::Receiver::connect(address, *bitrate).map_err(map_error)?;
-                Ok(Self::Bus {
-                    device: Box::new(device),
-                    addr: instr.clone().into(),
-                })
-            }
-            CanInstrument::SocketCan { .. } => Err(crate::Error::internal(anyhow!("Not supported"))),
-            CanInstrument::Loopback => Ok(Self::Loopback(LoopbackDevice::new())),
         }
     }
 }

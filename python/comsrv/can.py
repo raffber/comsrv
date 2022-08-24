@@ -5,7 +5,7 @@ from pywsrpc.client import Client
 import re
 
 
-PCAN_RE = re.compile(r"(?P<addr>.*?)::(?P<bitrate>.*?)")
+PCAN_RE = re.compile(r"(?P<addr>.*?)::(?P<bitrate>.*?)$")
 
 
 from enum import Enum
