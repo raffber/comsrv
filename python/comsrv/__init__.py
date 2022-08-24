@@ -6,11 +6,11 @@ to instruments.
 import json
 from argparse import ArgumentError
 from enum import Enum
-from math import floor, prod
+from math import floor
 from typing import List, Optional, Union
 
 from aiohttp import ClientSession, ClientTimeout
-from pywsrpc.client import Client
+from broadcast_wsrpc.client import Client
 
 
 class ComSrvError(Exception):
@@ -187,7 +187,7 @@ class WsRpc(Rpc):
     """
     RPC service implementation using WebSockets as transport
 
-    :param kw: Passed to `pywsrpc.client.Client.connect()`
+    :param kw: Passed to `broadcast_wsrpc.client.Client.connect()`
     """
 
     def __init__(self, url=None, **kw):

@@ -8,12 +8,8 @@ version = check_output([join(curdir, "..", "ci", "get-version.sh")]).decode().st
 with open("../README.md") as f:
     long_description = f.read()
 
-requirements = [
-    "aiohttp~=3.7",
-    "numpy~=1.22",
-    "wsrpc @ git+https://github.com/raffber/wsrpc.git@release/v1.0.0#egg=wsrpc",
-]
-
+with open("requirements.txt") as f:
+    requirements = f.read().split("\n")
 
 setuptools.setup(
     name="comsrv",

@@ -1,7 +1,7 @@
 from typing import Optional, Union
 
 from . import Address, Instrument, get_default_ws_url, ComSrvError
-from pywsrpc.client import Client
+from broadcast_wsrpc.client import Client
 import re
 
 
@@ -98,7 +98,7 @@ class CanBus(object):
         Connect to the server managing the CAN bus and start listening for RAW and GCT messages.
 
         :param url: The URL to the communication server
-        :param **kw: Passed to `pywsrpc.client.Client.connect()`
+        :param **kw: Passed to `broadcast_wsrpc.client.Client.connect()`
         """
         if self._client.connected:
             return self
