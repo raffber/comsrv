@@ -7,6 +7,7 @@ use thiserror::Error;
 pub enum CanAddress {
     PCan { address: String },
     SocketCan { interface: String },
+    UsrCanet { host: String, port: u16 },
     Loopback,
 }
 
@@ -14,6 +15,7 @@ pub enum CanAddress {
 pub enum CanInstrument {
     PCan { address: String, bitrate: u32 },
     SocketCan { interface: String },
+    UsrCanet { host: String, port: u16 },
     Loopback,
 }
 
@@ -32,6 +34,7 @@ impl From<CanInstrument> for CanAddress {
             CanInstrument::PCan { address, .. } => CanAddress::PCan { address },
             CanInstrument::SocketCan { interface } => CanAddress::SocketCan { interface },
             CanInstrument::Loopback => CanAddress::Loopback,
+            CanInstrument::UsrCanet { host, port } => CanAddress::UsrCanet { host, port },
         }
     }
 }
