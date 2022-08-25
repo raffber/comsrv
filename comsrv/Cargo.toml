@@ -28,8 +28,7 @@ tokio-serial = {version = "5.4.3", features = ["libudev"]}
 async-trait = "0.1.40"
 futures = "0.3.7"
 async-vxi11 = { git = "https://github.com/raffber/async-vxi11.git", rev = "0371e960f0a3018db83fabf4d773f585959e6e06" }
-# async-can = { git = "https://github.com/raffber/async-can.git", rev = "6975dcbac0db911cff1ede0d4970c08b4ab88481" }
-async-can = {path = "../../async-can"}
+async-can = { git = "https://github.com/raffber/async-can.git", rev = "6975dcbac0db911cff1ede0d4970c08b4ab88481" }
 async-ftdi = {git = "https://github.com/raffber/async-ftdi.git", rev = "1bfeae5fa75ab1573d4c3133df4c2452e9e4fe39"}
 rand = "0.8"
 byteorder = "1.3"

@@ -68,6 +68,7 @@ dependencies = [
 [[package]]
 name = "async-can"
 version = "0.2.0"
+source = "git+https://github.com/raffber/async-can.git?rev=6975dcbac0db911cff1ede0d4970c08b4ab88481#6975dcbac0db911cff1ede0d4970c08b4ab88481"
 dependencies = [
  "async-trait",
  "bindgen",
