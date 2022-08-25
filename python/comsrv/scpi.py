@@ -53,7 +53,7 @@ class ScpiInstrument(Instrument):
                 )
             return VxiInstrument(VxiAddress(splits[1]))
         if instrument.startswith("visa::"):
-            instrument = instrument.removeprefix("visa::")
+            instrument = instrument.replace("visa::", "", 1)
             return VisaInstrument(VisaAddress(instrument))
         if instrument.startswith("prologix::"):
             splits = instrument.split("::")

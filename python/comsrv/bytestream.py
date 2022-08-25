@@ -38,7 +38,7 @@ class ByteStreamInstrument(Instrument):
         """
         address_string = address_string.strip()
         if address_string.startswith("serial::"):
-            address_string = address_string.removeprefix("serial::")
+            address_string = address_string.replace("serial::", "", 1)
             m = SERIAL_ADDRESS_RE.match(address_string)
             if m is None:
                 raise ValueError(
@@ -49,7 +49,7 @@ class ByteStreamInstrument(Instrument):
                 SerialAddress(path), SerialPortConfig(config, baudrate)
             )
         elif address_string.startswith("ftdi::"):
-            address_string = address_string.removeprefix("ftdi::")
+            address_string = address_string.replace("ftdi::", "", 1)
             m = FTDI_ADDRESS_RE.match(address_string)
             if m is None:
                 raise ValueError(
@@ -58,7 +58,7 @@ class ByteStreamInstrument(Instrument):
             path, baudrate, config = cls._parse_serial_path(m)
             return FtdiInstrument(FtdiAddress(path), SerialPortConfig(config, baudrate))
         elif address_string.startswith("tcp::"):
-            address_string = address_string.removeprefix("tcp::")
+            address_string = address_string.replace("tcp::", "", 1)
             m = TCP_ADDRESS_RE.match(address_string)
             host_or_ip = m.group("host_or_ip")
             port = int(m.group("port"))

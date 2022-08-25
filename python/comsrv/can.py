@@ -68,7 +68,7 @@ class CanInstrument(Instrument):
     @classmethod
     def parse(cls, addr: str):
         if addr.startswith("can::pcan::"):
-            addr = addr.removeprefix("can::pcan::")
+            addr = addr.replace("can::pcan::", "", 1)
             match = PCAN_RE.match(addr)
             if match is None:
                 raise ValueError("PCan address is invalid.")
@@ -76,7 +76,7 @@ class CanInstrument(Instrument):
             bitrate = int(match.group("bitrate"))
             return CanInstrument(PCanAddress(addr), bitrate=bitrate)
         elif addr.startswith("can::socket::"):
-            addr = addr.removeprefix("can::socket::")
+            addr = addr.replace("can::socket::", "", 1)
             return CanInstrument(SocketCanAddress(addr))
         elif addr.startswith("can::loopback"):
             return CanInstrument(LoopbackAddress())
