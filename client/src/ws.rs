@@ -5,7 +5,7 @@ use std::io;
 use std::time::Duration;
 use url::Url;
 
-type Client = wsrpc::client::Client<Request, Response>;
+type Client = broadcast_wsrpc::client::Client<Request, Response>;
 
 #[derive(Clone)]
 pub struct WsRpc {

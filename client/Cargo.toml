@@ -5,7 +5,7 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-wsrpc = { git = "https://github.com/raffber/wsrpc.git", tag = "release/v1.0.0" }
+broadcast_wsrpc = { git = "https://github.com/raffber/wsrpc.git", rev = "9565f8f03502e93c21e5159fba48e2779a429b2d" }
 comsrv_protocol = { path = "../protocol" }
 async-trait = "0.1.51"
 thiserror = "1"

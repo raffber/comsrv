@@ -440,7 +440,7 @@ mod tests {
         assert!(matches!(sent, Ok(CanResponse::Ok)));
 
         let rx = client.next().await.unwrap();
-        let resp = if let wsrpc::Response::Notify(x) = rx {
+        let resp = if let broadcast_wsrpc::Response::Notify(x) = rx {
             x
         } else {
             panic!()

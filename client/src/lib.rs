@@ -24,6 +24,7 @@ use std::io;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use broadcast_wsrpc::client::ClientError;
 use comsrv_protocol::{Address, Request, Response};
 use protocol::FtdiDeviceInfo;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -31,7 +32,6 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::task;
 use uuid::Uuid;
-use wsrpc::client::ClientError;
 
 pub mod bytestream;
 pub mod can;

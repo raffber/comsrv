@@ -68,7 +68,6 @@ dependencies = [
 [[package]]
 name = "async-can"
 version = "0.2.0"
-source = "git+https://github.com/raffber/async-can.git?rev=90858fc1a848357c5620dc53513cd3949f992c4d#90858fc1a848357c5620dc53513cd3949f992c4d"
 dependencies = [
  "async-trait",
  "bindgen",
@@ -399,6 +398,7 @@ version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "broadcast_wsrpc",
  "comsrv_protocol",
  "reqwest",
  "serde_json",
@@ -406,7 +406,6 @@ dependencies = [
  "tokio",
  "url",
  "uuid",
- "wsrpc",
 ]
 
 [[package]]
@@ -2239,25 +2238,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "80d0f4e272c85def139476380b12f9ac60926689dd2e01d4923222f40580869d"
 dependencies = [
  "winapi",
-]
-
-[[package]]
-name = "wsrpc"
-version = "1.0.0"
-source = "git+https://github.com/raffber/wsrpc.git?tag=release/v1.0.0#1ad712ad5ddae24bca7d801a661dd7a43a714efb"
-dependencies = [
- "async-tungstenite",
- "env_logger 0.9.0",
- "futures",
- "hyper",
- "log",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tokio-stream",
- "url",
- "uuid",
 ]
 
 [[package]]

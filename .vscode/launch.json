@@ -8,7 +8,7 @@
             "type": "lldb",
             "request": "launch",
             "name": "Launch",
-            "program": "${workspaceFolder}/comsrv/target/debug/comsrv",
+            "program": "${workspaceFolder}/target/debug/comsrv",
             "args": [],
             "cwd": "${workspaceFolder}/comsrv",
             "env": {
@@ -16,6 +16,5 @@
             },
             "preLaunchTask": "comsrv-build",
         }
-
     ]
 }
