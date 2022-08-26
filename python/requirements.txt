@@ -1,3 +1,0 @@
--e git+https://github.com/raffber/wsrpc.git@9565f8f03502e93c21e5159fba48e2779a429b2d#egg=broadcast_wsrpc&subdirectory=python
-aiohttp~=3.7
-numpy~=1.22

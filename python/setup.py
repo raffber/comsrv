@@ -8,9 +8,6 @@ version = check_output([join(curdir, "..", "ci", "get-version.sh")]).decode().st
 with open("../README.md") as f:
     long_description = f.read()
 
-with open("requirements.txt") as f:
-    requirements = f.read().split("\n")
-
 setuptools.setup(
     name="comsrv",
     version=version,
@@ -27,5 +24,9 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.6",
-    install_requires=requirements,
+    install_requires=[
+        "broadcast_wsrpc @ git+https://github.com/raffber/wsrpc.git@f0a63fcfb680c93439ce8e8352143473f3bfa765#egg=broadcast_wsrpc&subdirectory=python",
+        "aiohttp~=3.7",
+        "numpy~=1.22",
+    ],
 )
