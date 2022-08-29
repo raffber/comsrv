@@ -35,6 +35,7 @@ The address parts are separated with "::".
   * Supports any SocketCAN capable device on linux (such as PCan out of the box):
   * To address a SocketCAN device, use: `can::socket::<ifname>` e.g. `can::socket::can0`
   * Features a loopback device: `can::loopback`
+  * USR-CANNET200 device can be addressed with `can::usrcanet::<host-name>:<port>`
 * Raw TCP stream: `tcp::<ip-addr>:<port>`
   * Exposes a raw byte stream and is thus accessible over the same API as serial ports
 * Using [`libsigrok`](https://sigrok.org/wiki/Libsigrok) supported logic analyzers:

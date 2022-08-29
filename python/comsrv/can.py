@@ -35,6 +35,16 @@ class SocketCanAddress(CanAddress):
         return {"SocketCan": {"interface": self._interface}}
 
 
+class UsrCanetAddress(CanAddress):
+    def __init__(self, host: str, port: int):
+        self._host = host
+        self._port = port
+        super().__init__()
+
+    def to_json(self):
+        return {"UsrCanet": {"host": self._host, "port": self._port}}
+
+
 class LoopbackAddress(CanAddress):
     def to_json(self):
         return "Loopback"
@@ -57,6 +67,8 @@ class CanInstrument(Instrument):
             }
         elif isinstance(self._address, SocketCanAddress):
             return self._address.to_json()
+        elif isinstance(self._address, UsrCanetAddress):
+            return self._address.to_json()
         elif isinstance(self._address, LoopbackAddress):
             return self._address.to_json()
         raise ValueError("Invalid can address")
@@ -78,6 +90,16 @@ class CanInstrument(Instrument):
         elif addr.startswith("can::socket::"):
             addr = addr.replace("can::socket::", "", 1)
             return CanInstrument(SocketCanAddress(addr))
+        elif addr.startswith("can::usrcanet::"):
+            addr = addr.replace("can::usrcanet::", "", 1)
+            splits = addr.split(":")
+            if len(splits) != 2:
+                raise ValueError(
+                    "Expect an address of the form `can::usrcanet::<host-name>:<port>`"
+                )
+            host = splits[0]
+            port = int(splits[1])
+            return CanInstrument(UsrCanetAddress(host, port))
         elif addr.startswith("can::loopback"):
             return CanInstrument(LoopbackAddress())
 
