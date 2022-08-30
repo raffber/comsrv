@@ -4,14 +4,14 @@ import 'package:broadcast_wsrpc/lib.dart';
 import 'package:comsrv/bytestream.dart';
 import 'package:comsrv/comsrv.dart';
 
-enum ModBusProtocol { Tcp, Rtu }
+enum ModBusProtocol { tcp, rtu }
 
 extension on ModBusProtocol {
   String toJson() {
     switch (this) {
-      case ModBusProtocol.Tcp:
+      case ModBusProtocol.tcp:
         return "Tcp";
-      case ModBusProtocol.Rtu:
+      case ModBusProtocol.rtu:
         return "Rtu";
     }
   }

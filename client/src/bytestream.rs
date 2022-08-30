@@ -112,14 +112,6 @@ impl<T: Rpc> ByteStreamPipe<T> {
         }
     }
 
-    pub async fn read_upto(&mut self, count: u32) -> crate::Result<Vec<u8>> {
-        let req = ByteStreamRequest::ReadUpTo(count);
-        match self.request(req).await? {
-            ByteStreamResponse::Data(x) => Ok(x),
-            _ => Err(crate::Error::UnexpectdResponse),
-        }
-    }
-
     pub async fn cobs_write(&mut self, data: &[u8]) -> crate::Result<()> {
         let req = ByteStreamRequest::CobsWrite(data.to_vec());
         match self.request(req).await? {

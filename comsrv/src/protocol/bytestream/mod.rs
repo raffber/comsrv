@@ -6,7 +6,6 @@ use std::task::{Context, Poll};
 /// instrument, for example TCP streams or serial ports
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::time;
-use tokio::time::Duration;
 
 use anyhow::anyhow;
 
