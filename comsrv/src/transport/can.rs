@@ -177,9 +177,7 @@ impl Handler {
                     }
                 }
             }
-            _ => {
-                log::debug!("Updating Bitrate not supported for {:?}", instr);
-            }
+            _ => {}
         };
         self.last_instrument = Some(instr.clone());
     }
