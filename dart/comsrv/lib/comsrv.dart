@@ -3,7 +3,7 @@ library comsrv;
 import 'dart:convert';
 
 import 'package:uuid/uuid.dart';
-import 'package:wsrpc/wsrpc.dart';
+import 'package:broadcast_wsrpc/lib.dart';
 
 class ComSrvError implements Exception {
   String message;

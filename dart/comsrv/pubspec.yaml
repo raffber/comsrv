@@ -8,11 +8,11 @@ environment:
   sdk: ">=2.17.0 <3.0.0"
 
 dependencies: 
-  wsrpc:
+  broadcast_wsrpc:
     git:
       url: https://github.com/raffber/wsrpc.git
-      ref: release/v1.1.1
-      path: dart/wsrpc
+      ref: release/0.1.0
+      path: dart/broadcast_wsrpc
   uuid: ^3.0.6
 
 dev_dependencies:

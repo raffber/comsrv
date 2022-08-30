@@ -124,7 +124,6 @@ pub enum ByteStreamRequest {
         count: u32,
         timeout: Duration,
     },
-    ReadUpTo(u32),
     ReadAll,
     CobsWrite(Vec<u8>),
     CobsRead(Duration),

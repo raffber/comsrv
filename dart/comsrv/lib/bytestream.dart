@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:comsrv/comsrv.dart';
-import 'package:wsrpc/wsrpc.dart' show Rpc, JsonObject;
+import 'package:broadcast_wsrpc/lib.dart' show JsonObject;
 
 abstract class ByteStreamAddress extends Address {}
 
@@ -120,10 +120,10 @@ class TcpInstrument extends Instrument {
   }
 }
 
-class ByteStreamDevice extends BasePipe {
+class ByteStreamPipe extends BasePipe {
   ByteStreamInstrument instrument;
 
-  ByteStreamDevice(this.instrument, rpc) : super(rpc);
+  ByteStreamPipe(this.instrument, rpc) : super(rpc);
 
   @override
   Future<JsonObject> request(JsonObject request) async {
@@ -154,5 +154,68 @@ class ByteStreamDevice extends BasePipe {
       }
     });
     return Uint8List.fromList(result["Data"]);
+  }
+
+  Future<Uint8List> readExact(int count, Duration timeout) async {
+    final result = await request({
+      "ReadExact": {"count": count, "timeout": timeout.toJson()},
+    });
+    return Uint8List.fromList(result["Data"]);
+  }
+
+  Future<void> cobsWrite(Uint8List data) async {
+    await request({
+      "CobsWrite": data.toList(),
+    });
+  }
+
+  Future<Uint8List> cobsRead(Duration timeout) async {
+    final result = await request({
+      "CobsRead": timeout.toJson(),
+    });
+    return Uint8List.fromList(result["Data"]);
+  }
+
+  Future<Uint8List> cobsQuery(Uint8List writeData, Duration timeout) async {
+    final result = await request({
+      "CobsQuery": {
+        "data": writeData.toList(),
+        "timeout": timeout.toJson(),
+      }
+    });
+    return Uint8List.fromList(result["Data"]);
+  }
+
+  Future<void> writeLine(String line, {String term = "\n"}) async {
+    await request({
+      "WriteLine": {"line": line, "term": term}
+    });
+  }
+
+  Future<String> readLine(Duration timeout, {String term = "\n"}) async {
+    final result = await request({
+      "ReadLine": {"term": term, "timeout": timeout.toJson()}
+    });
+    return result["String"] as String;
+  }
+
+  Future<String> queryLIne(String line, Duration timeout,
+      {String term = "\n"}) async {
+    final result = await request({
+      "QueryLine": {
+        "line": line,
+        "term": term,
+        "timeout": timeout.toJson(),
+      }
+    });
+    return result["String"] as String;
+  }
+
+  Future<void> connect() async {
+    await request({'Connect': null});
+  }
+
+  Future<void> disconnect() async {
+    await request({'Disconnect': null});
   }
 }

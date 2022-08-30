@@ -256,14 +256,6 @@ class ByteStreamPipe(BasePipe):
         data = bytes(result["Data"])
         return data
 
-    async def read_upto(self, count: int) -> bytes:
-        """
-        Perform a read operation on the stream and return at most `count` bytes.
-        """
-        result = await self.request({"ReadUpTo": count})
-        data = bytes(result["Data"])
-        return data
-
     async def cobs_write(self, data: bytes):
         """
         Apply the COBS framing to the provided `data` and write it to the stream.
@@ -331,13 +323,13 @@ class ByteStreamPipe(BasePipe):
         """
         Disconnect the underlying handle.
         """
-        self.request("Disconnect")
+        await self.request("Disconnect")
 
     async def connect(self):
         """
         Connect the underlying handle
         """
-        self.request("Connect")
+        await self.request("Connect")
 
     def modbus(
         self,

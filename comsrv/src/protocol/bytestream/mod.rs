@@ -69,17 +69,6 @@ pub async fn handle<T: AsyncRead + AsyncWrite + Unpin>(
             }?;
             Ok(ByteStreamResponse::Data(data))
         }
-        ByteStreamRequest::ReadUpTo(count) => {
-            log::debug!("read up to {} bytes", count);
-            let mut data = vec![0; count as usize];
-            let fut = AsyncReadExt::read(stream, &mut data);
-            let num_read = match time::timeout(Duration::from_micros(100), fut).await {
-                Ok(x) => x?,
-                Err(_) => 0,
-            };
-            let data = data[..num_read].to_vec();
-            Ok(ByteStreamResponse::Data(data))
-        }
         ByteStreamRequest::ReadAll => {
             log::debug!("read all bytes");
             let ret = read_all(stream).await?;
