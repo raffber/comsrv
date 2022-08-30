@@ -225,7 +225,7 @@ class ByteStreamPipe(BasePipe):
         """
         Write the bytes in `data` to the stream.
         """
-        result = await self.request({"Write": list(data)})
+        await self.request({"Write": list(data)})
 
     async def read_all(self) -> bytes:
         """

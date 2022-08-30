@@ -30,6 +30,12 @@ abstract class Address {
   String get enumName;
 }
 
+abstract class Instrument {
+  JsonObject toJson();
+
+  Address get address;
+}
+
 class Lock {
   UuidValue id;
 
@@ -41,7 +47,7 @@ class Lock {
   }
 }
 
-extension on Duration {
+extension DurationToJson on Duration {
   JsonObject toJson() {
     final micros = inMicroseconds;
     final fractionalMicros = micros % 1000000;
@@ -71,7 +77,7 @@ class ComSrv {
   ComSrv(this.rpc);
 
   Future<JsonObject> request(JsonObject request) async {
-    final reply = await rpc.request({"Shutdown": null});
+    final reply = await rpc.request(request);
     ComSrvError.checkAndThrow(reply);
     return reply;
   }
@@ -109,5 +115,17 @@ class ComSrv {
     await request({
       "Unlock": {"addr": addr.toJsonEnum(), "id": lock.toString()}
     });
+  }
+}
+
+class BasePipe {
+  Rpc rpc;
+
+  BasePipe(this.rpc);
+
+  Future<JsonObject> request(JsonObject request) async {
+    final reply = await rpc.request(request);
+    ComSrvError.checkAndThrow(reply);
+    return reply;
   }
 }
