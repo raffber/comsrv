@@ -1,6 +1,8 @@
+import 'dart:ffi';
 import 'dart:typed_data';
 
 import 'package:broadcast_wsrpc/lib.dart';
+import 'package:comsrv/can.dart';
 
 const msgTypeSysCtrl = 1;
 const msgTypeMonitoringData = 7;
@@ -11,6 +13,45 @@ const maxDdpDataLenV1 = 61; // 8 message * 8bytes - crc - cmd
 const maxDdpDataLenV2 = 8 * 256 - 3; // 256 message * 8bytes - crc - cmd
 
 const broadcastAddress = 0x7F;
+
+class MonitorValue {
+  final int readingIndex;
+  final int groupIndex;
+  final Uint8List data;
+
+  MonitorValue(this.readingIndex, this.groupIndex, this.data);
+}
+
+class GctCanDevice {
+  int controllerId;
+  final CanBus canBus;
+
+  GctCanDevice(this.canBus, this.controllerId);
+
+  Future<List<MonitorValue>> monitorRequest(
+      int destinationNodeId, int groupIndex, Uint8List readings) async {
+    throw UnimplementedError();
+  }
+
+  Future<void> sysctrlWrite(
+      int destinationNodeId, int command, Uint8List data) {
+    throw UnimplementedError();
+  }
+
+  Future<Uint8List> sysctrlRead(int destinationNodeId, int command) {
+    throw UnimplementedError();
+  }
+
+  Future<Uint8List> sysctrlWriteRead(
+      int destinationNodeId, int command, Uint8List data) {
+    throw UnimplementedError();
+  }
+
+  Future<Uint8List> ddp(int destinationNodeId, Uint8List data,
+      {int version = 2}) {
+    throw UnimplementedError();
+  }
+}
 
 abstract class GctMessage {
   int get source;

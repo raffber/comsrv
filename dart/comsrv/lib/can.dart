@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:broadcast_wsrpc/lib.dart';
 import 'package:comsrv/comsrv.dart';
+import 'package:comsrv/gctcan.dart';
 
 abstract class CanAddress extends Address {
   @override
@@ -80,7 +81,9 @@ class CanInstrument extends Instrument {
   }
 }
 
-class DataMessage {
+class CanMessage {}
+
+class DataMessage extends CanMessage {
   final int id;
   final bool extendedId;
   final Uint8List data;
@@ -88,7 +91,7 @@ class DataMessage {
   DataMessage(this.id, this.extendedId, this.data);
 }
 
-class RemoteMessage {
+class RemoteMessage extends CanMessage {
   final bool extendedId;
   final int id;
   final int dlc;
@@ -99,7 +102,7 @@ class RemoteMessage {
 class CanBus extends BasePipe {
   CanInstrument instrument;
 
-  CanBus(Rpc rpc, this.instrument) : super(rpc);
+  CanBus(WsRpc rpc, this.instrument) : super(rpc);
 
   @override
   Future<JsonObject> request(JsonObject request) async {
@@ -113,5 +116,21 @@ class CanBus extends BasePipe {
   Future<void> connect() async {
     await request({"ListenGct": true});
     await request({"ListenRaw": true});
+  }
+
+  Stream<GctMessage> gctMessages() async* {
+    throw UnimplementedError();
+  }
+
+  Stream<CanMessage> canMessages() async* {
+    throw UnimplementedError();
+  }
+
+  Stream<RemoteMessage> remoteMessages() async* {
+    throw UnimplementedError();
+  }
+
+  Stream<DataMessage> dataMessages() async* {
+    throw UnimplementedError();
   }
 }
