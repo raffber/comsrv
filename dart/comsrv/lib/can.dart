@@ -110,5 +110,8 @@ class CanBus extends BasePipe {
     return reply;
   }
 
-  Future<void> connect() async {}
+  Future<void> connect() async {
+    await request({"ListenGct": true});
+    await request({"ListenRaw": true});
+  }
 }

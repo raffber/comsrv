@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:broadcast_wsrpc/lib.dart';
+
 const msgTypeSysCtrl = 1;
 const msgTypeMonitoringData = 7;
 const msgTypeMonitoringRequest = 8;
@@ -14,32 +16,60 @@ abstract class GctMessage {
   int get source;
   int get destination;
   int get messageType;
-  int get typeData;
+
+  JsonObject toJson();
+
+  static GctMessage? fromJson(JsonObject object) {
+    if (object.containsKey("SysCtrl")) {
+      return SysCtrlMessage.fromJson(object["SysCtrl"]);
+    } else if (object.containsKey("MonitoringData")) {
+      return MonitoringData.fromJson(object["MonitoringData"]);
+    } else if (object.containsKey("MonitoringRequest")) {
+      return MonitoringRequest.fromJson(object["MonitoringRequest"]);
+    } else if (object.containsKey("Ddp")) {
+      return DdpMessage.fromJson(object["Ddp"]);
+    } else if (object.containsKey("Heartbeat")) {
+      return Heartbeat.fromJson(object["Heartbeat"]);
+    }
+    return null;
+  }
 }
 
 enum SysCtrlType { none, value, query }
-
-extension on SysCtrlType {
-  int get typeData {
-    switch (this) {
-      case SysCtrlType.none:
-        return 0;
-      case SysCtrlType.value:
-        return 2;
-      case SysCtrlType.query:
-        return 1;
-    }
-  }
-}
 
 class SysCtrlMessage extends GctMessage {
   final SysCtrlType sysCtrlType;
   final int _source;
   final int _destination;
   final int command;
+  final Uint8List data;
 
-  SysCtrlMessage(
-      this._source, this._destination, this.command, this.sysCtrlType);
+  SysCtrlMessage(this._source, this._destination, this.command,
+      this.sysCtrlType, this.data);
+
+  factory SysCtrlMessage.fromJson(JsonObject msg) {
+    final source = msg["src"];
+    final destination = msg["dst"];
+    final command = msg["cmd"];
+
+    final tp = msg["tp"] as String;
+    SysCtrlType? sysCtrlType;
+    switch (tp) {
+      case "None":
+        sysCtrlType = SysCtrlType.none;
+        break;
+      case "Value":
+        sysCtrlType = SysCtrlType.value;
+        break;
+      case "Query":
+        sysCtrlType = SysCtrlType.query;
+        break;
+      default:
+        throw ArgumentError("No such SysCtrl type");
+    }
+    final data = Uint8List.fromList(msg["data"]);
+    return SysCtrlMessage(source, destination, command, sysCtrlType, data);
+  }
 
   @override
   int get destination => _destination;
@@ -51,7 +81,29 @@ class SysCtrlMessage extends GctMessage {
   int get source => _source;
 
   @override
-  int get typeData => (command << 2) | sysCtrlType.typeData;
+  JsonObject toJson() {
+    String? tp;
+    switch (sysCtrlType) {
+      case SysCtrlType.none:
+        tp = "None";
+        break;
+      case SysCtrlType.value:
+        tp = "Value";
+        break;
+      case SysCtrlType.query:
+        tp = "Query";
+        break;
+    }
+    return {
+      "SysCtrl": {
+        "src": _source,
+        "dst": _destination,
+        "cmd": command,
+        "tp": tp,
+        "data": data.toList(),
+      }
+    };
+  }
 }
 
 class MonitoringData extends GctMessage {
@@ -61,6 +113,14 @@ class MonitoringData extends GctMessage {
   final Uint8List data;
 
   MonitoringData(this._source, this.groupIndex, this.readingIndex, this.data);
+
+  factory MonitoringData.fromJson(JsonObject object) {
+    final source = object["src"];
+    final groupIndex = object["group_idx"];
+    final readingIndex = object["readings_idx"];
+    final data = Uint8List.fromList(object["data"]);
+    return MonitoringData(source, groupIndex, readingIndex, data);
+  }
 
   @override
   int get destination => broadcastAddress;
@@ -72,5 +132,133 @@ class MonitoringData extends GctMessage {
   int get source => _source;
 
   @override
-  int get typeData => (groupIndex << 6) | readingIndex;
+  JsonObject toJson() {
+    return {
+      "MonitoringData": {
+        "src": source,
+        "group_idx": groupIndex,
+        "reading_idx": readingIndex,
+        "data": data.toList(),
+      }
+    };
+  }
+}
+
+class MonitoringRequest extends GctMessage {
+  int groupIndex;
+
+  final int _source;
+  final int _destination;
+  final Uint8List readings;
+
+  factory MonitoringRequest.fromJson(JsonObject object) {
+    final int destination = object["dst"];
+    final int source = object["source"];
+    final readings = Uint8List.fromList(object["readings"]);
+    final groupIndex = object["group_idx"];
+    return MonitoringRequest(
+      source: source,
+      destination: destination,
+      groupIndex: groupIndex,
+      readings: readings,
+    );
+  }
+
+  MonitoringRequest({
+    required source,
+    required destination,
+    required this.groupIndex,
+    required this.readings,
+  })  : _source = source,
+        _destination = destination;
+
+  @override
+  int get destination => _destination;
+
+  @override
+  int get source => _source;
+
+  @override
+  int get messageType => msgTypeMonitoringRequest;
+
+  @override
+  JsonObject toJson() {
+    return {
+      "MonitoringRequest": {
+        "src": _source,
+        "dst": _destination,
+        "group_idx": groupIndex,
+        "readings": readings,
+      }
+    };
+  }
+}
+
+class Heartbeat extends GctMessage {
+  final int _source;
+  final int productId;
+
+  Heartbeat(this._source, this.productId);
+
+  factory Heartbeat.fromJson(JsonObject object) {
+    return Heartbeat(object["src"], object["product_id"]);
+  }
+
+  @override
+  int get destination => broadcastAddress;
+
+  @override
+  int get messageType => msgTypeHeartBeat;
+
+  @override
+  int get source => _source;
+
+  @override
+  JsonObject toJson() {
+    return {
+      "Heartbeat": {
+        "src": _source,
+        "product_id": productId,
+      }
+    };
+  }
+}
+
+class DdpMessage extends GctMessage {
+  final int _destination;
+  final int _source;
+  Uint8List data;
+  int version;
+
+  DdpMessage(this._source, this._destination, this.data, this.version);
+
+  factory DdpMessage.fromJson(JsonObject object) {
+    final int source = object["src"];
+    final int destination = object["dst"];
+    final int version = object["version"];
+    final List<int> data = object["data"];
+
+    return DdpMessage(source, destination, Uint8List.fromList(data), version);
+  }
+
+  @override
+  int get destination => _destination;
+
+  @override
+  int get messageType => msgTypeDdp;
+
+  @override
+  int get source => _source;
+
+  @override
+  JsonObject toJson() {
+    return {
+      "Ddp": {
+        "version": version,
+        "src": _source,
+        "dst": _destination,
+        "data": data.toList(),
+      }
+    };
+  }
 }
