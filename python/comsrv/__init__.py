@@ -395,7 +395,9 @@ class FtdiDeviceInfo(object):
         self.description = description
 
     def to_address(self, baudrate: int, params: str = "8N1"):
-        raise NotImplementedError
+        return FtdiInstrument(
+            FtdiAddress(self.serial_number), SerialPortConfig(params, baudrate)
+        )
 
 
 class CanDriverType(Enum):
