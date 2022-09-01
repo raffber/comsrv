@@ -1,9 +1,15 @@
 import setuptools
 from os.path import dirname, join
 from subprocess import check_output
+import re
 
 curdir = dirname(__file__)
-version = check_output([join(curdir, "..", "ci", "get-version.sh")]).decode().strip()
+with open(join(curdir, "..", "comsrv", "Cargo.toml")) as f:
+    toml_file = f.read()
+
+for version in re.finditer(r'version\s*\=\s*"(?P<version>.*?)"', toml_file):
+    version = version.group("version")
+    break
 
 with open("../README.md") as f:
     long_description = f.read()
