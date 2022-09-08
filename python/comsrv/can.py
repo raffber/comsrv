@@ -185,11 +185,21 @@ class CanBus(object):
 
     def raw(self):
         """Return a listener for raw CAN messages"""
-        return self._client.listen(raw_filter)
+        return self._client.listen(self._instrument_filter).map(raw_filter)
 
     def gct(self):
         """Return a listener for GCT CAN messages"""
-        return self._client.listen(gct_filter)
+        return self._client.listen(self._instrument_filter).map(gct_filter)
+
+    def _instrument_filter(self, msg):
+        if "Notify" not in msg:
+            return None
+        if "Can" not in msg["Notify"]:
+            return None
+        can = msg["Notify"]["Can"]
+        if self._device.to_json() != can["source"]:
+            return None
+        return can["response"]
 
     @property
     def client(self):
@@ -487,24 +497,14 @@ class Heartbeat(GctMessage):
 
 
 def gct_filter(msg):
-    if "Notify" not in msg:
-        return None
-    if "Can" not in msg["Notify"]:
-        return None
-    can = msg["Notify"]["Can"]["response"]
-    if "Gct" in can:
-        msg = can["Gct"]
+    if "Gct" in msg:
+        msg = msg["Gct"]
         return GctMessage.from_comsrv(msg)
     return None
 
 
 def raw_filter(msg):
-    if "Notify" not in msg:
-        return None
-    if "Can" not in msg["Notify"]:
-        return None
-    can = msg["Notify"]["Can"]["response"]
-    if "Raw" in can:
-        msg = can["Raw"]
+    if "Raw" in msg:
+        msg = msg["Raw"]
         return CanMessage.from_comsrv(msg)
     return None
