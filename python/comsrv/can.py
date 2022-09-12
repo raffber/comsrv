@@ -197,7 +197,7 @@ class CanBus(object):
         if "Can" not in msg["Notify"]:
             return None
         can = msg["Notify"]["Can"]
-        if self._device.to_json() != can["source"]:
+        if self._device.address.to_json() != can["source"]:
             return None
         return can["response"]
 
