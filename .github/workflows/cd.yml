@@ -14,15 +14,13 @@ jobs:
     needs: run-build
     steps:
       - uses: actions/checkout@v3
-      - name: Download artifact
-        uses: dawidd6/action-download-artifact@v2.22.0
+
+      - name: Download workflow artifacts
+        uses: actions/download-artifact@v3
         with:
-          path: ${{ github.workspace }}/out
-          commit: ${{ env.GITHUB_SHA }}
-          workflow: ci.yml
-          github_token: ${{secrets.GITHUB_TOKEN}}
           name: comsrv
-          workflow_conclusion: success
+          path: out
+
       - name: Release
         uses: softprops/action-gh-release@v1
         with:

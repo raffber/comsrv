@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+
     - name: Version Check
       run: ci/check-version.sh
 
@@ -28,10 +29,13 @@ jobs:
 
     - name: Run Build
       run: docker run -v ${{ github.workspace }}:/workspace comsrv-agent ci/build-ci.sh
+
     - name: Run Test
       run: docker run -v ${{ github.workspace }}:/workspace comsrv-agent ci/test-ci.sh
+
     - name: Build python wheel
       run: docker run -v ${{ github.workspace }}:/workspace comsrv-agent ci/build-wheel.sh
+
     - name: Upload Artifacts
       uses: actions/upload-artifact@v3
       with:
