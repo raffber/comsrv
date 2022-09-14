@@ -1,4 +1,3 @@
-import 'dart:ffi';
 import 'dart:typed_data';
 
 import 'package:broadcast_wsrpc/lib.dart';
@@ -25,31 +24,91 @@ class MonitorValue {
 class GctCanDevice {
   int controllerId;
   final CanBus canBus;
+  Duration timeout = Duration(milliseconds: 100);
 
   GctCanDevice(this.canBus, this.controllerId);
 
+  Future<List<MonitorValue>> _receiveMonitorRequests(int destinationNodeId,
+      int groupIndex, Uint8List readings, Stream<GctMessage> messages) async {
+    final receivedReadings = <int, MonitorValue?>{};
+    for (final reading in readings) {
+      receivedReadings[reading] = null;
+    }
+    await for (final msg in messages) {
+      if (msg is! MonitoringData ||
+          msg.groupIndex != groupIndex ||
+          msg.source != destinationNodeId ||
+          !readings.contains(msg.readingIndex)) {
+        continue;
+      }
+      final value = MonitorValue(msg.readingIndex, msg.groupIndex, msg.data);
+      receivedReadings[msg.readingIndex] = value;
+      if (!receivedReadings.containsValue(null)) {
+        break;
+      }
+    }
+    final ret = <MonitorValue>[];
+    for (final reading in readings) {
+      ret.add(receivedReadings[reading]!);
+    }
+    return ret;
+  }
+
   Future<List<MonitorValue>> monitorRequest(
       int destinationNodeId, int groupIndex, Uint8List readings) async {
-    throw UnimplementedError();
+    final messages = canBus.gctMessages();
+    canBus.sendGct(MonitoringRequest(
+        source: controllerId,
+        destination: destinationNodeId,
+        groupIndex: groupIndex,
+        readings: readings));
+    return await _receiveMonitorRequests(
+            destinationNodeId, groupIndex, readings, messages)
+        .timeout(timeout);
   }
 
   Future<void> sysctrlWrite(
-      int destinationNodeId, int command, Uint8List data) {
-    throw UnimplementedError();
+      int destinationNodeId, int command, Uint8List data) async {
+    final txMsg = SysCtrlMessage(
+        controllerId, destinationNodeId, command, SysCtrlType.none, data);
+    await canBus.sendGct(txMsg);
   }
 
-  Future<Uint8List> sysctrlRead(int destinationNodeId, int command) {
-    throw UnimplementedError();
+  Future<Uint8List> sysctrlRead(int destinationNodeId, int command) async {
+    return await sysctrlWriteRead(destinationNodeId, command, Uint8List(0));
   }
 
   Future<Uint8List> sysctrlWriteRead(
-      int destinationNodeId, int command, Uint8List data) {
-    throw UnimplementedError();
+      int destinationNodeId, int command, Uint8List data) async {
+    final sysctrlMessages = canBus
+        .gctMessages()
+        .where((event) => event is SysCtrlMessage)
+        .map((event) => event as SysCtrlMessage)
+        .where((event) =>
+            event.source == destinationNodeId &&
+            event.command == command &&
+            event.sysCtrlType == SysCtrlType.value);
+    final txMsg = SysCtrlMessage(
+        controllerId, destinationNodeId, command, SysCtrlType.query, data);
+    await canBus.sendGct(txMsg);
+    final retMsg = await sysctrlMessages.first.timeout(timeout);
+    return retMsg.data;
   }
 
   Future<Uint8List> ddp(int destinationNodeId, Uint8List data,
-      {int version = 2}) {
-    throw UnimplementedError();
+      {int version = 2}) async {
+    final ddpMessages = canBus
+        .gctMessages()
+        .where((event) => event is DdpMessage)
+        .map((event) => event as DdpMessage)
+        .where((event) =>
+            event.source == destinationNodeId &&
+            event.destination == controllerId &&
+            event.version == version);
+    await canBus
+        .sendGct(DdpMessage(controllerId, destinationNodeId, data, version));
+    final retMsg = await ddpMessages.first.timeout(timeout);
+    return retMsg.data;
   }
 }
 

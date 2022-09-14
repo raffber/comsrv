@@ -152,6 +152,8 @@ abstract class CanMessage {
     }
     throw ArgumentError("Cannot deserialize CanMessage: Invalid format.");
   }
+
+  JsonObject toJson();
 }
 
 class DataMessage extends CanMessage {
@@ -166,6 +168,11 @@ class DataMessage extends CanMessage {
     final extendedId = object["ext_id"] as bool;
     final data = Uint8List.fromList(object["data"] as List<int>);
     return DataMessage(id, extendedId, data);
+  }
+
+  @override
+  JsonObject toJson() {
+    return {"id": id, "ext_id": extendedId, "data": data.toList()};
   }
 }
 
@@ -182,11 +189,17 @@ class RemoteMessage extends CanMessage {
     final dlc = object["dlc"] as int;
     return RemoteMessage(id, extendedId, dlc);
   }
+
+  @override
+  JsonObject toJson() {
+    return {"id": id, "ext_id": extendedId, "dlc": dlc};
+  }
 }
 
 class CanBus extends BasePipe {
   CanInstrument instrument;
   final WsRpc wsRpc;
+  Duration sendTimeout = Duration(milliseconds: 100);
 
   CanBus(WsRpc rpc, this.instrument)
       : wsRpc = rpc,
@@ -204,6 +217,14 @@ class CanBus extends BasePipe {
   Future<void> connect() async {
     await request({"ListenGct": true});
     await request({"ListenRaw": true});
+  }
+
+  Future<void> sendGct(GctMessage msg) async {
+    await request({"TxGct": msg.toJson()});
+  }
+
+  Future<void> sendRaw(CanMessage msg) async {
+    await request({"TxRaw": msg.toJson()});
   }
 
   Stream<JsonObject> _filterMessages() async* {
