@@ -253,7 +253,7 @@ class MonitoringRequest extends GctMessage {
 
   factory MonitoringRequest.fromJson(JsonObject object) {
     final int destination = object["dst"];
-    final int source = object["source"];
+    final int source = object["src"];
     final readings = Uint8List.fromList(object["readings"]);
     final groupIndex = object["group_idx"];
     return MonitoringRequest(

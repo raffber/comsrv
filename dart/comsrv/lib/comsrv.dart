@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:uuid/uuid.dart';
 import 'package:broadcast_wsrpc/lib.dart';
+export 'package:broadcast_wsrpc/lib.dart';
 
 class ComSrvError implements Exception {
   String message;

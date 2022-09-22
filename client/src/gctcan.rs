@@ -154,10 +154,7 @@ impl GctCanDevice {
             }))
             .await?;
 
-        let mut ret: Vec<Option<MonitorValue>> = Vec::with_capacity(64);
-        for _ in 0..64 {
-            ret.push(None);
-        }
+        let mut ret = vec![None; 64];
         let mut filled = 0;
         while let Some(value) = subscription.recv().await {
             let idx = value.index.reading_index;
