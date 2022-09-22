@@ -167,7 +167,7 @@ class SysCtrlMessage extends GctMessage {
       default:
         throw ArgumentError("No such SysCtrl type");
     }
-    final data = Uint8List.fromList(msg["data"]);
+    final data = Uint8List.fromList(msg["data"].cast<int>());
     return SysCtrlMessage(source, destination, command, sysCtrlType, data);
   }
 

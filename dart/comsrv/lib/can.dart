@@ -166,7 +166,7 @@ class DataMessage extends CanMessage {
   factory DataMessage.fromJson(JsonObject object) {
     final id = object["id"];
     final extendedId = object["ext_id"] as bool;
-    final data = Uint8List.fromList(object["data"] as List<int>);
+    final data = Uint8List.fromList(object["data"].cast<int>() as List<int>);
     return DataMessage(id, extendedId, data);
   }
 
@@ -230,16 +230,25 @@ class CanBus extends BasePipe {
   Stream<JsonObject> _filterMessages() async* {
     final client = await wsRpc.connect();
     await for (final msg in client.messages()) {
-      if (msg.containsKey("Notify")) {
-        final notification = msg["Notify"] as JsonObject;
-        if (notification.containsKey("Can")) {
-          final canMsg = notification["Can"] as JsonObject;
-          final source = canMsg["source"] as JsonObject;
-          final sourceAddress = CanAddress.fromJson(source);
-          if (sourceAddress == instrument.address) {
-            yield canMsg["response"] as JsonObject;
-          }
-        }
+      if (!msg.containsKey("Notify")) {
+        continue;
+      }
+      final notification = msg["Notify"] as JsonObject;
+      if (!notification.containsKey("Can")) {
+        continue;
+      }
+      final canMsg = notification["Can"] as JsonObject;
+      final source = canMsg["source"] as JsonObject;
+      final sourceAddress = CanAddress.fromJson(source);
+      if (sourceAddress != instrument.address) {
+        continue;
+      }
+      final response = canMsg["response"];
+      if (response is! JsonObject) {
+        continue;
+      }
+      if (response.containsKey("Gct") || response.containsKey("Raw")) {
+        yield response;
       }
     }
   }
