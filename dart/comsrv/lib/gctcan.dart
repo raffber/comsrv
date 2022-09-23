@@ -29,7 +29,7 @@ class GctCanDevice {
   GctCanDevice(this.canBus, this.controllerId);
 
   Future<List<MonitorValue>> _receiveMonitorRequests(int destinationNodeId,
-      int groupIndex, Uint8List readings, Stream<GctMessage> messages) async {
+      int groupIndex, List<int> readings, Stream<GctMessage> messages) async {
     final receivedReadings = <int, MonitorValue?>{};
     for (final reading in readings) {
       receivedReadings[reading] = null;
@@ -55,13 +55,13 @@ class GctCanDevice {
   }
 
   Future<List<MonitorValue>> monitorRequest(
-      int destinationNodeId, int groupIndex, Uint8List readings) async {
+      int destinationNodeId, int groupIndex, List<int> readings) async {
     final messages = canBus.gctMessages();
     canBus.sendGct(MonitoringRequest(
         source: controllerId,
         destination: destinationNodeId,
         groupIndex: groupIndex,
-        readings: readings));
+        readings: Uint8List.fromList(readings)));
     return await _receiveMonitorRequests(
             destinationNodeId, groupIndex, readings, messages)
         .timeout(timeout);
@@ -254,13 +254,25 @@ class MonitoringRequest extends GctMessage {
   factory MonitoringRequest.fromJson(JsonObject object) {
     final int destination = object["dst"];
     final int source = object["src"];
-    final readings = Uint8List.fromList(object["readings"]);
+    var readings = object["readings"] as int;
+    final listReadings = <int>[];
+    for (int kByte = 0; kByte < 8; ++kByte) {
+      for (int kBit = 0; kBit < 8; ++kBit) {
+        if (readings == 0) {
+          break;
+        }
+        if ((1 << kBit) & readings != 0) {
+          listReadings.add(8 * kByte + kBit);
+        }
+      }
+      readings >>= 8;
+    }
     final groupIndex = object["group_idx"];
     return MonitoringRequest(
       source: source,
       destination: destination,
       groupIndex: groupIndex,
-      readings: readings,
+      readings: Uint8List.fromList(listReadings),
     );
   }
 
@@ -283,12 +295,16 @@ class MonitoringRequest extends GctMessage {
 
   @override
   JsonObject toJson() {
+    int request = 0;
+    for (final reading in readings) {
+      request |= (1 << reading);
+    }
     return {
       "MonitoringRequest": {
         "src": _source,
         "dst": _destination,
         "group_idx": groupIndex,
-        "readings": readings,
+        "readings": request,
       }
     };
   }
