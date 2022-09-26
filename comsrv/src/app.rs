@@ -7,7 +7,7 @@ use broadcast_wsrpc::server::{Requested, Server as WsrpcServer};
 use comsrv_protocol::{
     Address, ByteStreamInstrument, ByteStreamRequest, CanAddress, CanInstrument, CanRequest, FtdiInstrument,
     HidResponse, PrologixInstrument, PrologixRequest, Request, Response, ScpiInstrument, ScpiRequest, SerialInstrument,
-    TcpInstrument, VisaInstrument, VxiInstrument,
+    SerialRequest, TcpInstrument, VisaInstrument, VxiInstrument,
 };
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task;
@@ -151,6 +151,35 @@ impl App {
             Request::ListFtdiDevices => ftdi::list_ftdi().await.map(Response::FtdiDevices),
             Request::ListCanDevices => can::list_can_devices().await.map(Response::CanDevices),
             Request::Drop { addr, id } => self.drop(addr, id.as_ref()).await,
+            Request::Serial {
+                instrument,
+                request,
+                lock,
+            } => self.handle_serial_request(instrument, request, lock).await,
+        }
+    }
+
+    async fn handle_serial_request(
+        &self,
+        instrument: SerialInstrument,
+        request: SerialRequest,
+        lock: Option<Uuid>,
+    ) -> crate::Result<Response> {
+        let response = self
+            .inventories
+            .serial
+            .wait_connect(&self.server, &instrument.address, lock.as_ref())
+            .await?
+            .request(crate::transport::serial::Request::Serial {
+                params: instrument.port_config.try_into()?,
+                req: request,
+            })
+            .await?;
+        match response {
+            serial::Response::Bytes(_) => Err(invalid_response_for_request()),
+            serial::Response::Scpi(_) => Err(invalid_response_for_request()),
+            serial::Response::Done => Err(invalid_response_for_request()),
+            serial::Response::Serial(x) => Ok(Response::Serial(x)),
         }
     }
 
@@ -206,7 +235,7 @@ impl App {
             .serial
             .wait_connect(&self.server, &instr.address, lock.as_ref())
             .await?
-            .request(serial::Request::Serial {
+            .request(serial::Request::Bytes {
                 params: instr.port_config.try_into()?,
                 req,
             })
@@ -214,6 +243,7 @@ impl App {
         match ret {
             serial::Response::Bytes(x) => Ok(Response::Bytes(x)),
             serial::Response::Scpi(_) => Err(invalid_response_for_request()),
+            serial::Response::Serial(_) => Err(invalid_response_for_request()),
             serial::Response::Done => Err(invalid_response_for_request()),
         }
     }
@@ -277,6 +307,7 @@ impl App {
             serial::Response::Bytes(_) => Err(invalid_response_for_request()),
             serial::Response::Scpi(x) => Ok(Response::Scpi(x)),
             serial::Response::Done => Err(invalid_response_for_request()),
+            serial::Response::Serial(_) => Err(invalid_response_for_request()),
         }
     }
 

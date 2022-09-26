@@ -87,6 +87,12 @@ pub enum Request {
         #[serde(skip_serializing_if = "Option::is_none", default)]
         lock: Option<Uuid>,
     },
+    Serial {
+        instrument: SerialInstrument,
+        request: SerialRequest,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        lock: Option<Uuid>,
+    },
     ListSigrokDevices,
     ListSerialPorts,
     ListHidDevices,
@@ -130,6 +136,7 @@ pub enum Response {
         minor: u32,
         build: u32,
     },
+    Serial(SerialResponse),
     SerialPorts(Vec<String>),
     FtdiDevices(Vec<FtdiDeviceInfo>),
     CanDevices(Vec<CanDeviceInfo>),
@@ -143,4 +150,20 @@ impl From<std::result::Result<Response, Error>> for Response {
             Err(e) => Response::Error(e),
         }
     }
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum SerialRequest {
+    WriteDataTerminalReady(bool),
+    WriteRequestToSend(bool),
+    ReadDataSetReady,
+    ReadRingIndicator,
+    ReadCarrierDetect,
+    ReadClearToSend,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum SerialResponse {
+    PinLevel(bool),
+    Done,
 }

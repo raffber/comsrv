@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tokio::task::{self, JoinHandle};
 use tokio::time::sleep;
-use tokio_serial::{SerialPortBuilderExt, SerialStream};
+use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialStream};
 
 use anyhow::anyhow;
 pub use params::SerialParams;
@@ -15,7 +15,9 @@ use crate::iotask::{IoContext, IoHandler, IoTask};
 use crate::protocol::bytestream;
 use crate::protocol::prologix::{handle_prologix_request, init_prologix};
 use crate::transport::serial::params::{DataBits, Parity, StopBits};
-use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse, ScpiRequest, ScpiResponse, SerialAddress};
+use comsrv_protocol::{
+    ByteStreamRequest, ByteStreamResponse, ScpiRequest, ScpiResponse, SerialAddress, SerialRequest, SerialResponse,
+};
 
 pub mod params;
 
@@ -29,9 +31,13 @@ pub enum Request {
         gpib_addr: u8,
         req: ScpiRequest,
     },
-    Serial {
+    Bytes {
         params: SerialParams,
         req: ByteStreamRequest,
+    },
+    Serial {
+        params: SerialParams,
+        req: SerialRequest,
     },
     DropCheck,
 }
@@ -46,8 +52,9 @@ impl Request {
                 parity: Parity::None,
                 hardware_flow_control: Default::default(),
             }),
-            Request::Serial { params, .. } => Some(params.clone()),
-            _ => None,
+            Request::Bytes { params, .. } => Some(params.clone()),
+            Request::Serial { params, req: _ } => Some(params.clone()),
+            Request::DropCheck => None,
         }
     }
 }
@@ -56,6 +63,7 @@ impl Request {
 pub enum Response {
     Bytes(ByteStreamResponse),
     Scpi(ScpiResponse),
+    Serial(SerialResponse),
     Done,
 }
 
@@ -97,7 +105,7 @@ impl Handler {
     fn drop_check(&mut self, req: &Request) -> Option<crate::Result<Response>> {
         if matches!(
             req,
-            Request::Serial {
+            Request::Bytes {
                 req: ByteStreamRequest::Disconnect,
                 ..
             }
@@ -149,13 +157,39 @@ impl Handler {
                 }
                 handle_prologix_request(serial, gpib_addr, req).await.map(Response::Scpi)
             }
-            Request::Serial { params: _, req } => {
+            Request::Bytes { params: _, req } => {
                 self.prologix_initialized = false;
                 bytestream::handle(serial, req).await.map(Response::Bytes)
             }
             Request::DropCheck => unreachable!(),
+            Request::Serial { params: _, req } => match req {
+                SerialRequest::WriteDataTerminalReady(x) => {
+                    serial.write_data_terminal_ready(x).map_err(map_tokio_serial_error)?;
+                    Ok(Response::Serial(SerialResponse::Done))
+                }
+                SerialRequest::WriteRequestToSend(x) => {
+                    serial.write_request_to_send(x).map_err(map_tokio_serial_error)?;
+                    Ok(Response::Serial(SerialResponse::Done))
+                }
+                SerialRequest::ReadDataSetReady => Ok(Response::Serial(SerialResponse::PinLevel(
+                    serial.read_data_set_ready().map_err(map_tokio_serial_error)?,
+                ))),
+                SerialRequest::ReadRingIndicator => Ok(Response::Serial(SerialResponse::PinLevel(
+                    serial.read_ring_indicator().map_err(map_tokio_serial_error)?,
+                ))),
+                SerialRequest::ReadCarrierDetect => Ok(Response::Serial(SerialResponse::PinLevel(
+                    serial.read_carrier_detect().map_err(map_tokio_serial_error)?,
+                ))),
+                SerialRequest::ReadClearToSend => Ok(Response::Serial(SerialResponse::PinLevel(
+                    serial.read_clear_to_send().map_err(map_tokio_serial_error)?,
+                ))),
+            },
         }
     }
+}
+
+fn map_tokio_serial_error(err: tokio_serial::Error) -> crate::Error {
+    crate::Error::transport(anyhow!(err))
 }
 
 #[async_trait]
