@@ -17,10 +17,31 @@ pub struct SerialAddress {
     pub port: String,
 }
 
+#[derive(Copy, Clone, Serialize, Deserialize, Debug, Hash, PartialEq, Eq)]
+pub enum FlowControl {
+    NoFlowControl,
+    Hardware,
+    Software,
+}
+
+impl Default for FlowControl {
+    fn default() -> Self {
+        FlowControl::NoFlowControl
+    }
+}
+
+impl FlowControl {
+    fn has_no_flow_control(&self) -> bool {
+        *self == FlowControl::NoFlowControl
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct SerialPortConfig {
     pub config: String,
     pub baudrate: u32,
+    #[serde(skip_serializing_if = "FlowControl::has_no_flow_control", default)]
+    pub hardware_flow_control: FlowControl,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Hash, PartialEq, Eq)]

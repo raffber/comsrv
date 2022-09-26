@@ -4,6 +4,7 @@ use std::{
     fmt::{Display, Formatter},
 };
 
+use crate::rpc::FlowControl;
 use anyhow::anyhow;
 use comsrv_protocol::SerialPortConfig;
 use serde::{Deserialize, Serialize};
@@ -58,6 +59,7 @@ pub struct SerialParams {
     pub data_bits: DataBits,
     pub stop_bits: StopBits,
     pub parity: Parity,
+    pub hardware_flow_control: FlowControl,
 }
 
 impl TryInto<SerialParams> for SerialPortConfig {
@@ -70,34 +72,7 @@ impl TryInto<SerialParams> for SerialPortConfig {
             data_bits,
             stop_bits,
             parity,
-        })
-    }
-}
-
-impl SerialParams {
-    pub fn from_address_with_path(addr_parts: &[&str]) -> crate::Result<(String, SerialParams)> {
-        if addr_parts.len() != 3 {
-            return Err(crate::Error::argument(anyhow!("Invalid Address")));
-        }
-        let path = addr_parts[0].into();
-        let params = Self::from_address(&addr_parts[1..])?;
-        Ok((path, params))
-    }
-
-    pub fn from_address(addr_parts: &[&str]) -> crate::Result<SerialParams> {
-        if addr_parts.len() < 2 {
-            return Err(crate::Error::argument(anyhow!("Invalid Address")));
-        }
-        let baud_rate: u32 = addr_parts[0]
-            .parse()
-            .map_err(|_| crate::Error::argument(anyhow!("Invalid Address")))?;
-        let (bits, parity, stop) = parse_serial_settings(addr_parts[1])?;
-
-        Ok(SerialParams {
-            baud: baud_rate,
-            data_bits: bits,
-            stop_bits: stop,
-            parity,
+            hardware_flow_control: self.hardware_flow_control,
         })
     }
 }

@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+use crate::rpc::FlowControl;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tokio::task::{self, JoinHandle};
@@ -43,6 +44,7 @@ impl Request {
                 data_bits: DataBits::Eight,
                 stop_bits: StopBits::One,
                 parity: Parity::None,
+                hardware_flow_control: Default::default(),
             }),
             Request::Serial { params, .. } => Some(params.clone()),
             _ => None,
@@ -68,10 +70,17 @@ pub struct Handler {
 
 impl Handler {
     async fn open_serial_port(path: &str, params: &SerialParams) -> crate::Result<SerialStream> {
+        let flow_control = match params.hardware_flow_control {
+            FlowControl::NoFlowControl => tokio_serial::FlowControl::None,
+            FlowControl::Hardware => tokio_serial::FlowControl::Hardware,
+            FlowControl::Software => tokio_serial::FlowControl::Software,
+        };
+
         let serial_stream = tokio_serial::new(path, params.baud)
             .parity(params.parity.into())
             .stop_bits(params.stop_bits.into())
             .data_bits(params.data_bits.into())
+            .flow_control(flow_control)
             .open_native_async()
             .map_err(|x| crate::Error::transport(anyhow!(x)))?;
 
