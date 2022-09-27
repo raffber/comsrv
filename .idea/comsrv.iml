@@ -11,6 +11,7 @@
       <excludeFolder url="file://$MODULE_DIR$/comsrv/target" />
       <excludeFolder url="file://$MODULE_DIR$/protocol/target" />
       <excludeFolder url="file://$MODULE_DIR$/client/target" />
+      <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.10 (venv)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />

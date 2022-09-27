@@ -42,7 +42,7 @@ class ModBusDevice {
     assert(address < (1 << 16));
     assert(count < (1 << 16));
     final result = await request({
-      "ReadCoil": {"addr": address, "count": count}
+      "ReadCoil": {"addr": address, "cnt": count}
     });
     return result["Bool"] as List<bool>;
   }
@@ -51,7 +51,7 @@ class ModBusDevice {
     assert(address < (1 << 16));
     assert(count < (1 << 16));
     final result = await request({
-      "ReadDiscrete": {"addr": address, "count": count}
+      "ReadDiscrete": {"addr": address, "cnt": count}
     });
     return result["Bool"] as List<bool>;
   }
@@ -60,7 +60,7 @@ class ModBusDevice {
     assert(address < (1 << 16));
     assert(count < (1 << 16));
     final result = await request({
-      "ReadInput": {"addr": address, "count": count}
+      "ReadInput": {"addr": address, "cnt": count}
     });
     final resultList = result["Number"] as List<int>;
     return Uint16List.fromList(resultList);
@@ -70,9 +70,9 @@ class ModBusDevice {
     assert(address < (1 << 16));
     assert(count < (1 << 16));
     final result = await request({
-      "ReadHolding": {"addr": address, "count": count}
+      "ReadHolding": {"addr": address, "cnt": count}
     });
-    final resultList = result["Number"] as List<int>;
+    final resultList = result["Number"].cast<int>();
     return Uint16List.fromList(resultList);
   }
 
@@ -100,6 +100,6 @@ class ModBusDevice {
         "data": data.toList()
       }
     });
-    return Uint8List.fromList(response["Data"] as List<int>);
+    return Uint8List.fromList(response["Data"].cast<int>());
   }
 }
