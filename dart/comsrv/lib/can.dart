@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 import 'package:quiver/core.dart';
 
-import 'package:broadcast_wsrpc/lib.dart';
 import 'package:comsrv/comsrv.dart';
 import 'package:comsrv/gctcan.dart';
 

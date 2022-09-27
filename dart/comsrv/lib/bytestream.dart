@@ -64,7 +64,7 @@ class SerialPortConfig {
 
 abstract class ByteStreamInstrument extends Instrument {}
 
-class FtdiInstrument extends Instrument {
+class FtdiInstrument extends ByteStreamInstrument {
   final FtdiAddress _address;
   final SerialPortConfig portConfig;
 
@@ -84,7 +84,7 @@ class FtdiInstrument extends Instrument {
   }
 }
 
-class SerialInstrument extends Instrument {
+class SerialInstrument extends ByteStreamInstrument {
   final SerialAddress _address;
   final SerialPortConfig portConfig;
 
@@ -104,7 +104,7 @@ class SerialInstrument extends Instrument {
   }
 }
 
-class TcpInstrument extends Instrument {
+class TcpInstrument extends ByteStreamInstrument {
   final TcpAddress _address;
 
   TcpInstrument(this._address);
