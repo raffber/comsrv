@@ -52,7 +52,7 @@ extension DurationToJson on Duration {
   JsonObject toJson() {
     final micros = inMicroseconds;
     final fractionalMicros = micros % 1000000;
-    final seconds = (micros / 1000000) as int;
+    final seconds = (micros / 1000000).round();
     return {
       "micros": fractionalMicros,
       "seconds": seconds,
