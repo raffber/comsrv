@@ -35,7 +35,11 @@ class ModBusDevice {
         "request": data,
       }
     });
-    return result["ModBus"];
+    final ret = result["ModBus"];
+    if (ret is String) {
+      return {ret: null};
+    }
+    return ret;
   }
 
   Future<List<bool>> readCoil(int address, int count) async {
@@ -79,14 +83,14 @@ class ModBusDevice {
   Future<void> writeRegisters(int address, Uint16List data) async {
     assert(address < (1 << 16));
     await request({
-      "WriteRegisters": {"addr": address, "valus": data}
+      "WriteRegisters": {"addr": address, "values": data}
     });
   }
 
   Future<void> writeCoils(int address, Uint16List data) async {
     assert(address < (1 << 16));
     await request({
-      "WriteCoils": {"addr": address, "valus": data}
+      "WriteCoils": {"addr": address, "values": data}
     });
   }
 
