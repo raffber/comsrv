@@ -117,6 +117,44 @@ class ComSrv {
       "Unlock": {"addr": addr.toJsonEnum(), "id": lock.toString()}
     });
   }
+
+  Future<List<String>> listSerialPorts() async {
+    final response = await request({"ListSerialPorts": null});
+    final ports = (response["SerialPorts"] as List<dynamic>);
+    return ports.cast<String>();
+  }
+
+  Future<List<FtdiDeviceInfo>> listFtdiDevices() async {
+    final response = await request({"ListFtdiDevices": null});
+    final ports = (response["FtdiDevices"] as List<dynamic>).cast<JsonObject>();
+    return ports.map(FtdiDeviceInfo.fromJson).toList();
+  }
+}
+
+class FtdiDeviceInfo {
+  final bool portOpen;
+  final int vendorId;
+  final int productId;
+  final String serialNumber;
+  final String description;
+
+  FtdiDeviceInfo({
+    required this.portOpen,
+    required this.vendorId,
+    required this.productId,
+    required this.serialNumber,
+    required this.description,
+  });
+
+  factory FtdiDeviceInfo.fromJson(JsonObject object) {
+    return FtdiDeviceInfo(
+      portOpen: object['port_open'] as bool,
+      vendorId: object['vendor_id'] as int,
+      productId: object['product_id'] as int,
+      serialNumber: object['serial_number'] as String,
+      description: object['description'] as String,
+    );
+  }
 }
 
 class BasePipe {
