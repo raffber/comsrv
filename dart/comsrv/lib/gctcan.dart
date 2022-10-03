@@ -58,10 +58,11 @@ class GctCanDevice {
       int destinationNodeId, int groupIndex, List<int> readings) async {
     final messages = canBus.gctMessages();
     canBus.sendGct(MonitoringRequest(
-        source: controllerId,
-        destination: destinationNodeId,
-        groupIndex: groupIndex,
-        readings: Uint8List.fromList(readings)));
+      source: controllerId,
+      destination: destinationNodeId,
+      groupIndex: groupIndex,
+      readings: Uint8List.fromList(readings),
+    ));
     return await _receiveMonitorRequests(
             destinationNodeId, groupIndex, readings, messages)
         .timeout(timeout);
@@ -167,7 +168,7 @@ class SysCtrlMessage extends GctMessage {
       default:
         throw ArgumentError("No such SysCtrl type");
     }
-    final data = Uint8List.fromList(msg["data"].cast<int>());
+    final data = Uint8List.fromList((msg["data"] as List<dynamic>).cast<int>());
     return SysCtrlMessage(source, destination, command, sysCtrlType, data);
   }
 
@@ -217,8 +218,9 @@ class MonitoringData extends GctMessage {
   factory MonitoringData.fromJson(JsonObject object) {
     final source = object["src"];
     final groupIndex = object["group_idx"];
-    final readingIndex = object["readings_idx"];
-    final data = Uint8List.fromList(object["data"]);
+    final readingIndex = object["reading_idx"];
+    final dynData = object["data"] as List<dynamic>;
+    final data = Uint8List.fromList(dynData.cast<int>());
     return MonitoringData(source, groupIndex, readingIndex, data);
   }
 
@@ -352,7 +354,7 @@ class DdpMessage extends GctMessage {
     final int source = object["src"];
     final int destination = object["dst"];
     final int version = object["version"];
-    final List<int> data = object["data"];
+    final List<int> data = (object["data"] as List<dynamic>).cast<int>();
 
     return DdpMessage(source, destination, Uint8List.fromList(data), version);
   }
