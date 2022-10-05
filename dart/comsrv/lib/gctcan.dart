@@ -100,10 +100,19 @@ class GctCanDevice {
 
   Future<Uint8List> ddp(int destinationNodeId, Uint8List data,
       {int version = 2}) async {
+    if (data.length < 1) {
+      throw ArgumentError();
+    }
+    final txMessage =
+        DdpMessage(controllerId, destinationNodeId, data, version);
+    bool wantResponse = (data[0] & 0x80) != 0;
+    if (!wantResponse) {
+      await canBus.sendGct(txMessage);
+      return Uint8List(0);
+    }
     final ddpMessages = canBus
         .gctMessages(runBefore: () async {
-          await canBus.sendGct(
-              DdpMessage(controllerId, destinationNodeId, data, version));
+          await canBus.sendGct(txMessage);
         })
         .where((event) => event is DdpMessage)
         .map((event) => event as DdpMessage)
