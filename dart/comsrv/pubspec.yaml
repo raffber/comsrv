@@ -11,7 +11,7 @@ dependencies:
   broadcast_wsrpc:
     git:
       url: https://github.com/raffber/wsrpc.git
-      ref: 08f8b7f06152c8b1803fe68718e98ae88526d066
+      ref: 2b5f10a4251a72afbebd74c1701423eef6cf7aea
       path: dart/broadcast_wsrpc
   uuid: ^3.0.6
   quiver: ^3.1.0
