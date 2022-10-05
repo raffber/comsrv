@@ -226,9 +226,10 @@ class CanBus extends BasePipe {
     await request({"TxRaw": msg.toJson()});
   }
 
-  Stream<JsonObject> _filterMessages() async* {
+  Stream<JsonObject> _filterMessages(
+      {Future<void> Function()? runBefore}) async* {
     final client = await wsRpc.connect();
-    await for (final msg in client.messages()) {
+    await for (final msg in client.messages(runBefore: runBefore)) {
       if (!msg.containsKey("Notify")) {
         continue;
       }
@@ -252,8 +253,8 @@ class CanBus extends BasePipe {
     }
   }
 
-  Stream<GctMessage> gctMessages() async* {
-    await for (final msg in _filterMessages()) {
+  Stream<GctMessage> gctMessages({Future<void> Function()? runBefore}) async* {
+    await for (final msg in _filterMessages(runBefore: runBefore)) {
       if (msg.containsKey("Gct")) {
         final gctmsg = GctMessage.fromJson(msg["Gct"]);
         if (gctmsg != null) {
@@ -263,24 +264,26 @@ class CanBus extends BasePipe {
     }
   }
 
-  Stream<CanMessage> canMessages() async* {
-    await for (final msg in _filterMessages()) {
+  Stream<CanMessage> canMessages({Future<void> Function()? runBefore}) async* {
+    await for (final msg in _filterMessages(runBefore: runBefore)) {
       if (msg.containsKey("Raw")) {
         yield CanMessage.fromJson(msg["Raw"]);
       }
     }
   }
 
-  Stream<RemoteMessage> remoteMessages() async* {
-    await for (final msg in canMessages()) {
+  Stream<RemoteMessage> remoteMessages(
+      {Future<void> Function()? runBefore}) async* {
+    await for (final msg in canMessages(runBefore: runBefore)) {
       if (msg is RemoteMessage) {
         yield msg;
       }
     }
   }
 
-  Stream<DataMessage> dataMessages() async* {
-    await for (final msg in canMessages()) {
+  Stream<DataMessage> dataMessages(
+      {Future<void> Function()? runBefore}) async* {
+    await for (final msg in canMessages(runBefore: runBefore)) {
       if (msg is DataMessage) {
         yield msg;
       }

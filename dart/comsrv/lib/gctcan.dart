@@ -56,13 +56,14 @@ class GctCanDevice {
 
   Future<List<MonitorValue>> monitorRequest(
       int destinationNodeId, int groupIndex, List<int> readings) async {
-    final messages = canBus.gctMessages();
-    canBus.sendGct(MonitoringRequest(
-      source: controllerId,
-      destination: destinationNodeId,
-      groupIndex: groupIndex,
-      readings: Uint8List.fromList(readings),
-    ));
+    final messages = canBus.gctMessages(runBefore: () async {
+      await canBus.sendGct(MonitoringRequest(
+        source: controllerId,
+        destination: destinationNodeId,
+        groupIndex: groupIndex,
+        readings: Uint8List.fromList(readings),
+      ));
+    });
     return await _receiveMonitorRequests(
             destinationNodeId, groupIndex, readings, messages)
         .timeout(timeout);
@@ -81,17 +82,18 @@ class GctCanDevice {
 
   Future<Uint8List> sysctrlWriteRead(
       int destinationNodeId, int command, Uint8List data) async {
+    final txMsg = SysCtrlMessage(
+        controllerId, destinationNodeId, command, SysCtrlType.query, data);
     final sysctrlMessages = canBus
-        .gctMessages()
+        .gctMessages(runBefore: () async {
+          await canBus.sendGct(txMsg);
+        })
         .where((event) => event is SysCtrlMessage)
         .map((event) => event as SysCtrlMessage)
         .where((event) =>
             event.source == destinationNodeId &&
             event.command == command &&
             event.sysCtrlType == SysCtrlType.value);
-    final txMsg = SysCtrlMessage(
-        controllerId, destinationNodeId, command, SysCtrlType.query, data);
-    await canBus.sendGct(txMsg);
     final retMsg = await sysctrlMessages.first.timeout(timeout);
     return retMsg.data;
   }
@@ -99,15 +101,16 @@ class GctCanDevice {
   Future<Uint8List> ddp(int destinationNodeId, Uint8List data,
       {int version = 2}) async {
     final ddpMessages = canBus
-        .gctMessages()
+        .gctMessages(runBefore: () async {
+          await canBus.sendGct(
+              DdpMessage(controllerId, destinationNodeId, data, version));
+        })
         .where((event) => event is DdpMessage)
         .map((event) => event as DdpMessage)
         .where((event) =>
             event.source == destinationNodeId &&
             event.destination == controllerId &&
             event.version == version);
-    await canBus
-        .sendGct(DdpMessage(controllerId, destinationNodeId, data, version));
     final retMsg = await ddpMessages.first.timeout(timeout);
     return retMsg.data;
   }
@@ -353,9 +356,11 @@ class DdpMessage extends GctMessage {
   factory DdpMessage.fromJson(JsonObject object) {
     final int source = object["src"];
     final int destination = object["dst"];
-    final int version = object["version"];
+    int version = 1;
+    if (object.containsKey("version")) {
+      version = object["version"];
+    }
     final List<int> data = (object["data"] as List<dynamic>).cast<int>();
-
     return DdpMessage(source, destination, Uint8List.fromList(data), version);
   }
 
