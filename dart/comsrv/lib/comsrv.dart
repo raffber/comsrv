@@ -129,6 +129,12 @@ class ComSrv {
     final ports = (response["FtdiDevices"] as List<dynamic>).cast<JsonObject>();
     return ports.map(FtdiDeviceInfo.fromJson).toList();
   }
+
+  Future<List<CanDeviceInfo>> listCanDevices() async {
+    final response = await request({"ListCanDevices": null});
+    final ports = (response["CanDevices"] as List<dynamic>).cast<JsonObject>();
+    return ports.map(CanDeviceInfo.fromJson).toList();
+  }
 }
 
 class FtdiDeviceInfo {
@@ -154,6 +160,32 @@ class FtdiDeviceInfo {
       serialNumber: object['serial_number'] as String,
       description: object['description'] as String,
     );
+  }
+}
+
+enum CanDriverType { socketcan, pcan, unkown }
+
+class CanDeviceInfo {
+  CanDriverType driverType;
+  String interfaceName;
+
+  CanDeviceInfo(this.interfaceName, this.driverType);
+
+  factory CanDeviceInfo.fromJson(JsonObject object) {
+    final interfaceName = object['interface_name'] as String;
+    CanDriverType driverType;
+    switch (object["driver_type"]) {
+      case "SocketCAN":
+        driverType = CanDriverType.socketcan;
+        break;
+      case "PCAN":
+        driverType = CanDriverType.pcan;
+        break;
+      default:
+        driverType = CanDriverType.unkown;
+        break;
+    }
+    return CanDeviceInfo(interfaceName, driverType);
   }
 }
 
