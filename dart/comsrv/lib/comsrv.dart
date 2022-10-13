@@ -16,7 +16,7 @@ class ComSrvError implements Exception {
 
   static void checkAndThrow(JsonObject reply) {
     if (reply.containsKey("Error")) {
-      ComSrvError.fromJson(reply["Error"]);
+      throw ComSrvError.fromJson(reply["Error"]);
     }
   }
 }
