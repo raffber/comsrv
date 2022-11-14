@@ -100,7 +100,7 @@ class GctCanDevice {
 
   Future<Uint8List> ddp(int destinationNodeId, Uint8List data,
       {int version = 2}) async {
-    if (data.length < 1) {
+    if (data.isEmpty) {
       throw ArgumentError();
     }
     final txMessage =
