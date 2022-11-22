@@ -1,3 +1,4 @@
+import asyncio
 from typing import Optional, Union
 
 from . import Address, BasePipe, ComSrvError, Instrument, Rpc, duration_to_json
@@ -350,3 +351,20 @@ class ByteStreamPipe(BasePipe):
         return ModBusDevice(
             self, protocol=protocol, station_address=station_address, timeout=timeout
         )
+
+
+class CobsStream:
+    def __init__(self, instr: ByteStreamInstrument, use_crc: bool, maxsize=0) -> None:
+        self._instr = instr
+        self._use_crc = use_crc
+        self._receiver = asyncio.Queue(maxsize=maxsize)
+
+    async def start(self):
+        raise NotImplementedError
+
+    async def send(self, data: bytes):
+        raise NotImplementedError
+
+    @property
+    def receiver(self):
+        return self._receiver
