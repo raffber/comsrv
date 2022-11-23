@@ -390,7 +390,7 @@ class CobsStream:
 
     async def start(self):
         await self.connect()
-        self._receiver_task = asyncio.create_task(self.receiver())
+        self._receiver_task = asyncio.create_task(self._receive_loop())
         await self.rpc({"Start": {"use_crc": self._use_crc}})
 
     async def rpc(self, request):
@@ -442,4 +442,4 @@ class CobsStream:
 
     @property
     def receiver(self):
-        return self._receive_loop
+        return self._receiver

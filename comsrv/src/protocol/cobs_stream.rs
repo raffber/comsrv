@@ -110,6 +110,7 @@ impl CobsDecoder {
             // TODO: crc
             if let Some(decoded) = decoded {
                 self.buf.clear();
+                log::info!("COBS frame received (length = {})", decoded.len());
                 self.server.broadcast(Response::CobsStream(CobsStreamResponse::MessageReceived {
                     sender: self.instr.clone(),
                     data: decoded,
