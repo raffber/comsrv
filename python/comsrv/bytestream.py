@@ -365,12 +365,14 @@ class ByteStreamPipe(BasePipe):
 class CobsStream:
     def __init__(
         self,
-        instr: ByteStreamInstrument,
+        instrument: Union[ByteStreamInstrument, str],
         use_crc: bool,
         maxsize=0,
         client: Optional[Client] = None,
     ) -> None:
-        self._instr = instr
+        if not isinstance(instrument, ByteStreamInstrument):
+            instrument = ByteStreamInstrument.parse(instrument)
+        self._instrument = instrument
         self._use_crc = use_crc
         self._receiver_task = None
         if client is None:
@@ -396,7 +398,7 @@ class CobsStream:
         resp = await self._client.request(
             {
                 "CobsStream": {
-                    "instrument": self._instr.to_json(),
+                    "instrument": self._instrument.to_json(),
                     "request": request,
                 }
             }
@@ -427,7 +429,7 @@ class CobsStream:
                     self.receiver_overflow = True
 
     async def send(self, data: bytes):
-        await self.rpc({"SendFrame": {"data": data}})
+        await self.rpc({"SendFrame": {"data": list(data)}})
 
     async def stop(self):
         await self.rpc({"Stop": None})

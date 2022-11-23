@@ -130,7 +130,7 @@ pub enum Response {
     Instruments(Vec<Address>),
     Scpi(ScpiResponse),
     Bytes(ByteStreamResponse),
-    Cobs(CobsStreamResponse),
+    CobsStream(CobsStreamResponse),
     Can {
         source: CanAddress,
         response: CanResponse,

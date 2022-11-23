@@ -41,7 +41,7 @@ impl CobsStream {
                     err = encoder.transmit_frames(write, transmit_rx) => err,
                     _ = cancel_rx => None
             };
-            server.broadcast(Response::Cobs(CobsStreamResponse::InstrumentDropped {
+            server.broadcast(Response::CobsStream(CobsStreamResponse::InstrumentDropped {
                 error: err.map(crate::Error::transport),
             }));
         };
@@ -110,7 +110,7 @@ impl CobsDecoder {
             // TODO: crc
             if let Some(decoded) = decoded {
                 self.buf.clear();
-                self.server.broadcast(Response::Cobs(CobsStreamResponse::MessageReceived {
+                self.server.broadcast(Response::CobsStream(CobsStreamResponse::MessageReceived {
                     sender: self.instr.clone(),
                     data: decoded,
                 }));

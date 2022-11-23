@@ -421,7 +421,7 @@ impl App {
             })
             .await?;
         match ret {
-            serial::Response::Cobs(x) => Ok(Response::Cobs(x)),
+            serial::Response::Cobs(x) => Ok(Response::CobsStream(x)),
             _ => Err(invalid_response_for_request()),
         }
     }
@@ -443,7 +443,7 @@ impl App {
             })
             .await?;
         match ret {
-            tcp::TcpResponse::Cobs(x) => Ok(Response::Cobs(x)),
+            tcp::TcpResponse::Cobs(x) => Ok(Response::CobsStream(x)),
             _ => Err(invalid_response_for_request()),
         }
     }
