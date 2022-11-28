@@ -438,7 +438,7 @@ class CobsStream:
         if stop:
             await self.stop()
         self._receiver_task.cancel()
-        self._client.disconnect()
+        await self._client.disconnect()
 
     @property
     def receiver(self):
