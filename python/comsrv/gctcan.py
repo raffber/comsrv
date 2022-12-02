@@ -59,7 +59,7 @@ class GctCanBus(object):
         def flt(msg: SysCtrlMessage):
             if not isinstance(msg, SysCtrlMessage):
                 return None
-            if msg.src != self.dst:
+            if msg.src != dst and dst != BROADCAST_ADDR:
                 return None
             if msg.tp != SysCtrlType.VALUE:
                 return None
