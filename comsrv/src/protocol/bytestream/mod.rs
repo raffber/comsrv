@@ -1,19 +1,17 @@
+/// This module implements a request handler for handling operation on a bytesstream-like
+/// instrument, for example TCP streams or serial ports
+use crate::Error;
+use anyhow::anyhow;
+use cobs::{cobs_decode, cobs_encode};
+use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse};
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-/// This module implements a request handler for handling operation on a bytesstream-like
-/// instrument, for example TCP streams or serial ports
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::time;
 
-use anyhow::anyhow;
-
-use crate::Error;
-use cobs::{cobs_decode, cobs_encode};
-use comsrv_protocol::{ByteStreamRequest, ByteStreamResponse};
-
-mod cobs;
+pub mod cobs;
 
 struct ReadAll<'a, T: AsyncRead + Unpin> {
     inner: &'a mut T,

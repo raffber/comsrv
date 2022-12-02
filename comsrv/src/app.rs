@@ -4,6 +4,7 @@
 //! The [`App`] collects instruments actors in `Inventory` instances.
 
 use broadcast_wsrpc::server::{Requested, Server as WsrpcServer};
+use comsrv_protocol::cobs_stream::CobsStreamRequest;
 use comsrv_protocol::{
     Address, ByteStreamInstrument, ByteStreamRequest, CanAddress, CanInstrument, CanRequest, FtdiInstrument,
     HidResponse, PrologixInstrument, PrologixRequest, Request, Response, ScpiInstrument, ScpiRequest, SerialInstrument,
@@ -99,6 +100,21 @@ impl App {
                 request,
                 lock,
             } => self.handle_bytestream_tcp(instr, request, lock).await,
+            Request::CobsStream {
+                instrument: ByteStreamInstrument::Serial(instr),
+                request,
+                lock,
+            } => self.handle_cobs_serial(instr, request, lock).await,
+            Request::CobsStream {
+                instrument: ByteStreamInstrument::Tcp(instr),
+                request,
+                lock,
+            } => self.handle_cobs_tcp(instr, request, lock).await,
+            Request::CobsStream {
+                instrument: ByteStreamInstrument::Ftdi(instr),
+                request,
+                lock,
+            } => self.handle_cobs_ftdi(instr, request, lock).await,
             Request::Can {
                 instrument,
                 request,
@@ -176,10 +192,8 @@ impl App {
             })
             .await?;
         match response {
-            serial::Response::Bytes(_) => Err(invalid_response_for_request()),
-            serial::Response::Scpi(_) => Err(invalid_response_for_request()),
-            serial::Response::Done => Err(invalid_response_for_request()),
             serial::Response::Serial(x) => Ok(Response::Serial(x)),
+            _ => Err(invalid_response_for_request()),
         }
     }
 
@@ -242,9 +256,7 @@ impl App {
             .await?;
         match ret {
             serial::Response::Bytes(x) => Ok(Response::Bytes(x)),
-            serial::Response::Scpi(_) => Err(invalid_response_for_request()),
-            serial::Response::Serial(_) => Err(invalid_response_for_request()),
-            serial::Response::Done => Err(invalid_response_for_request()),
+            _ => Err(invalid_response_for_request()),
         }
     }
 
@@ -304,10 +316,8 @@ impl App {
             })
             .await?;
         match ret {
-            serial::Response::Bytes(_) => Err(invalid_response_for_request()),
             serial::Response::Scpi(x) => Ok(Response::Scpi(x)),
-            serial::Response::Done => Err(invalid_response_for_request()),
-            serial::Response::Serial(_) => Err(invalid_response_for_request()),
+            _ => Err(invalid_response_for_request()),
         }
     }
 
@@ -392,6 +402,59 @@ impl App {
             Address::Can(x) => self.inventories.can.wait_disconnect(&x, id).await,
         }
         Ok(Response::Done)
+    }
+
+    async fn handle_cobs_serial(
+        &self,
+        instr: SerialInstrument,
+        req: CobsStreamRequest,
+        lock: Option<Uuid>,
+    ) -> crate::Result<Response> {
+        let ret = self
+            .inventories
+            .serial
+            .wait_connect(&self.server, &instr.address, lock.as_ref())
+            .await?
+            .request(serial::Request::Cobs {
+                params: instr.port_config.try_into()?,
+                req,
+            })
+            .await?;
+        match ret {
+            serial::Response::Cobs(x) => Ok(Response::CobsStream(x)),
+            _ => Err(invalid_response_for_request()),
+        }
+    }
+
+    async fn handle_cobs_tcp(
+        &self,
+        instr: TcpInstrument,
+        req: CobsStreamRequest,
+        lock: Option<Uuid>,
+    ) -> crate::Result<Response> {
+        let ret = self
+            .inventories
+            .tcp
+            .wait_connect(&self.server, &instr.address, lock.as_ref())
+            .await?
+            .request(TcpRequest::Cobs {
+                request: req,
+                options: instr.options,
+            })
+            .await?;
+        match ret {
+            tcp::TcpResponse::Cobs(x) => Ok(Response::CobsStream(x)),
+            _ => Err(invalid_response_for_request()),
+        }
+    }
+
+    async fn handle_cobs_ftdi(
+        &self,
+        _instr: FtdiInstrument,
+        _req: CobsStreamRequest,
+        _lock: Option<Uuid>,
+    ) -> crate::Result<Response> {
+        Err(crate::Error::internal(anyhow!("Not supported")))
     }
 }
 

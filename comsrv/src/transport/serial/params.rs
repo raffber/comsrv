@@ -163,3 +163,13 @@ impl Display for StopBits {
         f.write_str(x)
     }
 }
+
+impl From<SerialParams> for SerialPortConfig {
+    fn from(params: SerialParams) -> Self {
+        SerialPortConfig {
+            config: format!("{}{}{}", params.data_bits, params.parity, params.stop_bits),
+            baudrate: params.baud,
+            hardware_flow_control: params.hardware_flow_control,
+        }
+    }
+}

@@ -1,6 +1,16 @@
+import asyncio
 from typing import Optional, Union
-
-from . import Address, BasePipe, ComSrvError, Instrument, Rpc, duration_to_json
+from broadcast_wsrpc import Client
+from . import (
+    Address,
+    BasePipe,
+    ComSrvError,
+    Instrument,
+    Rpc,
+    WsRpc,
+    duration_to_json,
+    get_default_ws_url,
+)
 import re
 
 
@@ -350,3 +360,86 @@ class ByteStreamPipe(BasePipe):
         return ModBusDevice(
             self, protocol=protocol, station_address=station_address, timeout=timeout
         )
+
+
+class CobsStream:
+    def __init__(
+        self,
+        instrument: Union[ByteStreamInstrument, str],
+        use_crc: bool,
+        maxsize=0,
+        client: Optional[Client] = None,
+    ) -> None:
+        if not isinstance(instrument, ByteStreamInstrument):
+            instrument = ByteStreamInstrument.parse(instrument)
+        self._instrument = instrument
+        self._use_crc = use_crc
+        self._receiver_task = None
+        if client is None:
+            client = Client()
+        self._client = client
+        self._receiver = asyncio.Queue(maxsize=maxsize)
+        self.receiver_overflow = False
+
+    async def connect(self, url=None, **kw):
+        if self._client.connected:
+            return self
+        if url is None:
+            url = get_default_ws_url()
+        await self._client.connect(url, **kw)
+
+    async def start(self):
+        await self.connect()
+        self._receiver_task = asyncio.create_task(self._receive_loop())
+        await self.rpc({"Start": {"use_crc": self._use_crc}})
+
+    async def rpc(self, request):
+        await self.connect()
+        resp = await self._client.request(
+            {
+                "CobsStream": {
+                    "instrument": self._instrument.to_json(),
+                    "request": request,
+                }
+            }
+        )
+        ComSrvError.check_raise(resp)
+        if "CobsStream" not in resp:
+            raise ComSrvError("Unexpected wire format")
+        return resp["CobsStream"]
+
+    async def _receive_loop(self):
+        def filter(x: dict):
+            # TODO: this should also filter on the instrument
+            if "CobsStream" not in x:
+                return None
+            x = x["CobsStream"]
+            if "MessageReceived" not in x:
+                return None
+            return x["MessageReceived"]
+
+        rx = self._client.notifications().map(filter)
+        with rx:
+            while True:
+                msg = await rx.next()
+                msg = bytes(msg["data"])
+                try:
+                    self._receiver.put_nowait(msg)
+                except asyncio.QueueFull:
+                    self.receiver_overflow = True
+
+    async def send(self, data: bytes):
+        await self.rpc({"SendFrame": {"data": list(data)}})
+
+    async def stop(self):
+        await self.rpc({"Stop": None})
+
+    async def close(self, stop=True):
+        if stop:
+            await self.stop()
+        self._receiver_task.cancel()
+        await self._client.disconnect()
+
+    @property
+    def receiver(self):
+        return self._receiver

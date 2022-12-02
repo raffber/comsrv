@@ -1,8 +1,12 @@
 use std::time::{Duration, Instant};
 
+use crate::app::Server;
+use crate::protocol::cobs_stream::CobsStream;
 use crate::rpc::FlowControl;
 use async_trait::async_trait;
+use comsrv_protocol::cobs_stream::{CobsStreamRequest, CobsStreamResponse};
 use serde::{Deserialize, Serialize};
+use tokio::io;
 use tokio::task::{self, JoinHandle};
 use tokio::time::sleep;
 use tokio_serial::{SerialPort, SerialPortBuilderExt, SerialStream};
@@ -16,7 +20,8 @@ use crate::protocol::bytestream;
 use crate::protocol::prologix::{handle_prologix_request, init_prologix};
 use crate::transport::serial::params::{DataBits, Parity, StopBits};
 use comsrv_protocol::{
-    ByteStreamRequest, ByteStreamResponse, ScpiRequest, ScpiResponse, SerialAddress, SerialRequest, SerialResponse,
+    ByteStreamInstrument, ByteStreamRequest, ByteStreamResponse, ScpiRequest, ScpiResponse, SerialAddress,
+    SerialInstrument, SerialRequest, SerialResponse,
 };
 
 pub mod params;
@@ -39,6 +44,10 @@ pub enum Request {
         params: SerialParams,
         req: SerialRequest,
     },
+    Cobs {
+        params: SerialParams,
+        req: CobsStreamRequest,
+    },
     DropCheck,
 }
 
@@ -53,7 +62,8 @@ impl Request {
                 hardware_flow_control: Default::default(),
             }),
             Request::Bytes { params, .. } => Some(params.clone()),
-            Request::Serial { params, req: _ } => Some(params.clone()),
+            Request::Serial { params, .. } => Some(params.clone()),
+            Request::Cobs { params, .. } => Some(params.clone()),
             Request::DropCheck => None,
         }
     }
@@ -64,16 +74,20 @@ pub enum Response {
     Bytes(ByteStreamResponse),
     Scpi(ScpiResponse),
     Serial(SerialResponse),
+    Cobs(CobsStreamResponse),
     Done,
 }
 
 pub struct Handler {
     serial: Option<(SerialStream, SerialParams)>,
+    cobs_stream: Option<(CobsStream, SerialParams)>,
     prologix_initialized: bool,
     path: String,
     drop_delay: Duration,
     last_request: Instant,
     drop_delay_task: Option<JoinHandle<()>>,
+    server: Server,
+    cobs_stream_use_crc: bool,
 }
 
 impl Handler {
@@ -103,23 +117,31 @@ impl Handler {
     }
 
     fn drop_check(&mut self, req: &Request) -> Option<crate::Result<Response>> {
-        if matches!(
-            req,
+        match req {
+            Request::Cobs {
+                req: CobsStreamRequest::Stop,
+                ..
+            } => {
+                self.cobs_stream.take();
+                return Some(Ok(Response::Cobs(CobsStreamResponse::Done)));
+            }
             Request::Bytes {
                 req: ByteStreamRequest::Disconnect,
                 ..
-            }
-        ) {
-            self.serial.take();
-            return Some(Ok(Response::Bytes(ByteStreamResponse::Done)));
-        }
-        if matches!(req, Request::DropCheck) {
-            let now = Instant::now();
-            if now - self.last_request > self.drop_delay {
+            } => {
                 self.serial.take();
+                return Some(Ok(Response::Bytes(ByteStreamResponse::Done)));
             }
-            return Some(Ok(Response::Done));
+            Request::DropCheck => {
+                let now = Instant::now();
+                if now - self.last_request > self.drop_delay {
+                    self.serial.take();
+                }
+                return Some(Ok(Response::Done));
+            }
+            _ => {}
         }
+
         if let Some(x) = self.drop_delay_task.take() {
             x.abort();
         }
@@ -161,7 +183,6 @@ impl Handler {
                 self.prologix_initialized = false;
                 bytestream::handle(serial, req).await.map(Response::Bytes)
             }
-            Request::DropCheck => unreachable!(),
             Request::Serial { params: _, req } => match req {
                 SerialRequest::WriteDataTerminalReady(x) => {
                     serial.write_data_terminal_ready(x).map_err(map_tokio_serial_error)?;
@@ -184,7 +205,58 @@ impl Handler {
                     serial.read_clear_to_send().map_err(map_tokio_serial_error)?,
                 ))),
             },
+            Request::DropCheck => unreachable!(),
+            Request::Cobs { .. } => unreachable!(),
         }
+    }
+
+    async fn handle_cobs_request(&mut self, params: SerialParams, req: CobsStreamRequest) -> crate::Result<Response> {
+        drop(self.serial.take());
+
+        if let CobsStreamRequest::Start { use_crc } = req {
+            self.cobs_stream_use_crc = use_crc;
+        }
+
+        let cobs_stream = match self.cobs_stream.take() {
+            Some((cobs_stream, old_params))
+                if old_params == params
+                    && cobs_stream.is_alive()
+                    && cobs_stream.use_crc() == self.cobs_stream_use_crc =>
+            {
+                cobs_stream
+            }
+            _ => {
+                let serial = self.open_serial(&params).await?;
+                let (read, write) = io::split(serial);
+                CobsStream::start(
+                    read,
+                    write,
+                    self.server.clone(),
+                    self.get_instrument(&params),
+                    self.cobs_stream_use_crc,
+                )
+            }
+        };
+
+        if let CobsStreamRequest::SendFrame { data } = req {
+            // NOTE: this could cause a race condition is the stream drop between the .is_alive() call above
+            // but that seems unlikely and not a big issue if it happens (an error is returned, just not an accurate one)
+            cobs_stream.send(data)?;
+        }
+
+        self.cobs_stream.replace((cobs_stream, params));
+
+        Ok(Response::Cobs(CobsStreamResponse::Done))
+    }
+
+    fn get_instrument(&self, params: &SerialParams) -> ByteStreamInstrument {
+        ByteStreamInstrument::Serial(SerialInstrument {
+            address: SerialAddress {
+                port: self.path.clone(),
+            },
+            port_config: params.clone().into(),
+            options: None,
+        })
     }
 }
 
@@ -201,6 +273,10 @@ impl IoHandler for Handler {
         if let Some(reply) = self.drop_check(&req) {
             return reply;
         }
+        if let Request::Cobs { params, req } = req {
+            return self.handle_cobs_request(params, req).await;
+        }
+        drop(self.cobs_stream.take());
         // unwrap is ok because we handled DropCheck just above
         let new_params = req.params().unwrap();
         let mut serial = self.open_serial(&new_params).await?;
@@ -229,7 +305,7 @@ pub struct Instrument {
 }
 
 impl Instrument {
-    pub fn new(path: String) -> Self {
+    pub fn new(path: String, server: Server) -> Self {
         let handler = Handler {
             serial: None,
             path,
@@ -237,6 +313,9 @@ impl Instrument {
             drop_delay: DEFAULT_DROP_DELAY,
             last_request: Instant::now(),
             drop_delay_task: None,
+            cobs_stream: None,
+            server,
+            cobs_stream_use_crc: true,
         };
         Self {
             inner: IoTask::new(handler),
@@ -252,8 +331,8 @@ impl Instrument {
 impl inventory::Instrument for Instrument {
     type Address = SerialAddress;
 
-    fn connect(_server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
-        Ok(Instrument::new(addr.port.clone()))
+    fn connect(server: &crate::app::Server, addr: &Self::Address) -> crate::Result<Self> {
+        Ok(Instrument::new(addr.port.clone(), server.clone()))
     }
 
     async fn wait_for_closed(&self) {

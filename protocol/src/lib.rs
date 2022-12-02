@@ -1,3 +1,4 @@
+use cobs_stream::{CobsStreamRequest, CobsStreamResponse};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use uuid::Uuid;
@@ -11,6 +12,7 @@ pub use sigrok::*;
 
 pub mod bytestream;
 pub mod can;
+pub mod cobs_stream;
 pub mod error;
 pub mod hid;
 pub mod scpi;
@@ -56,6 +58,12 @@ pub enum Request {
     Bytes {
         instrument: ByteStreamInstrument,
         request: ByteStreamRequest,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        lock: Option<Uuid>,
+    },
+    CobsStream {
+        instrument: ByteStreamInstrument,
+        request: CobsStreamRequest,
         #[serde(skip_serializing_if = "Option::is_none", default)]
         lock: Option<Uuid>,
     },
@@ -122,6 +130,7 @@ pub enum Response {
     Instruments(Vec<Address>),
     Scpi(ScpiResponse),
     Bytes(ByteStreamResponse),
+    CobsStream(CobsStreamResponse),
     Can {
         source: CanAddress,
         response: CanResponse,

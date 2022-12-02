@@ -160,24 +160,21 @@ impl Handler {
     }
 
     async fn update_bitrate(&mut self, instr: &CanInstrument) {
-        match instr {
-            CanInstrument::PCan { address: _, bitrate } => {
-                if let Some(CanInstrument::PCan {
-                    address: _,
-                    bitrate: old_bitrate,
-                }) = &self.last_instrument
-                {
-                    if old_bitrate != bitrate {
-                        log::debug!("{:?} - Updating Bitrate", instr);
-                        self.close_listener().await;
-                        if let Some(sender) = self.sender.take() {
-                            drop(sender);
-                        }
-                        log::debug!("{:?} - Sender closed", instr);
+        if let CanInstrument::PCan { address: _, bitrate } = instr {
+            if let Some(CanInstrument::PCan {
+                address: _,
+                bitrate: old_bitrate,
+            }) = &self.last_instrument
+            {
+                if old_bitrate != bitrate {
+                    log::debug!("{:?} - Updating Bitrate", instr);
+                    self.close_listener().await;
+                    if let Some(sender) = self.sender.take() {
+                        drop(sender);
                     }
+                    log::debug!("{:?} - Sender closed", instr);
                 }
             }
-            _ => {}
         };
         self.last_instrument = Some(instr.clone());
     }
@@ -358,7 +355,7 @@ impl Listener {
             }
             ListenerMsg::Close(fut) => {
                 if let Some(device) = self.device.take() {
-                    let _ = drop(device);
+                    drop(device);
                     let _ = fut.send(());
                 }
                 false
