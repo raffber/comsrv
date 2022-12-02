@@ -1,6 +1,7 @@
 import asyncio
 import struct
 from typing import List, Union, Iterable, Optional
+from broadcast_wsrpc.client import Receiver
 
 from .can import (
     DdpMessage,
@@ -32,13 +33,17 @@ BROADCAST_ADDR = 0x7F
 
 
 class GctCanBus(object):
-    def __init__(self, bus: CanBus, ddp_version=1):
+    def __init__(self, bus: CanBus, ddp_version=2):
         self._bus = bus
         self._version = ddp_version
 
     @property
-    def bus(self):
+    def can_bus(self):
         return self._bus
+
+    async def connect(self):
+        await self._bus.connect()
+        return self
 
     async def sysctrl_request(
         self, src, cmd, data: Optional[bytes] = None, dst=BROADCAST_ADDR
@@ -71,8 +76,8 @@ class GctCanBus(object):
             data = b""
         req.data = data
 
-        with self.bus.gct().map(flt) as listener:
-            await self.bus.send(req)
+        with self.can_bus.gct().map(flt) as listener:
+            await self.can_bus.send(req)
             msg = await listener.next(timeout=0.5)
         assert isinstance(msg, SysCtrlMessage)
         return msg.data
@@ -107,7 +112,7 @@ class GctCanBus(object):
         for x in idx:
             req.readings |= 1 << x
 
-        def flt(msg: GctMessage):
+        def flt(msg: GctMessage) -> MonitoringData:
             if not isinstance(msg, MonitoringData):
                 return None
             if msg.src != nodeid:
@@ -115,15 +120,21 @@ class GctCanBus(object):
             if msg.group_idx == group_idx and msg.reading_idx in idx:
                 return msg
 
-        ret = []
-        with self.bus.gct().map(flt) as listener:
-            await self.bus.send(req)
-            # TODO: this not really correct, improve
-            for _ in range(len(idx)):
-                msg = await listener.next(timeout=0.5)
-                ret.append(msg)
-        ret = list(sorted(ret, key=lambda x: x.reading_idx))
-        return ret
+        with self.can_bus.gct().map(flt) as listener:
+            await self.can_bus.send(req)
+            return await asyncio.wait_for(self._receive_readings(listener, len(idx)))
+
+    async def _receive_readings(
+        self, listener: Receiver, num_unique: int
+    ) -> List[MonitoringData]:
+        ret = {}
+        while True:
+            msg = await listener.next()
+            assert isinstance(msg, MonitoringData)
+            ret[msg.reading_idx] = msg
+            if len(ret) == num_unique:
+                break
+        return list(sorted(list(ret.values()), key=lambda x: x.reading_idx))
 
     async def read_single(self, group_idx: int, idx: int) -> MonitoringData:
         return (await self.reading_request(group_idx, [idx]))[0]
@@ -142,8 +153,8 @@ class GctCanBus(object):
 
         # send data
         flt = DdpFilter(src=dst_addr, dst=src_addr)
-        with self._bus.gct().map(flt) as listener:
-            await self._bus.send(msg)
+        with self.can_bus.gct().map(flt) as listener:
+            await self.can_bus.send(msg)
             if not want_response:
                 return
 
