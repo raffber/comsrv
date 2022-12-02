@@ -100,9 +100,9 @@ class GctCanBus(object):
         :return: A list of MonitoringData messages, sorted by reading index
         """
         if not is_iterable(idx):
-            idx = [idx]
+            idx = {idx}
         else:
-            idx = list(idx)
+            idx = set(idx)
 
         req = MonitoringRequest()
         req.src = CONTROLLER_NODEID
@@ -115,14 +115,16 @@ class GctCanBus(object):
         def flt(msg: GctMessage) -> MonitoringData:
             if not isinstance(msg, MonitoringData):
                 return None
-            if msg.src != nodeid:
+            if msg.src != dst and dst == BROADCAST_ADDR:
                 return None
             if msg.group_idx == group_idx and msg.reading_idx in idx:
                 return msg
 
         with self.can_bus.gct().map(flt) as listener:
             await self.can_bus.send(req)
-            return await asyncio.wait_for(self._receive_readings(listener, len(idx)))
+            return await asyncio.wait_for(
+                self._receive_readings(listener, len(idx)), timeout=0.1
+            )
 
     async def _receive_readings(
         self, listener: Receiver, num_unique: int
@@ -143,15 +145,15 @@ class GctCanBus(object):
         data = await self.reading_request_single(group_idx, idx)
         return struct.unpack(format, data.data)
 
-    async def ddp(self, src_addr, dst_addr, data, want_response=False):
-        # prepare ddp message
+    async def ddp(self, src_addr, dst_addr, data):
+        assert len(data) > 0
         msg = DdpMessage(version=self._version)
         data = bytearray(data)
+        want_response = (data[0] & 0x80) != 0
         msg.data = bytes(data)
         msg.src = src_addr
         msg.dst = dst_addr
 
-        # send data
         flt = DdpFilter(src=dst_addr, dst=src_addr)
         with self.can_bus.gct().map(flt) as listener:
             await self.can_bus.send(msg)

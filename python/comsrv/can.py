@@ -438,7 +438,7 @@ class MonitoringRequest(GctMessage):
         return ret
 
     def __repr__(self):
-        return "<comsrv.can.MonitoringData dst={:x} group={} readings={}>".format(
+        return "<comsrv.can.MonitoringRequest dst={:x} group={} readings={}>".format(
             self.dst, self.group_idx, self.readings
         )
 
