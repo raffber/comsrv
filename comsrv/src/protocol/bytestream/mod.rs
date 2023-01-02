@@ -187,7 +187,7 @@ async fn cobs_read<T: AsyncRead + Unpin>(stream: &mut T) -> crate::Result<ByteSt
         }
     }
     // unwrap is save because we cancel above loop only in case we pushed x == 0
-    let ret = cobs_decode(&ret).unwrap();
+    let ret = cobs_decode(&ret);
     Ok(ByteStreamResponse::Data(ret))
 }
 
