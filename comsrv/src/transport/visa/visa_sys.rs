@@ -99,12 +99,11 @@ impl Visa {
     }
 }
 
-#[allow(clippy::uninit_assumed_init)]
 fn describe_status(status: ViStatus) -> String {
+    let mut data: MaybeUninit<[c_char; 512]> = MaybeUninit::uninit();
     unsafe {
-        let mut data: [c_char; 512] = MaybeUninit::uninit().assume_init();
-        VISA.api.viStatusDesc(VISA.rm, status, data.as_mut_ptr());
-        let ret = CStr::from_ptr(data.as_ptr());
+        VISA.api.viStatusDesc(VISA.rm, status, data.as_mut_ptr() as *mut i8);
+        let ret = CStr::from_ptr(data.as_ptr() as *const i8);
         ret.to_str().unwrap().to_string()
     }
 }
