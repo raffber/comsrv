@@ -1,6 +1,6 @@
 import asyncio
 import struct
-from typing import List, Union, Iterable, Optional
+from typing import List, Set, Union, Iterable, Optional
 from broadcast_wsrpc.client import Receiver
 
 from .can import (
@@ -99,31 +99,33 @@ class GctCanBus(object):
         :param idx: Either one reading index or an iterable thereof
         :return: A list of MonitoringData messages, sorted by reading index
         """
+        unified_idx: Set[int] = set()
         if not is_iterable(idx):
-            idx = {idx}
+            unified_idx = {idx}
         else:
-            idx = set(idx)
+            unified_idx = set(idx)
 
         req = MonitoringRequest()
         req.src = CONTROLLER_NODEID
         req.dst = dst
         req.group_idx = group_idx
         nodeid = src
-        for x in idx:
+        for x in unified_idx:
             req.readings |= 1 << x
 
-        def flt(msg: GctMessage) -> MonitoringData:
+        def flt(msg: GctMessage) -> Optional[MonitoringData]:
             if not isinstance(msg, MonitoringData):
                 return None
             if msg.src != dst and dst == BROADCAST_ADDR:
                 return None
-            if msg.group_idx == group_idx and msg.reading_idx in idx:
+            if msg.group_idx == group_idx and msg.reading_idx in unified_idx:
                 return msg
+            return None
 
         with self.can_bus.gct().map(flt) as listener:
             await self.can_bus.send(req)
             return await asyncio.wait_for(
-                self._receive_readings(listener, len(idx)), timeout=0.1
+                self._receive_readings(listener, len(unified_idx)), timeout=0.1
             )
 
     async def _receive_readings(
@@ -138,11 +140,11 @@ class GctCanBus(object):
                 break
         return list(sorted(list(ret.values()), key=lambda x: x.reading_idx))
 
-    async def read_single(self, group_idx: int, idx: int) -> MonitoringData:
-        return (await self.reading_request(group_idx, [idx]))[0]
+    async def read_single(self, src: int, group_idx: int, idx: int) -> MonitoringData:
+        return (await self.fetch_readings(src, group_idx, [idx]))[0]
 
-    async def read_single_and_decode(self, group_idx: int, idx: int, format: str):
-        data = await self.reading_request_single(group_idx, idx)
+    async def read_single_and_decode(self, src: int, group_idx: int, idx: int, format: str):
+        data = await self.read_single(src, group_idx, idx)
         return struct.unpack(format, data.data)
 
     async def ddp(self, src_addr, dst_addr, data):
