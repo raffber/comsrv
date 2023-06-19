@@ -289,6 +289,9 @@ class RemoteMessage(CanMessage):
         return ret
 
 
+GCTCAN_BROADCAST_ADDRESS = 0x7F
+
+
 class GctMessage(object):
     """
     A GCT message. This message may consist of several raw CAN messages on the bus.
@@ -297,6 +300,10 @@ class GctMessage(object):
     def __init__(self):
         super().__init__()
         self.src = 0
+
+    @property
+    def dst(self) -> int:
+        raise NotImplementedError
 
     def to_comsrv(self):
         """
@@ -373,6 +380,10 @@ class MonitoringData(GctMessage):
         self.group_idx = 0
         self.reading_idx = 0
         self.data = b""
+
+    @property
+    def dst(self) -> int:
+        return GCTCAN_BROADCAST_ADDRESS
 
     def to_comsrv(self):
         return {
@@ -477,6 +488,10 @@ class Heartbeat(GctMessage):
                 "product_id": self.product_id,
             }
         }
+
+    @property
+    def dst(self) -> int:
+        return GCTCAN_BROADCAST_ADDRESS
 
     @classmethod
     def from_comsrv(cls, msg):
