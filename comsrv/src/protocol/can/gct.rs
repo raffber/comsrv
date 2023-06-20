@@ -258,7 +258,7 @@ fn encode_ddp_v2(src: u8, dst: u8, mut data: Vec<u8>) -> Vec<CanMessage> {
 
 pub fn encode(msg: GctMessage) -> crate::Result<Vec<CanMessage>> {
     if msg.validate().is_err() {
-        return Err(crate::Error::argument(anyhow!("Invalid")));
+        return Err(crate::Error::argument(anyhow!("Invalid CAN Message Parameters")));
     }
     let ret = match msg {
         GctMessage::SysCtrl {

@@ -79,7 +79,7 @@ impl Error {
     }
 
     pub fn argument<T: Into<anyhow::Error>>(err: T) -> Self {
-        Self::Internal(Arc::new(err.into()))
+        Self::Argument(Arc::new(err.into()))
     }
 
     pub fn is_transport_error(&self) -> bool {

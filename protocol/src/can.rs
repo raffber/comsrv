@@ -191,7 +191,7 @@ impl GctMessage {
                 group_idx,
                 reading_idx,
                 data,
-            } => *src < BROADCAST_ADDR && data.len() < 8 && *group_idx < 32 && *reading_idx < 64,
+            } => *src < BROADCAST_ADDR && data.len() <= 8 && *group_idx < 32 && *reading_idx < 64,
             GctMessage::MonitoringRequest {
                 src,
                 dst,
