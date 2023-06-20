@@ -26,9 +26,9 @@ class ComSrvError(Exception):
         if "Transport" in data:
             return TransportError(data["Transport"])
         if "Argument" in data:
-            return ArgumentError(message=data["Argument"])
+            return ArgumentError(data["Argument"])
         if "Internal" in data:
-            return InternalError(message=data["Internal"])
+            return InternalError(data["Internal"])
         return ComSrvError(data)
 
     @classmethod
