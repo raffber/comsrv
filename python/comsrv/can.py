@@ -339,10 +339,18 @@ class SysCtrlType(Enum):
 class SysCtrlMessage(GctMessage):
     def __init__(self):
         super().__init__()
-        self.dst = 0
+        self._dst = 0
         self.cmd = 0
         self.tp = SysCtrlType.EMPTY
         self.data = b""
+
+    @property
+    def dst(self):
+        return self._dst
+    
+    @dst.setter
+    def dst(self, value):
+        self._dst = value
 
     def to_comsrv(self):
         return {
@@ -415,9 +423,17 @@ class MonitoringData(GctMessage):
 class MonitoringRequest(GctMessage):
     def __init__(self):
         super().__init__()
-        self.dst = 0
+        self._dst = 0
         self.group_idx = 0
         self.readings = 0
+
+    @property
+    def dst(self):
+        return self._dst
+    
+    @dst.setter
+    def dst(self, value):
+        self._dst = value
 
     def to_comsrv(self):
         return {
@@ -447,9 +463,17 @@ class MonitoringRequest(GctMessage):
 class DdpMessage(GctMessage):
     def __init__(self, version=1):
         super().__init__()
-        self.dst = 0
+        self._dst = 0
         self.data = []
         self.version = version
+    
+    @property
+    def dst(self):
+        return self._dst
+    
+    @dst.setter
+    def dst(self, value):
+        self._dst = value
 
     def to_comsrv(self):
         return {
