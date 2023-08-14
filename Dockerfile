@@ -43,7 +43,7 @@ RUN set -eux; \
     llvm-lib -v; \
     clang-cl -v; \
     lld-link --version; \
-    apt-get install --yes build-essential libudev-dev udev pkg-config libusb-1.0-0-dev curl sudo python3-wheel python3-setuptools; \
+    apt-get install --yes build-essential libudev-dev udev pkg-config libusb-1.0-0-dev curl sudo python3-wheel python3-setuptools python3-venv; \
     # Use clang instead of gcc when compiling binaries targeting the host (eg proc macros, build files)
     update-alternatives --install /usr/bin/cc cc /usr/bin/clang 100; \
     update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++ 100; \
