@@ -4,7 +4,6 @@ to instruments.
 """
 
 import json
-from argparse import ArgumentError
 from enum import Enum
 from math import floor
 from typing import List, Optional, Union
@@ -35,6 +34,14 @@ class ComSrvError(Exception):
     def check_raise(cls, result):
         if "Error" in result:
             raise ComSrvError.parse(result["Error"])
+
+
+class ArgumentError(ComSrvError):
+    """
+    Captures all errors that occur in case a transport fails e.g. a TCP connection drops.
+    """
+
+    pass
 
 
 class TransportError(ComSrvError):

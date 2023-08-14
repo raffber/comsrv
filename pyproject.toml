@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "comsrv"
-version = "2.1.1"
+version = "2.2.0"
 description = ""
 authors = ["Raphael Bernhard <beraphae@gmail.com>"]
 packages = [
@@ -21,3 +21,12 @@ poetry = "^1.4.2"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pyprojectx]
+poetry = "poetry==1.4.2"
+
+[tool.pyprojectx.aliases]
+install = "poetry install"
+run = "poetry run"
+outdated = "poetry show --outdated"
+test = "poetry run pytest"

@@ -1,11 +1,11 @@
 #!/bin/bash
 
 set -euxo pipefail
-cd $(dirname "$0")
+cd $(dirname "$0")/..
 
-cd ../python
+./pw install
 
-python3 setup.py bdist_wheel
+./pw run python3 -m build .
 
-mkdir -p ../out
-cp dist/*.whl ../out
+mkdir -p out
+cp dist/*.whl out

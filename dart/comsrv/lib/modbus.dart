@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:broadcast_wsrpc/lib.dart';
 import 'package:comsrv/bytestream.dart';
 import 'package:comsrv/comsrv.dart';
 

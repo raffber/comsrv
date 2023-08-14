@@ -1,5 +1,3 @@
-import 'package:broadcast_wsrpc/lib.dart';
-
 import 'comsrv.dart';
 
 class SigrokInstrument {
