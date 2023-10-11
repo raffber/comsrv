@@ -8,7 +8,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.8, <3.12"
+python = ">=3.8, <4.0"
 broadcast_wsrpc = {git="https://github.com/raffber/wsrpc.git", rev="f0a63fcfb680c93439ce8e8352143473f3bfa765", subdirectory="python"}
 aiohttp = "^3.7"
 numpy= "^1.22"
