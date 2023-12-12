@@ -5,10 +5,14 @@ import numpy as np
 from . import Rpc, ComSrvError
 
 
+TIMEOUT = 5.0
+
+
 class SigrokDevice(object):
-    def __init__(self, addr, desc=None, rpc: Optional[Rpc] = None):
+    def __init__(self, addr, desc=None, rpc: None | Rpc = None):
         if rpc is None:
             rpc = Rpc.make_default()
+        self._rpc = rpc
         self._addr = addr
         self._desc = desc
 
@@ -47,7 +51,7 @@ class SigrokDevice(object):
                 },
             }
         }
-        data = await self._rpc.get(self._url, request)
+        data = await self._rpc.get(request, TIMEOUT)
         ComSrvError.check_raise(data)
         data = data["Sigrok"]["Data"]
         tsample = data["tsample"]
@@ -63,7 +67,7 @@ class SigrokDevice(object):
 async def list_devices(rpc: Optional[Rpc] = None) -> List[SigrokDevice]:
     if rpc is None:
         rpc = Rpc.make_default()
-    ret = await rpc.get({"ListSigrokDevices": None})
+    ret = await rpc.get({"ListSigrokDevices": None}, TIMEOUT)
     ComSrvError.check_raise(ret)
     devices = ret["Sigrok"]["Devices"]
     ret = []

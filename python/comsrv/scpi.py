@@ -2,7 +2,7 @@ import base64
 from typing import Optional, Union
 
 from . import Address, ComSrvError, BasePipe, Instrument, Rpc
-from .bytestream import ByteStreamInstrument, ByteStreamPipe, SerialAddress
+from .bytestream import ByteStreamPipe, SerialAddress
 
 
 class ScpiAddress(Address):
@@ -147,10 +147,13 @@ class ScpiPipe(BasePipe):
     ):
         if isinstance(instrument, str):
             instrument = ScpiInstrument.parse(instrument)
+        assert isinstance(instrument, ScpiInstrument)
+
         if isinstance(instrument, PrologixInstrument):
-            self._transport = PrologixTransport(instrument, self)
+            transport = PrologixTransport(instrument, self) # type: ignore
         else:
-            self._transport = ScpiTransport(instrument, self)
+            transport = ScpiTransport(instrument, self) # type: ignore
+        self._transport: PrologixTransport | ScpiTransport = transport
         super().__init__(instrument.address, rpc)
 
     async def request(self, request):

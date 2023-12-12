@@ -1,7 +1,7 @@
 import asyncio
 import struct
 from typing import List, Set, Union, Iterable, Optional
-from broadcast_wsrpc.client import Receiver
+from broadcast_wsrpc.client import Receiver # type: ignore
 
 from .can import (
     DdpMessage,
@@ -101,15 +101,14 @@ class GctCanBus(object):
         """
         unified_idx: Set[int] = set()
         if not is_iterable(idx):
-            unified_idx = {idx}
+            unified_idx = {idx} # type: ignore
         else:
-            unified_idx = set(idx)
+            unified_idx = set(idx) # type: ignore
 
         req = MonitoringRequest()
         req.src = CONTROLLER_NODEID
         req.dst = dst
         req.group_idx = group_idx
-        nodeid = src
         for x in unified_idx:
             req.readings |= 1 << x
 

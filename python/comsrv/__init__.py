@@ -6,10 +6,10 @@ to instruments.
 import json
 from enum import Enum
 from math import floor
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
-from aiohttp import ClientSession, ClientTimeout
-from broadcast_wsrpc.client import Client
+from aiohttp import ClientSession, ClientTimeout # type: ignore
+from broadcast_wsrpc.client import Client # type: ignore
 
 
 class ComSrvError(Exception):
@@ -151,7 +151,7 @@ class Rpc(object):
     Base class for RPC service implementations.
     """
 
-    async def get(self, request, timeout):
+    async def get(self, request: Dict[str, Any], timeout: float):
         """
         Send a request and wait for the response, but for at most `timeout`.
         """
@@ -499,7 +499,7 @@ class ComSrv(object):
         return ret
 
 
-from .bytestream import (
+from .bytestream import ( # noqa: E402
     ByteStreamAddress,
     ByteStreamInstrument,
     ByteStreamPipe,
@@ -511,8 +511,28 @@ from .bytestream import (
     TcpAddress,
     TcpInstrument,
 )
-from .can import CanBus
-from .hid import HidDevice, enumerate_hid_devices
-from .modbus import ModBusDevice
-from .scpi import ScpiPipe, SerialScpiPipe
-from .sigrok import SigrokDevice
+from .can import CanBus # noqa: E402
+from .hid import HidDevice, enumerate_hid_devices # noqa: E402
+from .modbus import ModBusDevice # noqa: E402
+from .scpi import ScpiPipe, SerialScpiPipe # noqa: E402
+from .sigrok import SigrokDevice # noqa: E402
+
+__all__ = [
+    "ByteStreamAddress",
+    "ByteStreamInstrument",
+    "ByteStreamPipe",
+    "FtdiAddress",
+    "FtdiInstrument",
+    "SerialAddress",
+    "SerialInstrument",
+    "SerialPortConfig",
+    "TcpAddress",
+    "TcpInstrument",
+    "CanBus",
+    "HidDevice",
+    "enumerate_hid_devices",
+    "ModBusDevice",
+    "ScpiPipe",
+    "SerialScpiPipe",
+    "SigrokDevice",
+]

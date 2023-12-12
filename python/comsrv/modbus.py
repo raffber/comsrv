@@ -170,7 +170,7 @@ class ModBusDevice(object):
         return result["ModBus"]
 
     async def write_registers(self, addr: int, data: List[int]):
-        result = await self.request(
+        await self.request(
             {
                 "WriteRegisters": {
                     "addr": addr,
@@ -180,7 +180,7 @@ class ModBusDevice(object):
         )
 
     async def write_coils(self, addr: int, data: List[bool]):
-        result = await self.request(
+        await self.request(
             {
                 "WriteCoils": {
                     "addr": addr,

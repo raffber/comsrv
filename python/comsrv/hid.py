@@ -40,8 +40,8 @@ class HidInstrument(object):
 
 
 class HidDevice(BasePipe):
-    def __init__(self, vid, pid, rpc: Optional[Rpc] = None):
-        self._instrument = HidInstrument(vid, pid)
+    def __init__(self, vid: int, pid: int, rpc: Optional[Rpc] = None):
+        self._instrument = HidInstrument(HidAddress(vid, pid))
         super().__init__(address=self._instrument.address, rpc=rpc)
 
     async def request(self, request):

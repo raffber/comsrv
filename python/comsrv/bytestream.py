@@ -1,13 +1,13 @@
 import asyncio
 from typing import Optional, Union
-from broadcast_wsrpc import Client
+from broadcast_wsrpc import Client # type: ignore
+from comsrv.scpi import ScpiAddress # type: ignore
 from . import (
     Address,
     BasePipe,
     ComSrvError,
     Instrument,
     Rpc,
-    WsRpc,
     duration_to_json,
     get_default_ws_url,
 )
@@ -70,6 +70,7 @@ class ByteStreamInstrument(Instrument):
         elif address_string.startswith("tcp::"):
             address_string = address_string.replace("tcp::", "", 1)
             m = TCP_ADDRESS_RE.match(address_string)
+            assert m is not None
             host_or_ip = m.group("host_or_ip")
             port = int(m.group("port"))
             if port < 1 or port > 65535:
@@ -99,7 +100,7 @@ class FtdiAddress(ByteStreamAddress):
         return "Ftdi"
 
 
-class SerialAddress(ByteStreamAddress):
+class SerialAddress(ByteStreamAddress, ScpiAddress):
     def __init__(self, port: str) -> None:
         self.port = port
 
@@ -204,6 +205,7 @@ class ByteStreamPipe(BasePipe):
     ):
         if not isinstance(instrument, ByteStreamInstrument):
             instrument = ByteStreamInstrument.parse(instrument)
+        assert isinstance(instrument, ByteStreamInstrument)
         self._instrument = instrument
         super().__init__(instrument.address, rpc)
 
@@ -378,7 +380,7 @@ class CobsStream:
         if client is None:
             client = Client()
         self._client = client
-        self._receiver = asyncio.Queue(maxsize=maxsize)
+        self._receiver: asyncio.Queue = asyncio.Queue(maxsize=maxsize)
         self.receiver_overflow = False
 
     async def connect(self, url=None, **kw):

@@ -1,14 +1,14 @@
 from typing import Optional, Union
 
 from . import Address, Instrument, get_default_ws_url, ComSrvError
-from broadcast_wsrpc.client import Client
+from broadcast_wsrpc.client import Client # type: ignore
 import re
+from enum import Enum
 
 
 PCAN_RE = re.compile(r"(?P<addr>.*?)::(?P<bitrate>.*?)$")
 
 
-from enum import Enum
 
 
 class CanAddress(Address):
