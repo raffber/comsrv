@@ -1,7 +1,6 @@
 import asyncio
 from typing import Optional, Union
-from broadcast_wsrpc import Client # type: ignore
-from comsrv.scpi import ScpiAddress # type: ignore
+from broadcast_wsrpc import Client  # type: ignore
 from . import (
     Address,
     BasePipe,
@@ -100,7 +99,7 @@ class FtdiAddress(ByteStreamAddress):
         return "Ftdi"
 
 
-class SerialAddress(ByteStreamAddress, ScpiAddress):
+class SerialAddress(ByteStreamAddress):
     def __init__(self, port: str) -> None:
         self.port = port
 

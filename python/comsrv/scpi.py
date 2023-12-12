@@ -36,7 +36,7 @@ class VisaAddress(ScpiAddress):
 
 
 class ScpiInstrument(Instrument):
-    def __init__(self, address: ScpiAddress):
+    def __init__(self, address: ScpiAddress | SerialAddress):
         self._address = address
 
     @property
@@ -150,9 +150,9 @@ class ScpiPipe(BasePipe):
         assert isinstance(instrument, ScpiInstrument)
 
         if isinstance(instrument, PrologixInstrument):
-            transport = PrologixTransport(instrument, self) # type: ignore
+            transport = PrologixTransport(instrument, self)  # type: ignore
         else:
-            transport = ScpiTransport(instrument, self) # type: ignore
+            transport = ScpiTransport(instrument, self)  # type: ignore
         self._transport: PrologixTransport | ScpiTransport = transport
         super().__init__(instrument.address, rpc)
 

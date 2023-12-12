@@ -11,6 +11,8 @@ broadcast_wsrpc = { git = "https://github.com/raffber/wsrpc.git", rev = "f0a63fc
 aiohttp = "^3.7"
 numpy = "^1.22"
 ruff = "^0.1.7"
+pytest = "^7.4.3"
+pytest-asyncio = "^0.23.2"
 
 [tool.poetry.dev-dependencies]
 black = "23.3"
@@ -29,3 +31,7 @@ install = "poetry install"
 run = "poetry run"
 outdated = "poetry show --outdated"
 test = "poetry run pytest"
+
+[tool.pytest.ini_options]
+testpaths = ["python/comsrv"]
+python_files = "/*/test_*.py"
