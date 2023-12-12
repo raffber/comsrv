@@ -10,10 +10,10 @@ python = ">=3.8, <4.0"
 broadcast_wsrpc = { git = "https://github.com/raffber/wsrpc.git", rev = "f0a63fcfb680c93439ce8e8352143473f3bfa765", subdirectory = "python" }
 aiohttp = "^3.7"
 numpy = "^1.22"
-ruff = "^0.1.7"
 
 [tool.poetry.dev-dependencies]
 black = "23.3"
+ruff = "^0.1.7"
 mypy = "^1.2.0"
 poetry = "^1.7.1"
 pytest = "^7.4.3"
