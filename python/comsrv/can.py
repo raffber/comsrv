@@ -198,6 +198,10 @@ class CanBus(object):
 
 
 class CanMessage(object):
+    @property
+    def canid(self) -> int:
+        raise NotImplementedError
+
     def to_comsrv(self):
         raise NotImplementedError
 
