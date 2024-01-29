@@ -7,7 +7,7 @@ packages = [{ include = "comsrv", from = "python" }]
 
 [tool.poetry.dependencies]
 python = ">=3.8, <4.0"
-broadcast_wsrpc = { git = "https://github.com/raffber/wsrpc.git", rev = "06feeb0091e37cd671dfe3dfe0328515e0db8894", subdirectory = "python" }
+broadcast_wsrpc = { git = "https://github.com/raffber/wsrpc.git", rev = "06feeb0091e37cd671dfe3dfe0328515e0db8894" }
 aiohttp = "^3.7"
 numpy = "^1.22"
 
