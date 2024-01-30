@@ -1,6 +1,6 @@
 import asyncio
 import platform
-from python.comsrv import ComSrv, HttpRpc
+from comsrv import ComSrv, HttpRpc
 import tempfile
 from os.path import join as join_path, exists as file_exists
 import os
@@ -17,10 +17,12 @@ else:
     COMSRV_URL = f"https://github.com/raffber/comsrv/releases/download/release%2F{VERSION}/comsrv"
 
 
-async def start_comsrv(rpc: None | HttpRpc = None) -> HttpRpc:
+async def spawn(rpc: None | HttpRpc = None) -> HttpRpc:
+    if rpc is None:
+        rpc = HttpRpc()
     running = await check_if_running(rpc=rpc)
     if running:
-        return
+        return rpc
     tempdir = tempfile.gettempdir()
     comsrv_path = join_path(tempdir, COMSRV_BINARY)
     if not file_exists(comsrv_path):
