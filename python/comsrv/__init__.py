@@ -6,10 +6,10 @@ to instruments.
 import json
 from enum import Enum
 from math import floor
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from aiohttp import ClientSession, ClientTimeout # type: ignore
-from broadcast_wsrpc.client import Client # type: ignore
+from aiohttp import ClientSession, ClientTimeout  # type: ignore
+from broadcast_wsrpc.client import Client  # type: ignore
 
 
 class ComSrvError(Exception):
@@ -451,6 +451,15 @@ class ComSrv(object):
         result = await self.get({"Drop": {"addr": addr.to_json_enum(), "id": lock}})
         ComSrvError.check_raise(result)
 
+    async def get_version(self) -> Tuple[int, int, int]:
+        result = await self.get({"Version": None})
+        ComSrvError.check_raise(result)
+        return (
+            result["Version"]["major"],
+            result["Version"]["minor"],
+            result["Version"]["build"],
+        )
+
     async def drop_all(self):
         result = await self.get({"DropAll": None})
         ComSrvError.check_raise(result)
@@ -499,7 +508,7 @@ class ComSrv(object):
         return ret
 
 
-from .bytestream import ( # noqa: E402
+from .bytestream import (  # noqa: E402
     ByteStreamAddress,
     ByteStreamInstrument,
     ByteStreamPipe,
@@ -511,11 +520,11 @@ from .bytestream import ( # noqa: E402
     TcpAddress,
     TcpInstrument,
 )
-from .can import CanBus # noqa: E402
-from .hid import HidDevice, enumerate_hid_devices # noqa: E402
-from .modbus import ModBusDevice # noqa: E402
-from .scpi import ScpiPipe, SerialScpiPipe # noqa: E402
-from .sigrok import SigrokDevice # noqa: E402
+from .can import CanBus  # noqa: E402
+from .hid import HidDevice, enumerate_hid_devices  # noqa: E402
+from .modbus import ModBusDevice  # noqa: E402
+from .scpi import ScpiPipe, SerialScpiPipe  # noqa: E402
+from .sigrok import SigrokDevice  # noqa: E402
 
 __all__ = [
     "ByteStreamAddress",
