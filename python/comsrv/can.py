@@ -1,14 +1,12 @@
 from typing import Optional, Union
 
 from . import Address, Instrument, get_default_ws_url, ComSrvError
-from broadcast_wsrpc.client import Client # type: ignore
+from broadcast_wsrpc.client import Client  # type: ignore
 import re
 from enum import Enum
 
 
 PCAN_RE = re.compile(r"(?P<addr>.*?)::(?P<bitrate>.*?)$")
-
-
 
 
 class CanAddress(Address):
@@ -197,10 +195,9 @@ class CanBus(object):
         return self._client
 
 
-class CanMessage(object):
-    @property
-    def canid(self) -> int:
-        raise NotImplementedError
+class CanMessage:
+    def __init__(self) -> None:
+        self.canid = 0
 
     def to_comsrv(self):
         raise NotImplementedError
@@ -351,7 +348,7 @@ class SysCtrlMessage(GctMessage):
     @property
     def dst(self):
         return self._dst
-    
+
     @dst.setter
     def dst(self, value):
         self._dst = value
@@ -434,7 +431,7 @@ class MonitoringRequest(GctMessage):
     @property
     def dst(self):
         return self._dst
-    
+
     @dst.setter
     def dst(self, value):
         self._dst = value
@@ -470,11 +467,11 @@ class DdpMessage(GctMessage):
         self._dst = 0
         self.data = []
         self.version = version
-    
+
     @property
     def dst(self):
         return self._dst
-    
+
     @dst.setter
     def dst(self, value):
         self._dst = value
