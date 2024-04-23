@@ -1,9 +1,9 @@
-FROM lukemathwalker/cargo-chef:latest-rust-1.74-bullseye as planner
+FROM lukemathwalker/cargo-chef:latest-rust-1.74-bookworm as planner
 WORKDIR /workspace
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
-FROM lukemathwalker/cargo-chef:latest-rust-1.74-bullseye as builder
+FROM lukemathwalker/cargo-chef:latest-rust-1.74-bookworm as builder
 
 WORKDIR /workspace
 
