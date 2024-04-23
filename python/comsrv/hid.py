@@ -1,16 +1,7 @@
-from dataclasses import dataclass
 from typing import List, Optional
 
-from . import Address, BasePipe, ComSrvError, Rpc, duration_to_json
-
-
-@dataclass
-class HidDeviceInfo:
-    vid: int
-    pid: int
-    manufacturer: Optional[str] = None
-    product: Optional[str] = None
-    serial_number: Optional[str] = None
+from . import Address, BasePipe, ComSrvError, Rpc, duration_to_json, HidDeviceInfo
+from broadcast_wsrpc import JsonDict, JsonType
 
 
 class HidAddress(Address):
@@ -19,11 +10,11 @@ class HidAddress(Address):
         self.pid = pid
         self.vid = vid
 
-    def to_json(self):
+    def to_json(self) -> JsonDict:
         return {"pid": self.pid, "vid": self.vid}
 
     @property
-    def enum_name(self):
+    def enum_name(self) -> str:
         return "Hid"
 
 
@@ -31,11 +22,11 @@ class HidInstrument(object):
     def __init__(self, address: HidAddress) -> None:
         self._address = address
 
-    def to_json(self):
+    def to_json(self) -> JsonDict:
         return {"address": {"pid": self._address.pid, "vid": self._address.vid}}
 
     @property
-    def address(self):
+    def address(self) -> HidAddress:
         return self._address
 
 
@@ -44,7 +35,7 @@ class HidDevice(BasePipe):
         self._instrument = HidInstrument(HidAddress(vid, pid))
         super().__init__(address=self._instrument.address, rpc=rpc)
 
-    async def request(self, request):
+    async def request(self, request: JsonType) -> JsonDict:
         result = await self.get(
             {
                 "Hid": {
@@ -68,17 +59,20 @@ class HidDevice(BasePipe):
             serial_number=dev.get("serial_number"),
         )
 
-    async def write(self, data):
+    async def write(self, data: bytes) -> None:
         result = await self.request({"Write": {"data": list(data)}})
         ComSrvError.check_raise(result)
 
-    async def read(self, timeout=0.1):
+    async def read(self, timeout: float = 0.1) -> bytes:
         result = await self.get({"Read": {"timeout": duration_to_json(timeout)}})
         ComSrvError.check_raise(result)
         return bytes(result["Hid"]["Data"])
 
 
-async def enumerate_hid_devices(rpc=None, timeout=1.0) -> List[HidDeviceInfo]:
+async def enumerate_hid_devices(
+    rpc: Rpc | None = None,
+    timeout: float = 1.0,
+) -> List[HidDeviceInfo]:
     if rpc is None:
         rpc = Rpc.make_default()
     result = await rpc.get({"ListHidDevices": None}, timeout)

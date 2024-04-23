@@ -3,13 +3,14 @@ This modules implements the API of the `comsrv` utility to connect
 to instruments.
 """
 
+from dataclasses import dataclass
 import json
 from enum import Enum
 from math import floor
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 from aiohttp import ClientSession, ClientTimeout  # type: ignore
-from broadcast_wsrpc.client import Client  # type: ignore
+from broadcast_wsrpc.client import Client, JsonDict, JsonType
 
 
 class ComSrvError(Exception):
@@ -19,7 +20,7 @@ class ComSrvError(Exception):
     """
 
     @classmethod
-    def parse(cls, data):
+    def parse(cls, data: JsonDict) -> "ComSrvError":
         if "Protocol" in data:
             return ProtocolError.parse(data["Protocol"])
         if "Transport" in data:
@@ -31,7 +32,7 @@ class ComSrvError(Exception):
         return ComSrvError(data)
 
     @classmethod
-    def check_raise(cls, result):
+    def check_raise(cls, result: JsonDict) -> None:
         if "Error" in result:
             raise ComSrvError.parse(result["Error"])
 
@@ -59,7 +60,7 @@ class ProtocolError(ComSrvError):
     """
 
     @classmethod
-    def parse(cls, data):
+    def parse(cls, data: JsonDict) -> "ProtocolError":
         if "Timeout" in data:
             return ProtocolTimeoutError()
         if "Other" in data:
@@ -91,7 +92,11 @@ _default_http_port = 5903
 _default_host = "127.0.0.1"
 
 
-def setup_default(host=None, http_port=None, ws_port=None):
+def setup_default(
+    host: str | None = None,
+    http_port: int | None = None,
+    ws_port: int | None = None,
+) -> None:
     """
     Allows setting up default host and port to connect to if
     no more specific parameters are provided to the creation
@@ -119,7 +124,7 @@ def setup_default(host=None, http_port=None, ws_port=None):
     _default_ws_port = ws_port
 
 
-def get_default_http_url():
+def get_default_http_url() -> str:
     """
     Returns the default HTTP URL to connect to when constructing
     an `HttpRpc`.
@@ -127,7 +132,7 @@ def get_default_http_url():
     return "http://{}:{}".format(_default_host, _default_http_port)
 
 
-def get_default_ws_url():
+def get_default_ws_url() -> str:
     """
     Returns the default websocket URL to connect to when
     constructing a `WsRpc`.
@@ -135,7 +140,7 @@ def get_default_ws_url():
     return "ws://{}:{}".format(_default_host, _default_ws_port)
 
 
-async def connect_websocket_rpc(url=None) -> Client:
+async def connect_websocket_rpc(url: str | None = None) -> Client:
     """
     Construct and connect a `wsrpc.Client` to the specified url.
 
@@ -151,14 +156,14 @@ class Rpc(object):
     Base class for RPC service implementations.
     """
 
-    async def get(self, request: Dict[str, Any], timeout: float):
+    async def get(self, request: JsonType, timeout: float) -> JsonDict:
         """
         Send a request and wait for the response, but for at most `timeout`.
         """
         raise NotImplementedError
 
     @classmethod
-    def make_default(cls):
+    def make_default(cls) -> "Rpc":
         """
         Create a default RPC service if no other information is provided.
         """
@@ -174,20 +179,20 @@ class HttpRpc(Rpc):
     If speed is not a concern, this should be the default choice.
     """
 
-    def __init__(self, url=None):
+    def __init__(self, url: str | None = None) -> None:
         if url is None:
             url = get_default_http_url()
         self._url = url
 
-    async def get(self, request, timeout):
+    async def get(self, request: JsonType, timeout: float) -> JsonDict:
         data = json.dumps(request).encode()
-        timeout = ClientTimeout(total=None, sock_connect=timeout, sock_read=timeout)
-        async with ClientSession(timeout=timeout) as session:
+        to = ClientTimeout(total=None, sock_connect=timeout, sock_read=timeout)
+        async with ClientSession(timeout=to) as session:
             async with session.get(self._url, data=data) as resp:
-                data = json.loads(await resp.text())
+                json_data = json.loads(await resp.text())
                 if resp.status != 200:
                     raise ComSrvError(data)
-                return data
+                return json_data
 
 
 class WsRpc(Rpc):
@@ -197,22 +202,28 @@ class WsRpc(Rpc):
     :param kw: Passed to `broadcast_wsrpc.client.Client.connect()`
     """
 
-    def __init__(self, url=None, **kw):
+    def __init__(self, url: str | None = None, **kw: Any) -> None:
         if url is None:
             url = get_default_ws_url()
         self._url = url
         self._kw = kw
         self._client = Client()
 
-    async def get(self, data, timeout):
+    async def get(self, data: JsonType, timeout: float) -> JsonDict:
         await self.connect(self._url)
-        return await self._client.request(data, timeout)
+        ret = await self._client.request(data, timeout)
+        if not isinstance(ret, dict):
+            raise ComSrvError(f"Got wrong JSON type. Expected dict, got {type(ret)}")
+        return ret
 
-    async def connect(self, url=None):
+    async def connect(self, url: str | None = None) -> "WsRpc":
         """
         Connect to the remote server
         """
-        return await self._client.connect(url, **self._kw)
+        if url is None:
+            url = self._url
+        await self._client.connect(url, **self._kw)
+        return self
 
 
 class Address(object):
@@ -220,14 +231,14 @@ class Address(object):
     Base class to represent instrument addresses.
     """
 
-    def to_json(self):
+    def to_json(self) -> JsonType:
         raise NotImplementedError
 
-    def to_json_enum(self):
+    def to_json_enum(self) -> JsonDict:
         return {self.enum_name: self.to_json()}
 
     @property
-    def enum_name(self):
+    def enum_name(self) -> str:
         raise NotImplementedError
 
 
@@ -242,11 +253,11 @@ class Instrument(object):
     def address(self) -> Address:
         raise NotImplementedError
 
-    def to_json(self):
+    def to_json(self) -> JsonType:
         raise NotImplementedError
 
 
-def duration_to_json(time_in_seconds: float):
+def duration_to_json(time_in_seconds: float) -> JsonDict:
     """
     Serialize a duration in seconds to a RPC `Duration` object.
     """
@@ -274,23 +285,23 @@ class BasePipe(object):
         self._timeout = BasePipe.DEFAULT_TIMEOUT
 
     @property
-    def rpc(self):
+    def rpc(self) -> Rpc:
         return self._rpc
 
     @property
-    def timeout(self):
+    def timeout(self) -> float:
         return self._timeout
 
     @timeout.setter
-    def timeout(self, value):
+    def timeout(self, value: float) -> None:
         self._timeout = float(value)
 
     @property
-    def address(self):
+    def address(self) -> Address:
         return self._address
 
     @property
-    def lock_time(self):
+    def lock_time(self) -> float:
         """
         Return the default lock time for an instrument.
         This lock time is used when using the pipe as an async context manager.
@@ -299,7 +310,7 @@ class BasePipe(object):
         return self._lock_time
 
     @lock_time.setter
-    def lock_time(self, value: float):
+    def lock_time(self, value: float) -> None:
         """
         Setup the default lock time for an instrument.
         This lock time is used when using the pipe as an async context manager.
@@ -307,13 +318,13 @@ class BasePipe(object):
         self._lock_time = value
 
     @property
-    def locked(self):
+    def locked(self) -> bool:
         """
         Return True if a lock has been acquired
         """
         return self._lock is not None
 
-    async def lock(self, timeout: Union[float, None] = None):
+    async def lock(self, timeout: Union[float, None] = None) -> "BasePipe":
         """
         Lock the instrument for a certain time. If the timeout is specified as `None`,
         the value of `self.lock_time` is used.
@@ -335,10 +346,10 @@ class BasePipe(object):
         return self
 
     @property
-    def lock_id(self) -> Optional[str]:
+    def lock_id(self) -> str | None:
         return self._lock
 
-    async def get(self, data, timeout=None):
+    async def get(self, data: JsonType, timeout: float | None = None) -> JsonDict:
         """
         Send a request and return the corresponding response but wait for at most `timeout`
         seconds.
@@ -348,26 +359,26 @@ class BasePipe(object):
             timeout = self._timeout
         return await self._rpc.get(data, timeout)
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "BasePipe":
         """
         Lock the instrument
         :return: self
         """
         return await self.lock()
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """
         Unlock the instrument
         """
         await self.unlock()
 
-    async def unlock(self):
+    async def unlock(self) -> "BasePipe":
         """
         Unlock the instrument
         :return: self
         """
         if self._lock is None:
-            return
+            return self
         await self.get(
             {
                 "Unlock": {
@@ -379,11 +390,11 @@ class BasePipe(object):
         self._lock = None
         return self
 
-    async def drop(self):
+    async def drop(self) -> None:
         """
         Drop and disconnect the instrument.
         """
-        await ComSrv(rpc=self._rpc).drop(self.address.to_json_enum(), self._lock)
+        await ComSrv(rpc=self._rpc).drop(self.address, self._lock)
 
 
 class FtdiDeviceInfo(object):
@@ -401,10 +412,19 @@ class FtdiDeviceInfo(object):
         self.serial_number = serial_number
         self.description = description
 
-    def to_address(self, baudrate: int, params: str = "8N1"):
+    def to_address(self, baudrate: int, params: str = "8N1") -> "FtdiInstrument":
         return FtdiInstrument(
             FtdiAddress(self.serial_number), SerialPortConfig(params, baudrate)
         )
+
+
+@dataclass
+class HidDeviceInfo:
+    vid: int
+    pid: int
+    manufacturer: Optional[str] = None
+    product: Optional[str] = None
+    serial_number: Optional[str] = None
 
 
 class CanDriverType(Enum):
@@ -417,37 +437,39 @@ class CanDevice(object):
         self.driver_type = driver_type
         self.interface_name = interface_name
 
-    def to_address(self, bitrate=None):
+    def to_address(self, bitrate: int | None = None) -> "Address":
         raise NotImplementedError
 
 
 class ComSrv(object):
     DEFAULT_TIMEOUT = 1.0
 
-    def __init__(self, rpc=None, timeout=DEFAULT_TIMEOUT):
+    def __init__(
+        self, rpc: Rpc | None = None, timeout: float = DEFAULT_TIMEOUT
+    ) -> None:
         if rpc is None:
             rpc = HttpRpc.make_default()
         self._rpc = rpc
         self._timeout = timeout
 
     @property
-    def timeout(self):
+    def timeout(self) -> float:
         return self._timeout
 
     @timeout.setter
-    def timeout(self, value):
+    def timeout(self, value: float) -> None:
         self._timeout = value
 
     @property
-    def rpc(self):
+    def rpc(self) -> Rpc:
         return self._rpc
 
-    async def get(self, data, timeout=None):
+    async def get(self, data: JsonType, timeout: float | None = None) -> JsonDict:
         if timeout is None:
             timeout = self._timeout
         return await self._rpc.get(data, timeout)
 
-    async def drop(self, addr, lock=None):
+    async def drop(self, addr: Address, lock: str | None = None) -> None:
         result = await self.get({"Drop": {"addr": addr.to_json_enum(), "id": lock}})
         ComSrvError.check_raise(result)
 
@@ -460,25 +482,25 @@ class ComSrv(object):
             result["Version"]["build"],
         )
 
-    async def drop_all(self):
+    async def drop_all(self) -> None:
         result = await self.get({"DropAll": None})
         ComSrvError.check_raise(result)
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         result = await self.get({"Shutdown": None})
         ComSrvError.check_raise(result)
 
-    async def list_connected_instruments(self):
+    async def list_connected_instruments(self) -> List[JsonDict]:
         result = await self.get({"ListConnectedInstruments": None})
         ComSrvError.check_raise(result)
         return result["Instruments"]
 
-    async def list_hid_devices(self):
+    async def list_hid_devices(self) -> List[HidDeviceInfo]:
         from .hid import enumerate_hid_devices
 
         return await enumerate_hid_devices(rpc=self.rpc)
 
-    async def list_serial_ports(self):
+    async def list_serial_ports(self) -> List[str]:
         result = await self.get({"ListSerialPorts": None})
         ComSrvError.check_raise(result)
         return result["SerialPorts"]

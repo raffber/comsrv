@@ -10,7 +10,7 @@ class ScpiAddress(Address):
 
 
 class VxiAddress(ScpiAddress):
-    def __init__(self, host: str):
+    def __init__(self, host: str) -> None:
         self.host = host
         super().__init__()
 
@@ -178,8 +178,8 @@ class ScpiPipe(BasePipe):
         return base64.b64decode(data)
 
 
-class SerialScpiPipe(BasePipe):
-    def __init__(self, bs_pipe: Union[str, ByteStreamPipe], term="\n", timeout=1.0):
+class SerialScpiPipe(object):
+    def __init__(self, bs_pipe: str | ByteStreamPipe, term="\n", timeout=1.0):
         if isinstance(bs_pipe, str):
             bs_pipe = ByteStreamPipe(bs_pipe)
         self._inner = bs_pipe
@@ -193,14 +193,6 @@ class SerialScpiPipe(BasePipe):
     @term.setter
     def term(self, value):
         self._term = value
-
-    @property
-    def timeout(self):
-        return self._timeout
-
-    @timeout.setter
-    def timeout(self, value):
-        self._timeout = value
 
     async def query(self, msg: str) -> str:
         return await self._inner.query_line(msg, self._timeout, term=self._term)

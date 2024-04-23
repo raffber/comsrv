@@ -1,6 +1,6 @@
 import asyncio
-from typing import Optional, Union
-from broadcast_wsrpc import Client  # type: ignore
+from typing import Any, Optional, Union
+from broadcast_wsrpc import Client, JsonType, JsonDict
 from . import (
     Address,
     BasePipe,
@@ -11,6 +11,10 @@ from . import (
     get_default_ws_url,
 )
 import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .modbus import ModBusProtocol, ModBusDevice
 
 
 SERIAL_ADDRESS_RE = re.compile(
@@ -34,7 +38,7 @@ class ByteStreamInstrument(Instrument):
     """
 
     @classmethod
-    def parse(cls, address_string: str):
+    def parse(cls, address_string: str) -> "ByteStreamInstrument":
         """
         Parse a resource string describing a bytestream capable instrument and construct the
         correspoding instrument.
@@ -80,7 +84,7 @@ class ByteStreamInstrument(Instrument):
         )
 
     @classmethod
-    def _parse_serial_path(cls, match):
+    def _parse_serial_path(cls, match: re.Match) -> tuple[str, int, str]:
         baudrate = int(match.group("baudrate"))
         path = match.group("path")
         config = match.group("config")
@@ -91,11 +95,11 @@ class FtdiAddress(ByteStreamAddress):
     def __init__(self, port: str) -> None:
         self.port = port
 
-    def to_json(self):
+    def to_json(self) -> JsonDict:
         return {"port": self.port}
 
     @property
-    def enum_name(self):
+    def enum_name(self) -> str:
         return "Ftdi"
 
 
@@ -103,11 +107,11 @@ class SerialAddress(ByteStreamAddress):
     def __init__(self, port: str) -> None:
         self.port = port
 
-    def to_json(self):
+    def to_json(self) -> JsonDict:
         return {"port": self.port}
 
     @property
-    def enum_name(self):
+    def enum_name(self) -> str:
         return "Serial"
 
 
@@ -116,11 +120,11 @@ class TcpAddress(ByteStreamAddress):
         self.port = port
         self.host = host
 
-    def to_json(self):
+    def to_json(self) -> JsonDict:
         return {"port": self.port, "host": self.host}
 
     @property
-    def enum_name(self):
+    def enum_name(self) -> str:
         return "Tcp"
 
 
@@ -133,7 +137,7 @@ class TcpInstrument(ByteStreamInstrument):
     def address(self) -> Address:
         return self._address
 
-    def to_json(self):
+    def to_json(self) -> JsonDict:
         return {"Tcp": {"address": self.address.to_json()}}
 
 
@@ -142,7 +146,7 @@ class SerialPortConfig(object):
         self.config = config
         self.baudrate = baudrate
 
-    def to_json(self):
+    def to_json(self) -> JsonDict:
         return {"config": self.config, "baudrate": self.baudrate}
 
 
@@ -152,7 +156,7 @@ class FtdiInstrument(ByteStreamInstrument):
         self._address = address
         self._port_config = port_config
 
-    def to_json(self):
+    def to_json(self) -> JsonDict:
         return {
             "Ftdi": {
                 "address": self.address.to_json(),
@@ -171,7 +175,7 @@ class SerialInstrument(ByteStreamInstrument):
         self._address = address
         self._port_config = port_config
 
-    def to_json(self):
+    def to_json(self) -> JsonDict:
         return {
             "Serial": {
                 "address": self.address.to_json(),
@@ -209,14 +213,16 @@ class ByteStreamPipe(BasePipe):
         super().__init__(instrument.address, rpc)
 
     @property
-    def instrument(self):
+    def instrument(self) -> ByteStreamInstrument:
         return self._instrument
 
     @property
-    def address(self):
+    def address(self) -> Address:
         return self._instrument.address
 
-    async def request(self, request):
+    async def request(
+        self, request: JsonType, timeout: float | None = None
+    ) -> JsonDict:
         """
         Send an RPC request to the bytestream handler of the RPC protocol.
         """
@@ -227,12 +233,13 @@ class ByteStreamPipe(BasePipe):
                     "request": request,
                     "lock": self._lock,
                 }
-            }
+            },
+            timeout=timeout,
         )
         ComSrvError.check_raise(result)
         return result["Bytes"]
 
-    async def write(self, data: bytes):
+    async def write(self, data: bytes) -> None:
         """
         Write the bytes in `data` to the stream.
         """
@@ -267,13 +274,13 @@ class ByteStreamPipe(BasePipe):
         data = bytes(result["Data"])
         return data
 
-    async def cobs_write(self, data: bytes):
+    async def cobs_write(self, data: bytes) -> None:
         """
         Apply the COBS framing to the provided `data` and write it to the stream.
         """
         await self.request({"CobsWrite": list(data)})
 
-    async def cobs_read(self, timeout):
+    async def cobs_read(self, timeout: float) -> bytes:
         """
         Read a COBS encoded frame from stream.
         """
@@ -281,7 +288,7 @@ class ByteStreamPipe(BasePipe):
         data = bytes(result["Data"])
         return data
 
-    async def cobs_query(self, data, timeout):
+    async def cobs_query(self, data: bytes, timeout: float) -> bytes:
         """
         This is a combination of `cobs_write` followed by a `cobs_read` call.
         """
@@ -291,7 +298,7 @@ class ByteStreamPipe(BasePipe):
         data = bytes(result["Data"])
         return data
 
-    async def write_line(self, line: str, term: Union[int, str] = "\n"):
+    async def write_line(self, line: str, term: str | int = "\n") -> None:
         """
         Write a string terminated with `term` to the stream.
         """
@@ -300,7 +307,7 @@ class ByteStreamPipe(BasePipe):
             term = ord(term)
         await self.request({"WriteLine": {"line": line, "term": term}})
 
-    async def read_line(self, timeout, term: Union[int, str] = "\n"):
+    async def read_line(self, timeout: float, term: Union[int, str] = "\n") -> str:
         """
         Read a string terminated with `term` from the stream.
         """
@@ -312,7 +319,12 @@ class ByteStreamPipe(BasePipe):
         )
         return result["String"]
 
-    async def query_line(self, line: str, timeout, term: Union[int, str] = "\n"):
+    async def query_line(
+        self,
+        line: str,
+        timeout: float,
+        term: Union[int, str] = "\n",
+    ) -> str:
         """
         This is a combination of `write_line` followed by a `read_line` call.
         """
@@ -330,13 +342,13 @@ class ByteStreamPipe(BasePipe):
         )
         return result["String"]
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """
         Disconnect the underlying handle.
         """
         await self.request("Disconnect")
 
-    async def connect(self):
+    async def connect(self) -> None:
         """
         Connect the underlying handle
         """
@@ -345,9 +357,9 @@ class ByteStreamPipe(BasePipe):
     def modbus(
         self,
         station_address: int,
-        protocol=None,
-        timeout=1.0,
-    ):
+        protocol: ModBusProtocol | None = None,
+        timeout: float = 1.0,
+    ) -> ModBusDevice:
         """
         Perform a ModBus transaction on the stream.
 
@@ -368,33 +380,33 @@ class CobsStream:
         self,
         instrument: Union[ByteStreamInstrument, str],
         use_crc: bool,
-        maxsize=0,
+        maxsize: int = 0,
         client: Optional[Client] = None,
     ) -> None:
         if not isinstance(instrument, ByteStreamInstrument):
             instrument = ByteStreamInstrument.parse(instrument)
         self._instrument = instrument
         self._use_crc = use_crc
-        self._receiver_task = None
+        self._receiver_task: asyncio.Task[None] | None = None
         if client is None:
             client = Client()
         self._client = client
         self._receiver: asyncio.Queue = asyncio.Queue(maxsize=maxsize)
         self.receiver_overflow = False
 
-    async def connect(self, url=None, **kw):
+    async def connect(self, url: str | None = None, **kw: Any) -> None:
         if self._client.connected:
-            return self
+            return
         if url is None:
             url = get_default_ws_url()
         await self._client.connect(url, **kw)
 
-    async def start(self):
+    async def start(self) -> None:
         await self.connect()
         self._receiver_task = asyncio.create_task(self._receive_loop())
         await self.rpc({"Start": {"use_crc": self._use_crc}})
 
-    async def rpc(self, request):
+    async def rpc(self, request: JsonType) -> JsonDict:
         await self.connect()
         resp = await self._client.request(
             {
@@ -404,17 +416,23 @@ class CobsStream:
                 }
             }
         )
+        if not isinstance(resp, dict):
+            raise ComSrvError("Unexpected response")
         ComSrvError.check_raise(resp)
         if "CobsStream" not in resp:
             raise ComSrvError("Unexpected wire format")
         return resp["CobsStream"]
 
-    async def _receive_loop(self):
-        def filter(x: dict):
+    async def _receive_loop(self) -> None:
+        def filter(x: JsonType) -> JsonDict | None:
+            if not isinstance(x, dict):
+                return None
             # TODO: this should also filter on the instrument
             if "CobsStream" not in x:
                 return None
             x = x["CobsStream"]
+            if not isinstance(x, dict):
+                return None
             if "MessageReceived" not in x:
                 return None
             return x["MessageReceived"]
@@ -423,24 +441,26 @@ class CobsStream:
         with rx:
             while True:
                 msg = await rx.next()
-                msg = bytes(msg["data"])
+                data = msg['data']
+                msg = bytes(data) # type: ignore
                 try:
                     self._receiver.put_nowait(msg)
                 except asyncio.QueueFull:
                     self.receiver_overflow = True
 
-    async def send(self, data: bytes):
+    async def send(self, data: bytes) -> None:
         await self.rpc({"SendFrame": {"data": list(data)}})
 
-    async def stop(self):
+    async def stop(self) -> None:
         await self.rpc({"Stop": None})
 
-    async def close(self, stop=True):
+    async def close(self, stop: bool = True) -> None:
         if stop:
             await self.stop()
-        self._receiver_task.cancel()
+        if self._receiver_task is not None:
+            self._receiver_task.cancel()
         await self._client.disconnect()
 
     @property
-    def receiver(self):
+    def receiver(self) -> asyncio.Queue[bytes]:
         return self._receiver
