@@ -11,10 +11,6 @@ from . import (
     get_default_ws_url,
 )
 import re
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .modbus import ModBusProtocol, ModBusDevice
 
 
 SERIAL_ADDRESS_RE = re.compile(
@@ -221,7 +217,9 @@ class ByteStreamPipe(BasePipe):
         return self._instrument.address
 
     async def request(
-        self, request: JsonType, timeout: float | None = None
+        self,
+        request: JsonType,
+        timeout: float | None = None,
     ) -> JsonDict:
         """
         Send an RPC request to the bytestream handler of the RPC protocol.
@@ -354,26 +352,6 @@ class ByteStreamPipe(BasePipe):
         """
         await self.request("Connect")
 
-    def modbus(
-        self,
-        station_address: int,
-        protocol: ModBusProtocol | None = None,
-        timeout: float = 1.0,
-    ) -> ModBusDevice:
-        """
-        Perform a ModBus transaction on the stream.
-
-        :param station_address: The station address (or Slave ID) of the ModBus Master
-        :param protocol: If not specified default to `RTU`.
-        """
-        from .modbus import ModBusProtocol, ModBusDevice
-
-        if protocol is None:
-            protocol = ModBusProtocol.RTU
-        return ModBusDevice(
-            self, protocol=protocol, station_address=station_address, timeout=timeout
-        )
-
 
 class CobsStream:
     def __init__(
@@ -441,8 +419,8 @@ class CobsStream:
         with rx:
             while True:
                 msg = await rx.next()
-                data = msg['data']
-                msg = bytes(data) # type: ignore
+                data = msg["data"]
+                msg = bytes(data)  # type: ignore
                 try:
                     self._receiver.put_nowait(msg)
                 except asyncio.QueueFull:

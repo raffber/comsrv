@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "comsrv"
-version = "2.2.0"
+version = "2.3.0"
 description = ""
 authors = ["Raphael Bernhard <beraphae@gmail.com>"]
 packages = [{ include = "comsrv", from = "python" }]
@@ -31,6 +31,9 @@ install = "poetry install"
 run = "poetry run"
 outdated = "poetry show --outdated"
 test = "poetry run pytest"
+types = "poetry run mypy python/comsrv"
+build = "poetry build --format wheel"
+check = "poetry run ruff check python/comsrv"
 
 [tool.pytest.ini_options]
 testpaths = ["python/comsrv"]

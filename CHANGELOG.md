@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [2.3.0] - unreleased
 
+### Added
+
+- Python type annotations
+- Minor API cleanups
+
+### Fixes
+
+- Ensure timeouts are applied for `SerialScpiPipe`
+
 ## [2.2.0] - 2023-08-15
 
 ### Added

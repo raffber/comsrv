@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::visa_sys::Instrument as VisaInstrument;
+#[allow(unused_imports)]
 pub use super::visa_sys::{VisaError, VisaResult};
 use anyhow::anyhow;
 

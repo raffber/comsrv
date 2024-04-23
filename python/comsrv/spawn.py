@@ -7,7 +7,7 @@ import os
 import aiohttp
 import subprocess
 
-VERSION = "2.2.0"
+VERSION = "2.3.0"
 ON_WINDOWS = platform.system() == "Windows"
 if ON_WINDOWS:
     COMSRV_BINARY = "comsrv.exe"
@@ -66,7 +66,7 @@ def run_comsrv_process(path: str) -> subprocess.Popen:
     )
 
 
-async def download_file(url, path):
+async def download_file(url: str, path: str) -> None:
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             with open(path, "wb") as file:

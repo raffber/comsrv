@@ -5,7 +5,10 @@ use uuid::Uuid;
 
 pub use bytestream::*;
 pub use can::*;
+
+#[allow(unused_imports)]
 pub use error::*;
+
 pub use hid::*;
 pub use scpi::*;
 pub use sigrok::*;

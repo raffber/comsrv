@@ -1,6 +1,6 @@
 [package]
 name = "comsrv_protocol"
-version = "2.2.0"
+version = "2.3.0"
 authors = ["Raphael Bernhard <beraphae@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -13,4 +13,4 @@ base64 = "0.13"
 uuid = { version = "0.8", features = ["serde", "v4"] }
 byteorder = "1"
 thiserror = "1"
-anyhow = {version = "1", features = ["backtrace"]}
+anyhow = { version = "1", features = ["backtrace"] }

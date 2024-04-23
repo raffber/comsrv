@@ -6,7 +6,7 @@ cd $(dirname "$0")
 
 version=$(./get-version.sh)
 
-echo "Expected reference version for comsrv/Cargo.toml: ${version}"
+echo "Expected reference version: ${version}"
 
 cd ..
 

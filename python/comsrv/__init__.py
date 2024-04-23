@@ -266,7 +266,7 @@ def duration_to_json(time_in_seconds: float) -> JsonDict:
     return {"micros": micros, "seconds": seconds}
 
 
-class BasePipe(object):
+class BasePipe:
     """
     Base class implementing functionality common to all instruments.
 
@@ -340,7 +340,8 @@ class BasePipe(object):
                     "addr": self.address.to_json_enum(),
                     "timeout": duration_to_json(lock_time),
                 }
-            }
+            },
+            timeout=lock_time,
         )
         self._lock = reply["Locked"]["lock_id"]
         return self

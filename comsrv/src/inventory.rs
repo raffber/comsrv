@@ -177,7 +177,11 @@ impl<T: Instrument> Inventory<T> {
             }
         };
         log::debug!("Waiting for lock...");
-        mutex.lock().await;
+        // TODO: this produces multiple process to proceed
+        // hence multiple process waiting for the lock on an instrument
+        // would possibly be able to acquire the lock at the same time
+        // This is a bug.
+        let _ = mutex.lock().await;
         log::debug!("Lock acquired, proceeding.");
     }
 
@@ -198,7 +202,7 @@ impl<T: Instrument> Inventory<T> {
             let mut inner = self.0.lock().unwrap();
             let (lock, unlock) = Lock::new(ret);
             match inner.instruments.get_mut(addr) {
-                Some(mut instr) => {
+                Some(instr) => {
                     if let Some(old_lock) = instr.lock.take() {
                         tokio::task::spawn(async move {
                             log::debug!("Unlocking: {}", old_lock.id);

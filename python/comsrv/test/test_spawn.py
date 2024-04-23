@@ -4,7 +4,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_spawn():
+async def test_spawn() -> None:
     rpc = await spawn()
     comsrv = ComSrv(rpc)
     version = await comsrv.get_version()

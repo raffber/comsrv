@@ -9,7 +9,12 @@ TIMEOUT = 5.0
 
 
 class SigrokDevice(object):
-    def __init__(self, addr, desc=None, rpc: None | Rpc = None):
+    def __init__(
+        self,
+        addr: str,
+        desc: str | None = None,
+        rpc: None | Rpc = None,
+    ) -> None:
         if rpc is None:
             rpc = Rpc.make_default()
         self._rpc = rpc
@@ -17,20 +22,20 @@ class SigrokDevice(object):
         self._desc = desc
 
     @property
-    def description(self):
+    def description(self) -> str | None:
         return self._desc
 
     @property
-    def address(self):
+    def address(self) -> str:
         return self._addr
 
     async def read(
         self,
         channels: Optional[List[str]] = None,
-        samplerate=48e6,
-        num_samples=None,
-        time=None,
-    ):
+        samplerate: float | int = 48e6,
+        num_samples: int | None = None,
+        time: float | None = None,
+    ) -> tuple[np.ndarray, dict[str, np.ndarray]]:
         if time is not None and num_samples is not None:
             raise ValueError("Specifiy only one of time or num_samples")
         if time is not None:
@@ -58,7 +63,7 @@ class SigrokDevice(object):
         length = data["length"]
         t = np.arange(0, length) * tsample
         ret = {}
-        for (k, v) in data["channels"].items():
+        for k, v in data["channels"].items():
             base = np.array(v, dtype=np.uint8)
             ret[k] = np.unpackbits(base, count=length, bitorder="little")
         return t, ret
@@ -67,9 +72,9 @@ class SigrokDevice(object):
 async def list_devices(rpc: Optional[Rpc] = None) -> List[SigrokDevice]:
     if rpc is None:
         rpc = Rpc.make_default()
-    ret = await rpc.get({"ListSigrokDevices": None}, TIMEOUT)
-    ComSrvError.check_raise(ret)
-    devices = ret["Sigrok"]["Devices"]
+    resp = await rpc.get({"ListSigrokDevices": None}, TIMEOUT)
+    ComSrvError.check_raise(resp)
+    devices = resp["Sigrok"]["Devices"]
     ret = []
     for dev in devices:
         ret.append(SigrokDevice(dev["addr"], desc=dev["desc"], rpc=rpc))

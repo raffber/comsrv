@@ -1,7 +1,10 @@
-from typing import Optional, Union
+from binascii import hexlify
+from dataclasses import dataclass
+import dataclasses
+from typing import Any, Optional, Union
 
 from . import Address, Instrument, get_default_ws_url, ComSrvError
-from broadcast_wsrpc.client import Client  # type: ignore
+from broadcast_wsrpc.client import Client, JsonDict, JsonType, Receiver
 import re
 from enum import Enum
 
@@ -11,7 +14,7 @@ PCAN_RE = re.compile(r"(?P<addr>.*?)::(?P<bitrate>.*?)$")
 
 class CanAddress(Address):
     @property
-    def enum_name(self):
+    def enum_name(self) -> str:
         return "Can"
 
 
@@ -20,7 +23,7 @@ class PCanAddress(CanAddress):
         self.address = address
         super().__init__()
 
-    def to_json(self):
+    def to_json(self) -> JsonDict:
         return {"PCan": {"address": self.address}}
 
 
@@ -29,7 +32,7 @@ class SocketCanAddress(CanAddress):
         self._interface = interface
         super().__init__()
 
-    def to_json(self):
+    def to_json(self) -> JsonDict:
         return {"SocketCan": {"interface": self._interface}}
 
 
@@ -39,17 +42,17 @@ class UsrCanetAddress(CanAddress):
         self._port = port
         super().__init__()
 
-    def to_json(self):
+    def to_json(self) -> JsonDict:
         return {"UsrCanet": {"host": self._host, "port": self._port}}
 
 
 class LoopbackAddress(CanAddress):
-    def to_json(self):
+    def to_json(self) -> str:
         return "Loopback"
 
 
 class CanInstrument(Instrument):
-    def __init__(self, address: CanAddress, bitrate=0) -> None:
+    def __init__(self, address: CanAddress, bitrate: int = 0) -> None:
         self._address = address
         self._baudrate = bitrate
         super().__init__()
@@ -58,7 +61,7 @@ class CanInstrument(Instrument):
     def address(self) -> Address:
         return self._address
 
-    def to_json(self):
+    def to_json(self) -> JsonType:
         if isinstance(self._address, PCanAddress):
             return {
                 "PCan": {"address": self._address.address, "bitrate": self._baudrate}
@@ -72,11 +75,11 @@ class CanInstrument(Instrument):
         raise ValueError("Invalid can address")
 
     @property
-    def enum_name(self):
+    def enum_name(self) -> str:
         return "Can"
 
     @classmethod
-    def parse(cls, addr: str):
+    def parse(cls, addr: str) -> "CanInstrument":
         if addr.startswith("can::pcan::"):
             addr = addr.replace("can::pcan::", "", 1)
             match = PCAN_RE.match(addr)
@@ -100,6 +103,74 @@ class CanInstrument(Instrument):
             return CanInstrument(UsrCanetAddress(host, port))
         elif addr.startswith("can::loopback"):
             return CanInstrument(LoopbackAddress())
+        raise ValueError("Invalid address format")
+
+
+@dataclass
+class CanMessage:
+    canid: int = 0
+
+    def to_comsrv(self) -> JsonDict:
+        raise NotImplementedError
+
+    @classmethod
+    def from_comsrv(cls, msg: JsonDict) -> "CanMessage":
+        if "Data" in msg:
+            return DataMessage.from_comsrv(msg["Data"])
+        if "Remote" in msg:
+            return RemoteMessage.from_comsrv(msg["Remote"])
+        raise ValueError("Invalid json object")
+
+    def to_json(self) -> JsonDict:
+        return self.to_comsrv()
+
+    @classmethod
+    def from_json(cls, msg: JsonDict) -> "CanMessage":
+        return CanMessage.from_comsrv(msg)
+
+
+@dataclass
+class GctMessage:
+    """
+    A GCT message. This message may consist of several raw CAN messages on the bus.
+    """
+
+    src: int = 0
+
+    @property
+    def dst(self) -> int:
+        raise NotImplementedError
+
+    def to_comsrv(self) -> JsonDict:
+        """
+        Encode the message to the JSON RPC format of the comsrv.
+        """
+        raise NotImplementedError
+
+    @classmethod
+    def from_comsrv(cls, msg: JsonDict) -> "GctMessage":
+        """
+        Decode the message from the comsrv RPC format
+        :param msg: The JSON encoded message
+        """
+        if "SysCtrl" in msg:
+            return SysCtrlMessage.from_comsrv(msg["SysCtrl"])
+        if "MonitoringData" in msg:
+            return MonitoringData.from_comsrv(msg["MonitoringData"])
+        if "MonitoringRequest" in msg:
+            return MonitoringRequest.from_comsrv(msg["MonitoringRequest"])
+        if "Ddp" in msg:
+            return DdpMessage.from_comsrv(msg["Ddp"])
+        if "Heartbeat" in msg:
+            return Heartbeat.from_comsrv(msg["Heartbeat"])
+        raise ValueError("Invalid json object")
+
+    def to_json(self) -> JsonDict:
+        return self.to_comsrv()
+
+    @classmethod
+    def from_json(cls, msg: JsonDict) -> "GctMessage":
+        return GctMessage.from_comsrv(msg)
 
 
 class CanBus(object):
@@ -113,7 +184,7 @@ class CanBus(object):
         self._client = client
         self._device = device
 
-    async def connect(self, url=None, **kw):
+    async def connect(self, url: str | None = None, **kw: Any) -> "CanBus":
         """
         Connect to the server managing the CAN bus and start listening for RAW and GCT messages.
 
@@ -129,14 +200,14 @@ class CanBus(object):
         await self.listen_raw()
         return self
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Disconnect from the server"""
         await self.client.disconnect()
 
-    async def enable_loopback(self, loopback=True):
+    async def enable_loopback(self, loopback: bool = True) -> None:
         await self.rpc({"EnableLoopback": loopback})
 
-    async def rpc(self, task, rx_reply=True):
+    async def rpc(self, task: JsonType, rx_reply: bool = True) -> JsonDict | None:
         """
         Perform an RPC to the CAN endpoint.
 
@@ -150,12 +221,14 @@ class CanBus(object):
             await self._client.send_request(msg)
             return None
         resp = await self._client.request(msg)
+        if not isinstance(resp, dict):
+            raise ComSrvError("Unexpected wire format")
         ComSrvError.check_raise(resp)
         if "Can" not in resp:
             raise ComSrvError("Unexpected wire format")
         return resp["Can"]
 
-    async def send(self, msg, rx_reply=True):
+    async def send(self, msg: CanMessage | GctMessage, rx_reply: bool = True) -> None:
         """
         Send a CAN message. The message must be either of type `comsrv.can.CanMessage`
         or `comsrv.can.GctMessage`.
@@ -173,42 +246,26 @@ class CanBus(object):
             raise ComSrvError("Invalid message type.")
         await self.rpc(task, rx_reply=rx_reply)
 
-    async def listen_raw(self):
+    async def listen_raw(self) -> None:
         """Start listening to raw CAN messages on the bus"""
         await self.rpc({"ListenRaw": True})
 
-    async def listen_gct(self):
+    async def listen_gct(self) -> None:
         """Start listening to GCT CAN messages on the bus"""
         await self.rpc({"ListenGct": True})
 
-    def raw(self):
+    def raw(self) -> Receiver["CanMessage"]:
         """Return a listener for raw CAN messages"""
         return self._client.listen(raw_filter)
 
-    def gct(self):
+    def gct(self) -> Receiver["GctMessage"]:
         """Return a listener for GCT CAN messages"""
         return self._client.listen(gct_filter)
 
     @property
-    def client(self):
+    def client(self) -> Client:
         """Return the underlying RPC client"""
         return self._client
-
-
-class CanMessage:
-    def __init__(self) -> None:
-        self.canid = 0
-
-    def to_comsrv(self):
-        raise NotImplementedError
-
-    @classmethod
-    def from_comsrv(cls, msg):
-        if "Data" in msg:
-            return DataMessage.from_comsrv(msg["Data"])
-        if "Remote" in msg:
-            return RemoteMessage.from_comsrv(msg["Remote"])
-        raise ValueError("Invalid json object")
 
 
 class DataMessage(CanMessage):
@@ -221,35 +278,31 @@ class DataMessage(CanMessage):
         extid: bool
     """
 
-    def __init__(self):
-        super().__init__()
-        self.data = bytes()
-        self.canid = 0
-        self.extid = False
+    data: bytes = b""
+    canid: int = 0
+    extid: bool = False
 
-    def clone(self):
-        ret = DataMessage()
-        ret.data = bytes(self.data)
-        ret.canid = self.canid
-        ret.extid = self.extid
-        return ret
+    def clone(self) -> "DataMessage":
+        return dataclasses.replace(self)
 
-    def to_comsrv(self):
+    def to_comsrv(self) -> JsonDict:
         return {
             "Data": {"id": self.canid, "ext_id": self.extid, "data": list(self.data)}
         }
 
     @classmethod
-    def from_comsrv(cls, msg):
+    def from_comsrv(cls, msg: JsonDict) -> "DataMessage":
         ret = cls()
         ret.canid = msg["id"]
         ret.extid = msg["ext_id"]
         ret.data = msg["data"]
         return ret
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<comsrv.can.DataMessage canid={0:x} ext_id={1} data={2}>".format(
-            self.canid, self.extid, self.data
+            self.canid,
+            self.extid,
+            hexlify(self.data).decode(),
         )
 
 
@@ -263,26 +316,18 @@ class RemoteMessage(CanMessage):
         extid: bool
     """
 
-    def __init__(self):
-        super().__init__()
-        self.dlc = 0
-        self.canid = 0
-        self.time = 0
-        self.extid = False
+    dlc: int = 0
+    canid: int = 0
+    extid: bool = False
 
-    def clone(self):
-        ret = DataMessage()
-        ret.dlc = int(self.dlc)
-        ret.canid = self.canid
-        ret.time = self.time
-        ret.extid = self.extid
-        return ret
+    def clone(self) -> "RemoteMessage":
+        return dataclasses.replace(self)
 
-    def to_comsrv(self):
+    def to_comsrv(self) -> JsonDict:
         return {"Remote": {"id": self.canid, "ext_id": self.extid, "dlc": self.dlc}}
 
     @classmethod
-    def from_comsrv(cls, msg):
+    def from_comsrv(cls, msg: JsonDict) -> "RemoteMessage":
         ret = cls()
         ret.canid = msg["id"]
         ret.extid = msg["ext_id"]
@@ -293,67 +338,20 @@ class RemoteMessage(CanMessage):
 GCTCAN_BROADCAST_ADDRESS = 0x7F
 
 
-class GctMessage(object):
-    """
-    A GCT message. This message may consist of several raw CAN messages on the bus.
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.src = 0
-
-    @property
-    def dst(self) -> int:
-        raise NotImplementedError
-
-    def to_comsrv(self):
-        """
-        Encode the message to the JSON RPC format of the comsrv.
-        """
-        raise NotImplementedError
-
-    @classmethod
-    def from_comsrv(cls, msg):
-        """
-        Decode the message from the comsrv RPC format
-        :param msg: The JSON encoded message
-        """
-        if "SysCtrl" in msg:
-            return SysCtrlMessage.from_comsrv(msg["SysCtrl"])
-        if "MonitoringData" in msg:
-            return MonitoringData.from_comsrv(msg["MonitoringData"])
-        if "MonitoringRequest" in msg:
-            return MonitoringRequest.from_comsrv(msg["MonitoringRequest"])
-        if "Ddp" in msg:
-            return DdpMessage.from_comsrv(msg["Ddp"])
-        if "Heartbeat" in msg:
-            return Heartbeat.from_comsrv(msg["Heartbeat"])
-        raise ValueError("Invalid json object")
-
-
 class SysCtrlType(Enum):
     EMPTY = "None"
     VALUE = "Value"
     QUERY = "Query"
 
 
+@dataclass
 class SysCtrlMessage(GctMessage):
-    def __init__(self):
-        super().__init__()
-        self._dst = 0
-        self.cmd = 0
-        self.tp = SysCtrlType.EMPTY
-        self.data = b""
+    dst: int = 0
+    cmd: int = 0
+    tp: SysCtrlType = SysCtrlType.EMPTY
+    data: bytes = b""
 
-    @property
-    def dst(self):
-        return self._dst
-
-    @dst.setter
-    def dst(self, value):
-        self._dst = value
-
-    def to_comsrv(self):
+    def to_comsrv(self) -> JsonDict:
         return {
             "SysCtrl": {
                 "src": self.src,
@@ -365,7 +363,7 @@ class SysCtrlMessage(GctMessage):
         }
 
     @classmethod
-    def from_comsrv(cls, msg):
+    def from_comsrv(cls, msg: JsonDict) -> "SysCtrlMessage":
         ret = cls()
         ret.dst = msg["dst"]
         ret.src = msg["src"]
@@ -383,18 +381,17 @@ class SysCtrlMessage(GctMessage):
         return ret
 
 
+@dataclass
 class MonitoringData(GctMessage):
-    def __init__(self):
-        super().__init__()
-        self.group_idx = 0
-        self.reading_idx = 0
-        self.data = b""
+    group_idx: int = 0
+    reading_idx: int = 0
+    data: bytes = b""
 
     @property
     def dst(self) -> int:
         return GCTCAN_BROADCAST_ADDRESS
 
-    def to_comsrv(self):
+    def to_comsrv(self) -> JsonDict:
         return {
             "MonitoringData": {
                 "src": self.src,
@@ -405,7 +402,7 @@ class MonitoringData(GctMessage):
         }
 
     @classmethod
-    def from_comsrv(cls, msg):
+    def from_comsrv(cls, msg: JsonDict) -> "MonitoringData":
         ret = cls()
         ret.src = msg["src"]
         ret.group_idx = msg["group_idx"]
@@ -413,30 +410,17 @@ class MonitoringData(GctMessage):
         ret.data = bytes(msg["data"])
         return ret
 
-    def __repr__(self):
-        return (
-            "<comsrv.can.MonitoringData src={:x} group={} readings={} data={}>".format(
-                self.src, self.group_idx, self.reading_idx, self.data
-            )
-        )
+    def __repr__(self) -> str:
+        return f"<comsrv.can.MonitoringData src={self.src:x} group={self.group_idx} readings={self.reading_idx:x} data={hexlify(self.data).decode()}>"
 
 
+@dataclass
 class MonitoringRequest(GctMessage):
-    def __init__(self):
-        super().__init__()
-        self._dst = 0
-        self.group_idx = 0
-        self.readings = 0
+    dst: int = 0
+    group_idx: int = 0
+    readings: int = 0
 
-    @property
-    def dst(self):
-        return self._dst
-
-    @dst.setter
-    def dst(self, value):
-        self._dst = value
-
-    def to_comsrv(self):
+    def to_comsrv(self) -> JsonDict:
         return {
             "MonitoringRequest": {
                 "src": self.src,
@@ -447,7 +431,7 @@ class MonitoringRequest(GctMessage):
         }
 
     @classmethod
-    def from_comsrv(cls, msg):
+    def from_comsrv(cls, msg: JsonDict) -> "MonitoringRequest":
         ret = cls()
         ret.src = msg["src"]
         ret.dst = msg["dst"]
@@ -455,28 +439,19 @@ class MonitoringRequest(GctMessage):
         ret.readings = msg["readings"]
         return ret
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<comsrv.can.MonitoringData dst={:x} group={} readings={}>".format(
             self.dst, self.group_idx, self.readings
         )
 
 
+@dataclass
 class DdpMessage(GctMessage):
-    def __init__(self, version=1):
-        super().__init__()
-        self._dst = 0
-        self.data = []
-        self.version = version
+    dst: int = 0
+    data: bytes = b""
+    version: int = 2
 
-    @property
-    def dst(self):
-        return self._dst
-
-    @dst.setter
-    def dst(self, value):
-        self._dst = value
-
-    def to_comsrv(self):
+    def to_comsrv(self) -> JsonDict:
         return {
             "Ddp": {
                 "version": self.version,
@@ -487,7 +462,7 @@ class DdpMessage(GctMessage):
         }
 
     @classmethod
-    def from_comsrv(cls, msg):
+    def from_comsrv(cls, msg: JsonDict) -> "DdpMessage":
         ret = cls()
         ret.src = msg["src"]
         ret.dst = msg["dst"]
@@ -495,18 +470,20 @@ class DdpMessage(GctMessage):
         ret.version = msg.get("version", 1)
         return ret
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<comsrv.can.DdpMessage v={} src={:x} dst={:x} data={}>".format(
-            self.version, self.src, self.dst, self.data
+            self.version,
+            self.src,
+            self.dst,
+            hexlify(self.data).decode(),
         )
 
 
+@dataclass
 class Heartbeat(GctMessage):
-    def __init__(self):
-        super().__init__()
-        self.product_id = 0
+    product_id: int = 0
 
-    def to_comsrv(self):
+    def to_comsrv(self) -> JsonDict:
         return {
             "Heartbeat": {
                 "src": self.src,
@@ -519,14 +496,14 @@ class Heartbeat(GctMessage):
         return GCTCAN_BROADCAST_ADDRESS
 
     @classmethod
-    def from_comsrv(cls, msg):
+    def from_comsrv(cls, msg: JsonDict) -> "Heartbeat":
         ret = cls()
         ret.src = msg["src"]
         ret.product_id = msg["product_id"]
         return ret
 
 
-def gct_filter(msg):
+def gct_filter(msg: JsonDict) -> GctMessage | None:
     if "Notify" not in msg:
         return None
     if "Can" not in msg["Notify"]:
@@ -538,7 +515,7 @@ def gct_filter(msg):
     return None
 
 
-def raw_filter(msg):
+def raw_filter(msg: JsonDict) -> CanMessage | None:
     if "Notify" not in msg:
         return None
     if "Can" not in msg["Notify"]:

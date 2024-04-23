@@ -2,7 +2,8 @@ import base64
 from typing import Optional, Union
 
 from . import Address, ComSrvError, BasePipe, Instrument, Rpc
-from .bytestream import ByteStreamPipe, SerialAddress
+from .bytestream import ByteStreamInstrument, ByteStreamPipe, SerialAddress
+from broadcast_wsrpc import JsonType, JsonDict
 
 
 class ScpiAddress(Address):
@@ -14,11 +15,11 @@ class VxiAddress(ScpiAddress):
         self.host = host
         super().__init__()
 
-    def to_json(self):
+    def to_json(self) -> JsonType:
         return self.host
 
     @property
-    def enum_name(self):
+    def enum_name(self) -> str:
         return "Vxi"
 
 
@@ -27,11 +28,11 @@ class VisaAddress(ScpiAddress):
         super().__init__()
         self.visa_address_string = visa_address_string
 
-    def to_json(self):
+    def to_json(self) -> JsonType:
         return self.visa_address_string
 
     @property
-    def enum_name(self):
+    def enum_name(self) -> str:
         return "Visa"
 
 
@@ -40,11 +41,11 @@ class ScpiInstrument(Instrument):
         self._address = address
 
     @property
-    def address(self):
+    def address(self) -> ScpiAddress | SerialAddress:
         return self._address
 
     @classmethod
-    def parse(cls, instrument: str):
+    def parse(cls, instrument: str) -> "ScpiInstrument":
         if instrument.startswith("vxi::"):
             splits = instrument.split("::")
             if len(splits) != 2:
@@ -71,12 +72,12 @@ class ScpiInstrument(Instrument):
 
 
 class VxiInstrument(ScpiInstrument):
-    def to_json(self):
+    def to_json(self) -> JsonDict:
         return {"Vxi": {"host": self._address.to_json()}}
 
 
 class VisaInstrument(ScpiInstrument):
-    def to_json(self):
+    def to_json(self) -> JsonDict:
         return {"Visa": {"address": self._address.to_json()}}
 
 
@@ -86,15 +87,15 @@ class PrologixInstrument(ScpiInstrument):
         super().__init__(address)
 
     @property
-    def gpib_address(self):
+    def gpib_address(self) -> int:
         return self._gpib_address
 
-    def to_json(self):
+    def to_json(self) -> JsonDict:
         return {"address": self._address.to_json()}
 
 
 class Transport(object):
-    async def request(self, request):
+    async def request(self, request: JsonType) -> JsonType:
         raise NotImplementedError
 
 
@@ -104,7 +105,7 @@ class ScpiTransport(Transport):
         self._instrument = instrument
         self._pipe = pipe
 
-    async def request(self, request):
+    async def request(self, request: JsonType) -> JsonType:
         result = await self._pipe.get(
             {
                 "Scpi": {
@@ -124,7 +125,7 @@ class PrologixTransport(Transport):
         self._instrument = instrument
         self._pipe = pipe
 
-    async def request(self, request):
+    async def request(self, request: JsonType) -> JsonType:
         result = await self._pipe.get(
             {
                 "Prologix": {
@@ -141,7 +142,21 @@ class PrologixTransport(Transport):
         return result["Scpi"]
 
 
-class ScpiPipe(BasePipe):
+class ScpiPipeBase:
+    async def query(self, msg: str) -> str:
+        raise NotImplementedError
+
+    async def write(self, msg: str) -> None:
+        raise NotImplementedError
+
+    async def query_binary(self, msg: str) -> bytes:
+        raise NotImplementedError
+
+    async def read_raw(self) -> bytes:
+        raise NotImplementedError
+
+
+class ScpiPipe(BasePipe, ScpiPipeBase):
     def __init__(
         self, instrument: Union[str, ScpiInstrument], rpc: Optional[Rpc] = None
     ):
@@ -154,21 +169,28 @@ class ScpiPipe(BasePipe):
         else:
             transport = ScpiTransport(instrument, self)  # type: ignore
         self._transport: PrologixTransport | ScpiTransport = transport
-        super().__init__(instrument.address, rpc)
+        BasePipe.__init__(self, instrument.address, rpc)
 
-    async def request(self, request):
+    async def request(self, request: JsonType) -> JsonType:
         return await self._transport.request(request)
 
     async def query(self, msg: str) -> str:
         result = await self.request({"QueryString": msg})
+        if not isinstance(result, dict):
+            raise ComSrvError("Unexpected response")
         return result["String"]
 
-    async def write(self, msg: str):
+    async def write(self, msg: str) -> None:
         await self.request({"Write": msg})
 
     async def query_binary(self, msg: str) -> bytes:
         result = await self.request({"QueryBinary": msg})
-        data = result["Binary"]["data"]
+        if not isinstance(result, dict):
+            raise ComSrvError("Unexpected response")
+        binary = result["Binary"]
+        if not isinstance(binary, dict):
+            raise ComSrvError("Unexpected response")
+        data = binary["data"]
         return base64.b64decode(data)
 
     async def read_raw(self) -> bytes:
@@ -178,30 +200,45 @@ class ScpiPipe(BasePipe):
         return base64.b64decode(data)
 
 
-class SerialScpiPipe(object):
-    def __init__(self, bs_pipe: str | ByteStreamPipe, term="\n", timeout=1.0):
-        if isinstance(bs_pipe, str):
-            bs_pipe = ByteStreamPipe(bs_pipe)
+class SerialScpiPipe(ScpiPipeBase):
+    def __init__(
+        self,
+        bs_pipe: Union[str, ByteStreamInstrument, ByteStreamPipe],
+        term: str = "\n",
+        timeout: float = 1.0,
+        rpc: Optional[Rpc] = None,
+    ):
+        if isinstance(bs_pipe, str) or isinstance(bs_pipe, ByteStreamInstrument):
+            bs_pipe = ByteStreamPipe(bs_pipe, rpc=rpc)
+        assert len(term) == 1, "term must be a single character"
         self._inner = bs_pipe
         self._timeout = timeout
         self._term = term
 
     @property
-    def term(self):
+    def timeout(self) -> float:
+        return self._inner._timeout
+
+    @timeout.setter
+    def timeout(self, value: float) -> None:
+        value = float(value)
+        self._inner.timeout = value
+
+    @property
+    def term(self) -> str:
         return self._term
 
     @term.setter
-    def term(self, value):
+    def term(self, value: str) -> None:
+        assert len(value) == 1
         self._term = value
 
     async def query(self, msg: str) -> str:
         return await self._inner.query_line(msg, self._timeout, term=self._term)
 
-    async def write(self, msg: str):
+    async def write(self, msg: str) -> None:
         return await self._inner.write_line(msg, term=self._term)
 
-    async def query_binary(self, msg: str) -> bytes:
-        raise NotImplementedError
-
     async def read_raw(self) -> bytes:
-        return await self._inner.read_line(self._timeout, term=self._term)
+        ret = await self._inner.read_line(self._timeout, term=self._term)
+        return ret.encode("utf-8")

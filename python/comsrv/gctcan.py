@@ -1,7 +1,7 @@
 import asyncio
 import struct
-from typing import List, Set, Union, Iterable, Optional
-from broadcast_wsrpc.client import Receiver # type: ignore
+from typing import Any, List, Set, Union, Iterable, Optional
+from broadcast_wsrpc.client import Receiver  # type: ignore
 
 from .can import (
     DdpMessage,
@@ -19,7 +19,7 @@ class DdpFilter(object):
         self._src = src
         self._dst = dst
 
-    def __call__(self, msg):
+    def __call__(self, msg: GctMessage) -> bytes | None:
         if not isinstance(msg, DdpMessage):
             return None
         ok = msg.src == self._src and msg.dst == self._dst
@@ -30,23 +30,28 @@ class DdpFilter(object):
 
 CONTROLLER_NODEID = 0x7E
 BROADCAST_ADDR = 0x7F
+DEFAULT_DDP_TIMEOUT = 0.1
 
 
 class GctCanBus(object):
-    def __init__(self, bus: CanBus, ddp_version=2):
+    def __init__(self, bus: CanBus, ddp_version: int = 2) -> None:
         self._bus = bus
         self._version = ddp_version
 
     @property
-    def can_bus(self):
+    def can_bus(self) -> CanBus:
         return self._bus
 
-    async def connect(self):
+    async def connect(self) -> "GctCanBus":
         await self._bus.connect()
         return self
 
     async def sysctrl_request(
-        self, src, cmd, data: Optional[bytes] = None, dst=BROADCAST_ADDR
+        self,
+        src: int,
+        cmd: int,
+        data: bytes | None = None,
+        dst: int = BROADCAST_ADDR,
     ) -> bytes:
         """
         Read back sysctrl, optionally writing data to the endpoint.
@@ -56,7 +61,7 @@ class GctCanBus(object):
         :return: The data currently set at the specific command.
         """
 
-        def flt(msg: SysCtrlMessage):
+        def flt(msg: GctMessage) -> SysCtrlMessage | None:
             if not isinstance(msg, SysCtrlMessage):
                 return None
             if msg.src != dst and dst != BROADCAST_ADDR:
@@ -87,7 +92,7 @@ class GctCanBus(object):
         src: int,
         group_idx: int,
         idx: Union[int, Iterable[int]],
-        dst=BROADCAST_ADDR,
+        dst: int = BROADCAST_ADDR,
     ) -> List[MonitoringData]:
         """
         Fetch readings from the device.
@@ -101,12 +106,12 @@ class GctCanBus(object):
         """
         unified_idx: Set[int] = set()
         if not is_iterable(idx):
-            unified_idx = {idx} # type: ignore
+            unified_idx = {idx}  # type: ignore
         else:
-            unified_idx = set(idx) # type: ignore
+            unified_idx = set(idx)  # type: ignore
 
         req = MonitoringRequest()
-        req.src = CONTROLLER_NODEID
+        req.src = src
         req.dst = dst
         req.group_idx = group_idx
         for x in unified_idx:
@@ -142,11 +147,19 @@ class GctCanBus(object):
     async def read_single(self, src: int, group_idx: int, idx: int) -> MonitoringData:
         return (await self.fetch_readings(src, group_idx, [idx]))[0]
 
-    async def read_single_and_decode(self, src: int, group_idx: int, idx: int, format: str):
+    async def read_single_and_decode(
+        self, src: int, group_idx: int, idx: int, format: str
+    ) -> tuple:
         data = await self.read_single(src, group_idx, idx)
         return struct.unpack(format, data.data)
 
-    async def ddp(self, src_addr, dst_addr, data):
+    async def ddp(
+        self,
+        src_addr: int,
+        dst_addr: int,
+        data: bytes,
+        timeout: float,
+    ) -> bytes | None:
         assert len(data) > 0
         msg = DdpMessage(version=self._version)
         data = bytearray(data)
@@ -159,13 +172,38 @@ class GctCanBus(object):
         with self.can_bus.gct().map(flt) as listener:
             await self.can_bus.send(msg)
             if not want_response:
-                return
+                return None
 
-            reply = await asyncio.wait_for(listener.next(), self.timeout)
+            reply = await asyncio.wait_for(listener.next(), timeout)
             return reply
 
+    async def ddp_request(
+        self,
+        cmd: int,
+        src_addr: int,
+        dst_addr: int,
+        data: bytes,
+        timeout: float = DEFAULT_DDP_TIMEOUT,
+    ) -> bytes:
+        assert cmd < 256, "Command must be a byte"
+        data = bytes([cmd | 0x80]) + data
+        reply = await self.ddp(src_addr, dst_addr, data, timeout)
+        assert reply is not None
+        return reply
 
-def is_iterable(arg):
+    async def ddp_write(
+        self,
+        cmd: int,
+        src_addr: int,
+        dst_addr: int,
+        data: bytes,
+        timeout: float = DEFAULT_DDP_TIMEOUT,
+    ) -> None:
+        data = bytes([cmd & 0x7F]) + data
+        await self.ddp(src_addr, dst_addr, data, timeout=timeout)
+
+
+def is_iterable(arg: Any) -> bool:
     """
     Return True if the argument is an iterable. However strings are not considered an iterable
     since they usually used as primitives.

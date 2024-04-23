@@ -2,6 +2,7 @@ import enum
 from typing import List, Optional, Tuple, Union
 
 from comsrv.bytestream import (
+    ByteStreamInstrument,
     ByteStreamPipe,
     SerialAddress,
     SerialInstrument,
@@ -10,8 +11,9 @@ from comsrv.bytestream import (
     TcpInstrument,
 )
 
-from . import ComSrvError, duration_to_json
+from . import ComSrvError, Rpc, duration_to_json
 import re
+from broadcast_wsrpc import JsonType
 
 
 class ModBusProtocol(enum.Enum):
@@ -28,7 +30,9 @@ MODBUS_TCP_RE = re.compile(
 )
 
 
-def parse_serial_modbus(match, rpc):
+def parse_serial_modbus(
+    match: re.Match, rpc: Rpc | None
+) -> Tuple[ByteStreamPipe, int, ModBusProtocol]:
     protocol = match.group("protocol")
     if protocol == "rtu":
         ret_protocol = ModBusProtocol.RTU
@@ -51,7 +55,9 @@ def parse_serial_modbus(match, rpc):
     return bs_pipe, station_address, ret_protocol
 
 
-def parse_tcp_modbus(match, rpc):
+def parse_tcp_modbus(
+    match: re.Match, rpc: Rpc | None
+) -> Tuple[ByteStreamPipe, int, ModBusProtocol]:
     protocol = match.group("protocol")
     if protocol == "rtu":
         ret_protocol = ModBusProtocol.RTU
@@ -75,7 +81,7 @@ def parse_tcp_modbus(match, rpc):
 
 
 def parse_modbus_address(
-    address: str, rpc=None
+    address: str, rpc: Rpc | None = None
 ) -> Tuple[ByteStreamPipe, int, ModBusProtocol]:
     m = MODBUS_SERIAL_RE.match(address)
     if m is not None:
@@ -100,11 +106,11 @@ class ModBusDevice(object):
     def __init__(
         self,
         bs_pipe: Union[str, ByteStreamPipe],
-        rpc=None,
+        rpc: Rpc | None = None,
         protocol: Optional[ModBusProtocol] = None,
         station_address: int = 1,
         timeout: float = 1.0,
-    ):
+    ) -> None:
         if isinstance(bs_pipe, str):
             if (
                 bs_pipe.startswith("tcp::")
@@ -124,11 +130,11 @@ class ModBusDevice(object):
         self._protocol = protocol
 
     @property
-    def bytestream_pipe(self):
+    def bytestream_pipe(self) -> ByteStreamPipe:
         return self._bs_pipe
 
     @property
-    def instrument(self):
+    def instrument(self) -> ByteStreamInstrument:
         return self._bs_pipe.instrument
 
     @property
@@ -136,7 +142,7 @@ class ModBusDevice(object):
         return self._protocol
 
     @protocol.setter
-    def protocol(self, value: ModBusProtocol):
+    def protocol(self, value: ModBusProtocol) -> None:
         self._protocol = value
 
     @property
@@ -144,7 +150,7 @@ class ModBusDevice(object):
         return self._timeout
 
     @timeout.setter
-    def timeout(self, value: float):
+    def timeout(self, value: float) -> None:
         self._timeout = value
 
     @property
@@ -152,10 +158,10 @@ class ModBusDevice(object):
         return self._station_address
 
     @station_address.setter
-    def station_address(self, value):
-        self._station_address = int(value)
+    def station_address(self, value: int) -> None:
+        self._station_address = value
 
-    async def request(self, request):
+    async def request(self, request: JsonType) -> JsonType:
         result = await self._bs_pipe.request(
             {
                 "ModBus": {
@@ -169,7 +175,7 @@ class ModBusDevice(object):
         ComSrvError.check_raise(result)
         return result["ModBus"]
 
-    async def write_registers(self, addr: int, data: List[int]):
+    async def write_registers(self, addr: int, data: List[int]) -> None:
         await self.request(
             {
                 "WriteRegisters": {
@@ -179,7 +185,7 @@ class ModBusDevice(object):
             }
         )
 
-    async def write_coils(self, addr: int, data: List[bool]):
+    async def write_coils(self, addr: int, data: List[bool]) -> None:
         await self.request(
             {
                 "WriteCoils": {
@@ -189,7 +195,7 @@ class ModBusDevice(object):
             },
         )
 
-    async def read_holding(self, addr: int, count: int = 1):
+    async def read_holding(self, addr: int, count: int = 1) -> List[int]:
         assert count > 0
         result = await self.request(
             {
@@ -199,9 +205,12 @@ class ModBusDevice(object):
                 }
             },
         )
-        return result["Number"]
+        assert isinstance(result, dict)
+        ret = result["Number"]
+        assert isinstance(ret, list)
+        return ret
 
-    async def read_coil(self, addr: int, count: int = 1):
+    async def read_coil(self, addr: int, count: int = 1) -> List[bool]:
         assert count > 0
         result = await self.request(
             {
@@ -211,9 +220,12 @@ class ModBusDevice(object):
                 }
             },
         )
-        return result["Bool"]
+        assert isinstance(result, dict)
+        ret = result["Bool"]
+        assert isinstance(ret, list)
+        return ret
 
-    async def read_discrete(self, addr: int, count: int = 1):
+    async def read_discrete(self, addr: int, count: int = 1) -> List[bool]:
         assert count > 0
         result = await self.request(
             {
@@ -223,9 +235,12 @@ class ModBusDevice(object):
                 }
             },
         )
-        return result["Bool"]
+        assert isinstance(result, dict)
+        ret = result["Bool"]
+        assert isinstance(ret, list)
+        return ret
 
-    async def read_input(self, addr: int, count: int = 1):
+    async def read_input(self, addr: int, count: int = 1) -> List[int]:
         assert count > 0
         result = await self.request(
             {
@@ -235,10 +250,17 @@ class ModBusDevice(object):
                 }
             },
         )
-        return result["Number"]
+        assert isinstance(result, dict)
+        ret = result["Number"]
+        assert isinstance(ret, list)
+        return ret
 
     async def ddp(
-        self, sub_cmd: int, ddp_cmd: int, data: bytes, response=True
+        self,
+        sub_cmd: int,
+        ddp_cmd: int,
+        data: bytes,
+        response: bool = True,
     ) -> bytes:
         result = await self.request(
             {
@@ -250,4 +272,6 @@ class ModBusDevice(object):
                 }
             },
         )
-        return bytes(result["Data"])
+        assert isinstance(result, dict)
+        d = result["Data"]
+        return bytes(d)
