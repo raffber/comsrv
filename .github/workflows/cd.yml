@@ -3,7 +3,7 @@ name: CD
 on:
   push:
     tags:
-      - 'release/*'
+      - "release/*"
   workflow_dispatch:
 
 jobs:
@@ -26,4 +26,3 @@ jobs:
         with:
           body_path: CHANGELOG.md
           files: out/*
-
