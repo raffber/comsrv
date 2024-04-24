@@ -1,6 +1,6 @@
 name: comsrv
 description: Client implementation for comsrv
-version: 0.0.1
+version: 2.3.0
 homepage: https://github.com/raffber/comsrv
 publish_to: none
 
