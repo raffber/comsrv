@@ -20,7 +20,7 @@ tempfile = "3.1.0"
 dlopen = "0.1.8"
 dlopen_derive = "0.1.4"
 lazy_static = "1.4.0"
-thiserror = "1.0.20"
+thiserror = "^1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "^1", features = [
@@ -36,7 +36,6 @@ env_logger = "0.7.1"
 log = "^0.4"
 url = "^2.1.1"
 uuid = "^0.8"
-tokio-modbus = "^0.5.0"
 tokio-serial = { version = "5.4.3", features = ["libudev"] }
 async-trait = "^0.1"
 futures = "^0.3"
@@ -45,7 +44,7 @@ async-can = { git = "https://github.com/raffber/async-can.git", rev = "aa008afbc
 async-ftdi = { git = "https://github.com/raffber/async-ftdi.git", rev = "5fdf23b8f35c23dd58331bc1f61b653992a0a676" }
 rand = "0.8"
 byteorder = "^1.3"
-bitvec = "0.20.1"
+bitvec = "^0.20"
 hidapi = { version = "^1", default-features = false, features = [
     "linux-static-hidraw",
 ] }

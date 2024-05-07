@@ -378,7 +378,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
- "tokio-modbus",
  "tokio-serial",
  "url",
  "uuid",
@@ -1911,23 +1910,6 @@ dependencies = [
  "proc-macro2 1.0.82",
  "quote 1.0.36",
  "syn 2.0.61",
-]
-
-[[package]]
-name = "tokio-modbus"
-version = "0.5.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e757b218fb8634aced3517ed0092da74d56f0db1be9e9f0429d520e611ef72c2"
-dependencies = [
- "async-trait",
- "byteorder",
- "bytes 1.6.0",
- "futures-util",
- "log",
- "smallvec",
- "tokio",
- "tokio-serial",
- "tokio-util",
 ]
 
 [[package]]
