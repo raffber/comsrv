@@ -47,3 +47,9 @@ pub extern "C" fn comsrv_stop(state: AppState) {
     app.server.shutdown();
     log::debug!("Application stopping.");
 }
+
+#[no_mangle]
+pub extern "C" fn comsrv_destroy(state: AppState) {
+    let app: Box<App> = unsafe { Box::from_raw(state.app as *mut App) };
+    drop(app);
+}
