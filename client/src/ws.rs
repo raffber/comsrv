@@ -25,6 +25,6 @@ impl WsRpc {
 #[async_trait]
 impl Rpc for WsRpc {
     async fn request(&mut self, request: Request, timeout: Duration) -> crate::Result<Response> {
-        Ok(self.client.query(request, timeout).await?)
+        Ok(self.client.request(request, timeout).await?)
     }
 }
