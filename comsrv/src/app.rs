@@ -150,7 +150,7 @@ impl App {
             Request::DropAll => self.drop_all().await,
             Request::Shutdown => {
                 let _ = self.drop_all();
-                self.server.shutdown().await;
+                self.server.shutdown();
                 Ok(Response::Done)
             }
             Request::ListHidDevices => hid::list_devices().await.map(|x| Response::Hid(HidResponse::List(x))),

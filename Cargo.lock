@@ -229,6 +229,25 @@ dependencies = [
 
 [[package]]
 name = "broadcast_wsrpc"
+version = "0.3.0"
+source = "git+https://github.com/raffber/wsrpc.git?rev=6c5fc98d0a51f2517e26d82dc8d9bb2343c02255#6c5fc98d0a51f2517e26d82dc8d9bb2343c02255"
+dependencies = [
+ "async-tungstenite",
+ "env_logger 0.9.3",
+ "futures",
+ "hyper",
+ "log",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "broadcast_wsrpc"
 version = "1.0.0"
 source = "git+https://github.com/raffber/wsrpc.git?rev=9565f8f03502e93c21e5159fba48e2779a429b2d#9565f8f03502e93c21e5159fba48e2779a429b2d"
 dependencies = [
@@ -350,7 +369,7 @@ dependencies = [
 
 [[package]]
 name = "comsrv"
-version = "2.3.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "async-can",
@@ -358,7 +377,7 @@ dependencies = [
  "async-trait",
  "async-vxi11",
  "bitvec",
- "broadcast_wsrpc",
+ "broadcast_wsrpc 0.3.0",
  "byteorder",
  "cfg-if 0.1.10",
  "clap 3.2.25",
@@ -386,11 +405,11 @@ dependencies = [
 
 [[package]]
 name = "comsrv_client"
-version = "2.3.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "async-trait",
- "broadcast_wsrpc",
+ "broadcast_wsrpc 1.0.0",
  "comsrv_protocol",
  "reqwest",
  "serde_json",
@@ -402,7 +421,7 @@ dependencies = [
 
 [[package]]
 name = "comsrv_protocol"
-version = "2.3.0"
+version = "2.3.1"
 dependencies = [
  "anyhow",
  "base64 0.13.1",

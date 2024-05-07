@@ -8,6 +8,7 @@ extern crate lazy_static;
 pub use comsrv_protocol::{Request, Response};
 
 pub mod app;
+pub mod c_api;
 mod inventory;
 mod iotask;
 mod protocol;

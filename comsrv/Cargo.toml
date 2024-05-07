@@ -1,9 +1,16 @@
 [package]
 name = "comsrv"
-version = "2.3.0"
+version = "2.3.1"
 authors = ["Raphael Bernhard <beraphae@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "comsrv"
+path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -23,7 +30,7 @@ tokio = { version = "^1", features = [
     "macros",
     "rt-multi-thread",
 ] }
-broadcast_wsrpc = { git = "https://github.com/raffber/wsrpc.git", rev = "9565f8f03502e93c21e5159fba48e2779a429b2d" }
+broadcast_wsrpc = { git = "https://github.com/raffber/wsrpc.git", rev = "6c5fc98d0a51f2517e26d82dc8d9bb2343c02255" }
 clap = { version = "3", features = ["cargo"] }
 env_logger = "0.7.1"
 log = "0.4.11"

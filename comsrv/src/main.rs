@@ -49,12 +49,15 @@ fn main() {
     rt.block_on(async move {
         let (app, rx) = App::new();
         app.server.enable_broadcast_reqrep(broadcast_reqrep);
-        let url = format!("0.0.0.0:{}", port);
+
+        let ws_addr: SocketAddr = format!("0.0.0.0:{}", port).parse().unwrap();
         let http_addr: SocketAddr = format!("0.0.0.0:{}", port + 1).parse().unwrap();
-        println!("Listening on ws://{}", url);
-        app.server.listen_ws(url).await;
+        println!("Listening on ws://{}", ws_addr);
         println!("Listening on http://{}", http_addr);
-        app.server.listen_http(http_addr).await;
+
+        app.server.listen_ws(&ws_addr).await.expect("Failed to listen on WebSocket");
+        app.server.listen_http(&http_addr).await;
+
         app.run(rx).await;
         log::debug!("Application quitting.");
     });
