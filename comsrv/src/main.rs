@@ -20,10 +20,15 @@ fn main() {
                 .help("Define the port to listen on."),
         )
         .arg(
+            Arg::with_name("http-port")
+                .long("http-port")
+                .help("Define the port to listen on for HTTP."),
+        )
+        .arg(
             Arg::with_name("broadcast_reqrep")
                 .long("broadcast-requests")
                 .short('b')
-                .help("Broadcast requests and responses on the RPC bus."),
+                .help("Broadcast requests back to RPC bus"),
         )
         .arg(Arg::with_name("verbose").long("verbose").short('v').help("Log verbose output"))
         .get_matches();
@@ -45,18 +50,29 @@ fn main() {
         }
     };
 
+    let http_port = matches.value_of("http-port").map(|http_port| match http_port.parse::<u16>() {
+        Ok(port) => port,
+        Err(_) => {
+            println!("Cannot parse `{}` as a port number.", http_port);
+            exit(1);
+        }
+    });
+
     let rt = Runtime::new().unwrap();
     rt.block_on(async move {
         let (app, rx) = App::new();
         app.server.enable_broadcast_reqrep(broadcast_reqrep);
 
         let ws_addr: SocketAddr = format!("0.0.0.0:{}", port).parse().unwrap();
-        let http_addr: SocketAddr = format!("0.0.0.0:{}", port + 1).parse().unwrap();
         println!("Listening on ws://{}", ws_addr);
-        println!("Listening on http://{}", http_addr);
 
         app.server.listen_ws(&ws_addr).await.expect("Failed to listen on WebSocket");
-        app.server.listen_http(&http_addr).await;
+
+        if let Some(http_port) = http_port {
+            let http_addr: SocketAddr = format!("0.0.0.0:{}", http_port).parse().unwrap();
+            println!("Listening on http://{}", http_addr);
+            app.server.listen_http(&http_addr).await;
+        }
 
         app.run(rx).await;
         log::debug!("Application quitting.");
