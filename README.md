@@ -5,22 +5,22 @@
 The `comsrv` utility exposes an [RPC interface](https://github.com/raffber/wsrpc) mainly intended for communicating with lab instruments.
 Currently, the following type of instruments are supported:
 
-* Serial Ports
-* VXI-11/LXI Instruments
-* Prologix USB-to-GPIB adapters
-* Modbus/TCP instruments
-* Modbus/RTU over serial ports or TCP streams
-* Raw TCP Sockets
-* USB HID based devices
-* FTDI devices
-* CAN over PCAN and SocketCAN (linux-only)
-* All VISA controlled instruments as fallback (requires VISA installation)
+- Serial Ports
+- VXI-11/LXI Instruments
+- Prologix USB-to-GPIB adapters
+- Modbus/TCP instruments
+- Modbus/RTU over serial ports or TCP streams
+- Raw TCP Sockets
+- USB HID based devices
+- FTDI devices
+- CAN over PCAN and SocketCAN (linux-only)
+- All VISA controlled instruments as fallback (requires VISA installation)
 
 `comsrv` automatically manages connections and operating system handles:
 
-* If no connection has been established, the connection is automatically opened
-* If the connection drops and a new request is issued, the connection is automatically reopened
-* In case the configuration of a instrument changes (such as the baud-rate on a serial port), it is appropriately re-initialized
+- If no connection has been established, the connection is automatically opened
+- If the connection drops and a new request is issued, the connection is automatically reopened
+- In case the configuration of a instrument changes (such as the baud-rate on a serial port), it is appropriately re-initialized
 
 Thus, the application using the `comsrv` should not care much about how connections are managed. It must also not care about spawning threadpools for IO, bridging async and sync interface or worry about library support for exotic protcols. As a consequence most of the connectivity error handling is offloaded
 to the `comsrv`.
@@ -41,16 +41,23 @@ The log will print executed commands as well as inform about communication error
 
 ## Documentation
 
- * The RPC protocol is: https://github.com/raffber/wsrpc. `comsrv` specific information [here](doc/rpc-protocol.md).
- * The Python API is described [here](doc/python_api.md).
- * Optional VISA-compatible resource strings for short-hand initialization of instrument are documented [here](doc/python_resource_strings.md).
+- The RPC protocol is: https://github.com/raffber/wsrpc. `comsrv` specific information [here](doc/rpc-protocol.md).
+- The Python API is described [here](doc/python_api.md).
+- Optional VISA-compatible resource strings for short-hand initialization of instrument are documented [here](doc/python_resource_strings.md).
+
+## Building
+
+Apart from the rust toolchain you also need the following debian/ubuntu packages:
+
+- `libuv-dev`
+- `libclang-dev`
 
 ## License
 
 Licensed under either of
 
-* Apache License, Version 2.0, (LICENSE-APACHE or <http://www.apache.org/licenses/LICENSE-2.0>)
-* MIT license (LICENSE-MIT or <http://opensource.org/licenses/MIT>)
+- Apache License, Version 2.0, (LICENSE-APACHE or <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license (LICENSE-MIT or <http://opensource.org/licenses/MIT>)
 
 at your option.
 

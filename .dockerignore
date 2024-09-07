@@ -8,3 +8,5 @@ python/build
 client/target
 protocol/target
 target
+.venv
+.pyprojectx
