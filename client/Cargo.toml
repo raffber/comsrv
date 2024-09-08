@@ -1,6 +1,6 @@
 [package]
 name = "comsrv_client"
-version = "2.4"
+version = "2.4.0"
 edition = "2018"
 license = "MIT OR Apache-2.0"
 
