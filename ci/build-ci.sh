@@ -3,7 +3,6 @@
 cd $(dirname "$0")
 cd ..
 
-rm -rf out
 mkdir out
 
 rm -rf target
