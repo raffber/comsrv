@@ -1,0 +1,3 @@
+apiVersion: v2
+name: comsrv
+version: 2.4.0

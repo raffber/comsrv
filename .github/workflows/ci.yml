@@ -37,6 +37,9 @@ jobs:
           file: deploy/Dockerfile
           tags: ghcr.io/raffber/comsrv:${{ steps.version.outputs.version }} , ghcr.io/raffber/comsrv:latest
 
+      - name: Package Helm Chart
+        run: ci/package-chart.sh
+
       - name: Build builder docker image
         uses: docker/build-push-action@v6
         with:
@@ -70,3 +73,4 @@ jobs:
             out/comsrv.dll
             out/comsrv.dll.lib
             out/*.whl
+            out/chart.tgz

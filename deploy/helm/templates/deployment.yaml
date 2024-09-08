@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comsrv
+  labels:
+    app: comsrv
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: comsrv
+  template:
+    metadata:
+      labels:
+        app: comsrv
+    spec:
+      containers:
+        - name: comsrv
+          image: ghcr.io/raffber/comsrv:{{ .Chart.Version }}
+          ports:
+            - containerPort: 5902
+            - containerPort: 5903
+          resources:
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+            requests:
+              memory: "128Mi"
+              cpu: "250m"

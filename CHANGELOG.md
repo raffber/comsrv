@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Make HTTP endpoint optional (deprecated, to be removed in the future)
 - Build and publish a docker container
 - Correctly handle SIGTERM to shutdown application
+- Add helm chart
 
 ## [2.3.1] - 2024-05-07
 

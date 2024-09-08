@@ -15,4 +15,4 @@ FROM debian:bookworm-slim
 COPY --from=builder /workspace/target/release/comsrv /usr/bin/comsrv
 
 ENTRYPOINT [ "/usr/bin/comsrv" ]
-CMD ["-p", "5902", "-v"]
+CMD ["-p", "5902", "-h", "5903", "-v"]

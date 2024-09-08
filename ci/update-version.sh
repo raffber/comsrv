@@ -50,5 +50,6 @@ replace_version_toml protocol/Cargo.toml
 replace_version_toml comsrv/Cargo.toml
 replace_version_toml pyproject.toml
 replace_version_yaml dart/comsrv/pubspec.yaml
+replace_version_yaml deploy/helm/Chart.yaml
 
 ./ci/check-version.sh

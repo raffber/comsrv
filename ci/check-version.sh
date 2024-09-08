@@ -15,6 +15,7 @@ client_version=$(grep -E -m 1 "^version" client/Cargo.toml | cut -d "=" -f 2 | s
 protocol_version=$(grep -E -m 1 "^version" protocol/Cargo.toml | cut -d "=" -f 2 | sed 's/[" ]//g')
 py_version=$(grep -E -m 1 "^version" pyproject.toml | cut -d "=" -f 2 | sed 's/[" ]//g')
 dart_version=$(grep -E -m 1 "^version" dart/comsrv/pubspec.yaml | cut -d ":" -f 2 | sed 's/[" ]//g')
+helm_version=$(grep -E -m 1 "^version" deploy/helm/Chart.yaml | cut -d ":" -f 2 | sed 's/[" ]//g')
 
 fail=false
 
@@ -40,6 +41,11 @@ fi
 
 if [[ $version != $dart_version ]]; then
     echo "Invalid version in dart package. Found: ${dart_version}"
+    fail=true
+fi
+
+if [[ $version != $helm_version ]]; then
+    echo "Invalid version in helm package. Found: ${helm_version}"
     fail=true
 fi
 
