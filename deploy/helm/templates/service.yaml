@@ -9,7 +9,9 @@ spec:
   selector:
     app: comsrv
   ports:
-    - port: 5902
+    - name: websockets
+      port: 5902
       targetPort: 5902
-    - port: 5903
+    - name: http
+      port: 5903
       targetPort: 5903
