@@ -30,15 +30,15 @@ jobs:
           password: ${{secrets.GITHUB_TOKEN}}
 
       - name: Build docker image
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           file: deploy/Dockerfile
-          tags: ghcr.io/raffber/comsrv:${{ steps.version.outputs.version }}
+          tags: ghcr.io/raffber/comsrv:${{ steps.version.outputs.version }} , ghcr.io/raffber/comsrv:latest
 
       - name: Build builder docker image
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: false
