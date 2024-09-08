@@ -12,6 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
       - name: Version Check
         run: ci/check-version.sh
 
@@ -73,4 +76,4 @@ jobs:
             out/comsrv.dll
             out/comsrv.dll.lib
             out/*.whl
-            out/chart.tgz
+            out/*.tgz
