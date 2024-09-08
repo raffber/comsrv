@@ -22,6 +22,8 @@ fn main() {
         .arg(
             Arg::with_name("http-port")
                 .long("http-port")
+                .short('h')
+                .default_value("5903")
                 .help("Define the port to listen on for HTTP."),
         )
         .arg(
@@ -41,14 +43,13 @@ fn main() {
         env_logger::init();
     }
 
-    let port = matches.value_of("port").unwrap().to_string();
-    let port = match port.parse::<u16>() {
+    let ws_port = matches.value_of("port").map(|x| match x.parse::<u16>() {
         Ok(port) => port,
         Err(_) => {
-            println!("Cannot parse `{}` as a port number.", port);
+            println!("Cannot parse `{}` as a port number.", x);
             exit(1);
         }
-    };
+    });
 
     let http_port = matches.value_of("http-port").map(|http_port| match http_port.parse::<u16>() {
         Ok(port) => port,
@@ -63,10 +64,11 @@ fn main() {
         let (app, rx) = App::new();
         app.server.enable_broadcast_reqrep(broadcast_reqrep);
 
-        let ws_addr: SocketAddr = format!("0.0.0.0:{}", port).parse().unwrap();
-        println!("Listening on ws://{}", ws_addr);
-
-        app.server.listen_ws(&ws_addr).await.expect("Failed to listen on WebSocket");
+        if let Some(ws_port) = ws_port {
+            let ws_addr: SocketAddr = format!("0.0.0.0:{}", ws_port).parse().unwrap();
+            println!("Listening on ws://{}", ws_addr);
+            app.server.listen_ws(&ws_addr).await.expect("Failed to listen on WebSocket");
+        }
 
         if let Some(http_port) = http_port {
             let http_addr: SocketAddr = format!("0.0.0.0:{}", http_port).parse().unwrap();
