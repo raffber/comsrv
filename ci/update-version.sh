@@ -4,7 +4,7 @@ set -euo pipefail
 
 cd $(dirname "$0")/..
 
-version=$(./ci/get-version.sh)
+version=$(./ci/get-version.sh --no-pre-release)
 
 replace_version_toml() {
 

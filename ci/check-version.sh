@@ -4,7 +4,7 @@ set -eufo pipefail
 
 cd $(dirname "$0")
 
-version=$(./get-version.sh)
+version=$(./get-version.sh --no-pre-release)
 
 echo "Expected reference version: ${version}"
 
