@@ -38,7 +38,7 @@ jobs:
           context: .
           push: true
           file: deploy/Dockerfile
-          tags: raffber/comsrv:{{ steps.version.outputs.version }}
+          tags: raffber/comsrv:${{ steps.version.outputs.version }}
 
       - name: Run Build
         run: docker run -v ${{ github.workspace }}:/workspace comsrv-agent ci/build-ci.sh
