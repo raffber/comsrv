@@ -1,6 +1,6 @@
 [package]
 name = "comsrv"
-version = "2.3.1"
+version = "2.4"
 authors = ["Raphael Bernhard <beraphae@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -50,6 +50,7 @@ hidapi = { version = "^1", default-features = false, features = [
 ] }
 comsrv_protocol = { path = "../protocol" }
 anyhow = { version = "1", features = ["backtrace"] }
+ctrlc = { version = "3.4.5", features = ["termination"] }
 
 [dependencies.libftd2xx]
 version = "0.32"

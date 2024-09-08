@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "comsrv"
-version = "2.3.1"
+version = "2.4"
 description = ""
 authors = ["Raphael Bernhard <beraphae@gmail.com>"]
 packages = [{ include = "comsrv", from = "python" }]

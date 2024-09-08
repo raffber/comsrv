@@ -13,3 +13,6 @@ RUN cargo build --release
 FROM debian:bookworm-slim
 
 COPY --from=builder /workspace/target/release/comsrv /usr/bin/comsrv
+
+ENTRYPOINT [ "/usr/bin/comsrv" ]
+CMD ["-p", "5902", "-v"]

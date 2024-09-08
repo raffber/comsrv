@@ -74,6 +74,14 @@ fn main() {
             app.server.listen_http(&http_addr).await;
         }
 
+        let _ = ctrlc::set_handler({
+            let app = app.clone();
+            move || {
+                log::debug!("Ctrl-C received, shutting down.");
+                app.server.shutdown();
+            }
+        });
+
         app.run(rx).await;
         log::debug!("Application quitting.");
     });

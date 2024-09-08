@@ -14,3 +14,4 @@ build-docker-container: ## Build the docker container
 	echo "Building docker container with version: $(version)" 
 	cd $(projdir)
 	docker build -f deploy/Dockerfile -t comsrv:$(version) .
+	docker tag comsrv:$(version) comsrv:latest
