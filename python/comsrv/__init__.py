@@ -194,6 +194,13 @@ class HttpRpc(Rpc):
                     raise ComSrvError(data)
                 return json_data
 
+    @classmethod
+    def make_default(cls) -> "Rpc":
+        """
+        Create a default RPC service if no other information is provided.
+        """
+        return HttpRpc()
+
 
 class WsRpc(Rpc):
     """
@@ -224,6 +231,13 @@ class WsRpc(Rpc):
             url = self._url
         await self._client.connect(url, **self._kw)
         return self
+
+    @classmethod
+    def make_default(cls) -> "Rpc":
+        """
+        Create a default RPC service if no other information is provided.
+        """
+        return WsRpc()
 
 
 class Address(object):
@@ -449,7 +463,7 @@ class ComSrv(object):
         self, rpc: Rpc | None = None, timeout: float = DEFAULT_TIMEOUT
     ) -> None:
         if rpc is None:
-            rpc = HttpRpc.make_default()
+            rpc = WsRpc.make_default()
         self._rpc = rpc
         self._timeout = timeout
 
