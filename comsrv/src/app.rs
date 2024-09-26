@@ -124,17 +124,20 @@ impl App {
                 instrument: ScpiInstrument::Visa(instr),
                 request,
                 lock,
-            } => self.handle_visa(instr, request, lock).await,
+                timeout,
+            } => self.handle_visa(instr, request, lock, timeout).await,
             Request::Scpi {
                 instrument: ScpiInstrument::Vxi(instr),
                 request,
                 lock,
-            } => self.handle_vxi(instr, request, lock).await,
+                timeout,
+            } => self.handle_vxi(instr, request, lock, timeout).await,
             Request::Prologix {
                 instrument,
                 request,
                 lock,
-            } => self.handle_prologix(instrument, request, lock).await,
+                timeout,
+            } => self.handle_prologix(instrument, request, lock, timeout).await,
             Request::Sigrok { instrument, request } => {
                 sigrok::read(&instrument.address, request).await.map(Response::Sigrok)
             }
@@ -279,22 +282,29 @@ impl App {
         instr: VisaInstrument,
         req: ScpiRequest,
         lock: Option<Uuid>,
+        timeout: Option<comsrv_protocol::Duration>,
     ) -> crate::Result<Response> {
         self.inventories
             .visa
             .wait_connect(&self.server, &instr.address, lock.as_ref())
             .await?
-            .request(req)
+            .request(req, timeout.map(|x| x.into()))
             .await
             .map(Response::Scpi)
     }
 
-    async fn handle_vxi(&self, instr: VxiInstrument, req: ScpiRequest, lock: Option<Uuid>) -> crate::Result<Response> {
+    async fn handle_vxi(
+        &self,
+        instr: VxiInstrument,
+        req: ScpiRequest,
+        lock: Option<Uuid>,
+        timeout: Option<comsrv_protocol::Duration>,
+    ) -> crate::Result<Response> {
         self.inventories
             .vxi
             .wait_connect(&self.server, &instr.host, lock.as_ref())
             .await?
-            .request(req)
+            .request(req, timeout.map(|x| x.into()))
             .await
             .map(Response::Scpi)
     }
@@ -304,6 +314,7 @@ impl App {
         instr: PrologixInstrument,
         req: PrologixRequest,
         lock: Option<Uuid>,
+        timeout: Option<comsrv_protocol::Duration>,
     ) -> crate::Result<Response> {
         let ret = self
             .inventories
@@ -313,6 +324,7 @@ impl App {
             .request(serial::Request::Prologix {
                 gpib_addr: req.addr,
                 req: req.scpi,
+                timeout: timeout.map(|x| x.into()),
             })
             .await?;
         match ret {

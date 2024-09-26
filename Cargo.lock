@@ -417,6 +417,7 @@ dependencies = [
  "base64 0.13.1",
  "byteorder",
  "serde",
+ "serde_json",
  "thiserror",
  "uuid",
 ]

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 
 use super::visa_sys::Instrument as VisaInstrument;
@@ -82,7 +84,8 @@ impl Instrument {
         self.instr.addr()
     }
 
-    pub fn handle_scpi(&self, req: ScpiRequest) -> crate::Result<ScpiResponse> {
+    pub fn handle_scpi(&self, req: ScpiRequest, _: Option<Duration>) -> crate::Result<ScpiResponse> {
+        // TODO: handle timeout
         match req {
             ScpiRequest::Write(x) => self
                 .write(x)

@@ -11,7 +11,7 @@ use anyhow::anyhow;
 use comsrv_protocol::{ScpiRequest, ScpiResponse};
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tokio::time::timeout;
+use tokio::time;
 
 const PROLOGIX_TIMEOUT: f32 = 1.0;
 
@@ -27,6 +27,7 @@ pub async fn handle_prologix_request<T: AsyncRead + AsyncWrite + Unpin>(
     serial: &mut T,
     addr: u8,
     req: ScpiRequest,
+    timeout: Option<Duration>,
 ) -> crate::Result<ScpiResponse> {
     log::debug!("handling prologix request for address {}", addr);
     let _ = read_all(serial).await.map_err(crate::Error::transport)?;
@@ -40,7 +41,8 @@ pub async fn handle_prologix_request<T: AsyncRead + AsyncWrite + Unpin>(
         ScpiRequest::QueryString(x) => {
             write_prologix(serial, x).await?;
             write(serial, "++read eoi\n").await?;
-            let reply = read_prologix(serial).await?;
+            let timeout = timeout.unwrap_or_else(|| Duration::from_secs_f32(PROLOGIX_TIMEOUT));
+            let reply = read_prologix(serial, timeout).await?;
             Ok(ScpiResponse::String(reply))
         }
         ScpiRequest::QueryBinary(_) => {
@@ -67,12 +69,12 @@ async fn write_prologix<T: AsyncWrite + Unpin>(serial: &mut T, mut msg: String) 
     serial.write(msg.as_bytes()).await.map(|_| ()).map_err(Error::transport)
 }
 
-async fn read_prologix<T: AsyncRead + Unpin>(serial: &mut T) -> crate::Result<String> {
+async fn read_prologix<T: AsyncRead + Unpin>(serial: &mut T, timeout: Duration) -> crate::Result<String> {
     let start = Instant::now();
     let mut ret = Vec::new();
     loop {
         let mut x = [0; 1];
-        match timeout(Duration::from_secs_f32(PROLOGIX_TIMEOUT), serial.read_exact(&mut x)).await {
+        match time::timeout(timeout, serial.read_exact(&mut x)).await {
             Ok(Ok(_)) => {
                 let x = x[0];
                 if x == b'\n' {
@@ -89,8 +91,8 @@ async fn read_prologix<T: AsyncRead + Unpin>(serial: &mut T) -> crate::Result<St
                 return Err(Error::protocol_timeout());
             }
         };
-        let delta = start.elapsed().as_secs_f32();
-        if delta > PROLOGIX_TIMEOUT {
+        let delta = start.elapsed();
+        if delta > timeout {
             return Err(Error::protocol_timeout());
         }
     }

@@ -22,17 +22,11 @@ pub struct Instrument {
 
 #[derive(Clone)]
 enum Request {
-    Scpi(ScpiRequest),
+    Scpi {
+        scpi: ScpiRequest,
+        timeout: Option<Duration>,
+    },
     DropCheck,
-}
-
-impl Request {
-    fn into_scpi(self) -> Option<ScpiRequest> {
-        match self {
-            Request::Scpi(x) => Some(x),
-            _ => None,
-        }
-    }
 }
 
 enum Response {
@@ -53,8 +47,8 @@ impl Instrument {
         }
     }
 
-    pub async fn request(&mut self, req: ScpiRequest) -> crate::Result<ScpiResponse> {
-        let req = Request::Scpi(req);
+    pub async fn request(&mut self, req: ScpiRequest, timeout: Option<Duration>) -> crate::Result<ScpiResponse> {
+        let req = Request::Scpi { scpi: req, timeout };
         match self.inner.request(req).await? {
             Response::Scpi(x) => Ok(x),
             Response::Done => Err(crate::Error::internal(anyhow!("Invalid response for request."))),
@@ -113,9 +107,13 @@ impl Handler {
         ret.map_err(map_error)
     }
 
-    async fn handle_request_timeout(client: &mut CoreClient, req: ScpiRequest) -> crate::Result<ScpiResponse> {
+    async fn handle_request_timeout(
+        client: &mut CoreClient,
+        req: ScpiRequest,
+        timeout: Duration,
+    ) -> crate::Result<ScpiResponse> {
         let fut = Self::handle_request(client, req);
-        tokio::time::timeout(DEFAULT_CONNECTION_TIMEOUT, fut)
+        tokio::time::timeout(timeout, fut)
             .await
             .map_err(|_| crate::Error::protocol_timeout())?
     }
@@ -181,30 +179,34 @@ impl IoHandler for Handler {
         } else {
             self.connect().await?
         };
-        // save because drop check_check handled other
-        let req = req.into_scpi().unwrap();
-        let ret = Self::handle_request_timeout(&mut client, req.clone()).await;
-        match ret {
-            Ok(ret) => {
-                self.client.replace(client);
-                self.spawn_drop_check(ctx);
-                Ok(Response::Scpi(ret))
-            }
-            Err(err) => {
-                drop(client);
-                if err.should_retry() {
-                    sleep(Duration::from_millis(100)).await;
-                    let mut client = self.connect().await?;
-                    let ret = Self::handle_request_timeout(&mut client, req).await;
-                    if ret.is_ok() {
+        match req {
+            Request::Scpi { scpi: req, timeout } => {
+                let timeout = timeout.unwrap_or(DEFAULT_CONNECTION_TIMEOUT);
+                let ret = Self::handle_request_timeout(&mut client, req.clone(), timeout).await;
+                match ret {
+                    Ok(ret) => {
                         self.client.replace(client);
                         self.spawn_drop_check(ctx);
+                        Ok(Response::Scpi(ret))
                     }
-                    Ok(Response::Scpi(ret?))
-                } else {
-                    Err(err)
+                    Err(err) => {
+                        drop(client);
+                        if err.should_retry() {
+                            sleep(Duration::from_millis(100)).await;
+                            let mut client = self.connect().await?;
+                            let ret = Self::handle_request_timeout(&mut client, req, timeout).await;
+                            if ret.is_ok() {
+                                self.client.replace(client);
+                                self.spawn_drop_check(ctx);
+                            }
+                            Ok(Response::Scpi(ret?))
+                        } else {
+                            Err(err)
+                        }
+                    }
                 }
             }
+            Request::DropCheck => Ok(Response::Done),
         }
     }
 }

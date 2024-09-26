@@ -35,6 +35,7 @@ pub enum Request {
     Prologix {
         gpib_addr: u8,
         req: ScpiRequest,
+        timeout: Option<Duration>,
     },
     Bytes {
         params: SerialParams,
@@ -172,12 +173,18 @@ impl Handler {
 
     async fn handle_request(&mut self, req: Request, serial: &mut SerialStream) -> crate::Result<Response> {
         match req {
-            Request::Prologix { gpib_addr, req } => {
+            Request::Prologix {
+                gpib_addr,
+                req,
+                timeout,
+            } => {
                 if !self.prologix_initialized {
                     init_prologix(serial).await?;
                     self.prologix_initialized = true;
                 }
-                handle_prologix_request(serial, gpib_addr, req).await.map(Response::Scpi)
+                handle_prologix_request(serial, gpib_addr, req, timeout)
+                    .await
+                    .map(Response::Scpi)
             }
             Request::Bytes { params: _, req } => {
                 self.prologix_initialized = false;

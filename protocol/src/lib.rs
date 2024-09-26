@@ -81,12 +81,16 @@ pub enum Request {
         request: ScpiRequest,
         #[serde(skip_serializing_if = "Option::is_none", default)]
         lock: Option<Uuid>,
+        #[serde(default = "Option::default")]
+        timeout: Option<Duration>,
     },
     Prologix {
         instrument: PrologixInstrument,
         request: PrologixRequest,
         #[serde(skip_serializing_if = "Option::is_none", default)]
         lock: Option<Uuid>,
+        #[serde(default = "Option::default")]
+        timeout: Option<Duration>,
     },
     Sigrok {
         instrument: SigrokInstrument,
