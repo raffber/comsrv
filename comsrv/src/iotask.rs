@@ -1,3 +1,6 @@
+use std::future::Future;
+use std::time::Duration;
+
 /// This module implements a very simple actor interface to which a request can be sent and a
 /// response is returned.
 ///
@@ -8,6 +11,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task;
+use tokio::time::sleep;
 
 /// Trait constraining the `Request` and `Response` associated types of `IoHandler`.
 pub trait Message: 'static + Send {}
@@ -111,5 +115,45 @@ impl<T: 'static + IoHandler> IoTask<T> {
             .send(msg)
             .map_err(|_| Error::internal(anyhow!("Channel disconnected")))?;
         rx.await.map_err(|_| Error::internal(anyhow!("Channel disconnected")))?
+    }
+}
+
+pub async fn io_retry<Ret, Client, FutureHandle, FutureConnect, Handle, Connect>(
+    client: &mut Option<Client>,
+    handle: Handle,
+    connect: Connect,
+) -> crate::Result<Ret>
+where
+    Handle: Fn(&mut Client) -> FutureHandle,
+    FutureHandle: Future<Output = crate::Result<Ret>>,
+    Connect: Fn() -> FutureConnect,
+    FutureConnect: Future<Output = crate::Result<Client>>,
+{
+    let mut c = if let Some(client) = client.take() {
+        client
+    } else {
+        connect().await?
+    };
+
+    let ret = handle(&mut c).await;
+    match ret {
+        Ok(ret) => {
+            client.replace(c);
+            Ok(ret)
+        }
+        Err(err) => {
+            drop(c);
+            if err.should_retry() {
+                sleep(Duration::from_millis(100)).await;
+                let mut c = connect().await?;
+                let ret = handle(&mut c).await;
+                if ret.is_ok() {
+                    client.replace(c);
+                }
+                Ok(ret?)
+            } else {
+                Err(err)
+            }
+        }
     }
 }

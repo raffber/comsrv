@@ -5,7 +5,7 @@ use std::time::Instant;
 use tokio::task::{self, JoinHandle};
 use tokio::time::{sleep, Duration};
 
-use crate::iotask::{IoContext, IoHandler, IoTask};
+use crate::iotask::{io_retry, IoContext, IoHandler, IoTask};
 use crate::{protocol::scpi, Error};
 use anyhow::anyhow;
 use comsrv_protocol::{ScpiRequest, ScpiResponse};
@@ -99,14 +99,6 @@ impl Handler {
         None
     }
 
-    async fn connect(&self) -> crate::Result<CoreClient> {
-        let fut = CoreClient::connect(self.addr);
-        let ret = tokio::time::timeout(DEFAULT_CONNECTION_TIMEOUT, fut)
-            .await
-            .map_err(|_| crate::Error::protocol_timeout())?;
-        ret.map_err(map_error)
-    }
-
     async fn handle_request_timeout(
         client: &mut CoreClient,
         req: ScpiRequest,
@@ -165,6 +157,24 @@ impl Handler {
     }
 }
 
+struct Connector {
+    addr: IpAddr,
+}
+
+impl Connector {
+    fn new(addr: IpAddr) -> Self {
+        Self { addr }
+    }
+
+    async fn connect(&self) -> crate::Result<CoreClient> {
+        let fut = CoreClient::connect(self.addr);
+        let ret = tokio::time::timeout(DEFAULT_CONNECTION_TIMEOUT, fut)
+            .await
+            .map_err(|_| crate::Error::protocol_timeout())?;
+        ret.map_err(map_error)
+    }
+}
+
 #[async_trait]
 impl IoHandler for Handler {
     type Request = Request;
@@ -174,37 +184,20 @@ impl IoHandler for Handler {
         if let Some(x) = self.drop_check(&req) {
             return x;
         }
-        let mut client = if let Some(client) = self.client.take() {
-            client
-        } else {
-            self.connect().await?
-        };
         match req {
             Request::Scpi { scpi: req, timeout } => {
                 let timeout = timeout.unwrap_or(DEFAULT_CONNECTION_TIMEOUT);
-                let ret = Self::handle_request_timeout(&mut client, req.clone(), timeout).await;
-                match ret {
-                    Ok(ret) => {
-                        self.client.replace(client);
-                        self.spawn_drop_check(ctx);
-                        Ok(Response::Scpi(ret))
-                    }
-                    Err(err) => {
-                        drop(client);
-                        if err.should_retry() {
-                            sleep(Duration::from_millis(100)).await;
-                            let mut client = self.connect().await?;
-                            let ret = Self::handle_request_timeout(&mut client, req, timeout).await;
-                            if ret.is_ok() {
-                                self.client.replace(client);
-                                self.spawn_drop_check(ctx);
-                            }
-                            Ok(Response::Scpi(ret?))
-                        } else {
-                            Err(err)
-                        }
-                    }
+                let connector = Connector::new(self.addr);
+                let ret = io_retry(
+                    &mut self.client,
+                    |client| Self::handle_request_timeout(client, req.clone(), timeout),
+                    || connector.connect(),
+                )
+                .await?;
+                if self.client.is_some() {
+                    self.spawn_drop_check(ctx);
                 }
+                Ok(Response::Scpi(ret))
             }
             Request::DropCheck => Ok(Response::Done),
         }
