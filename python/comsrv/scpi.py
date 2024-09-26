@@ -1,7 +1,7 @@
 import base64
 from typing import Optional, Union
 
-from . import Address, ComSrvError, BasePipe, Instrument, Rpc
+from . import Address, ComSrvError, BasePipe, Instrument, Rpc, duration_to_json
 from .bytestream import ByteStreamInstrument, ByteStreamPipe, SerialAddress
 from broadcast_wsrpc import JsonType, JsonDict
 
@@ -95,7 +95,11 @@ class PrologixInstrument(ScpiInstrument):
 
 
 class Transport(object):
-    async def request(self, request: JsonType) -> JsonType:
+    async def request(
+        self,
+        request: JsonType,
+        timeout: float | None = None,
+    ) -> JsonType:
         raise NotImplementedError
 
 
@@ -105,15 +109,23 @@ class ScpiTransport(Transport):
         self._instrument = instrument
         self._pipe = pipe
 
-    async def request(self, request: JsonType) -> JsonType:
+    async def request(
+        self,
+        request: JsonType,
+        timeout: float | None = None,
+    ) -> JsonType:
+        inner_req = {
+            "instrument": self._instrument.to_json(),
+            "request": request,
+            "lock": self._pipe.lock_id,
+        }
+        if timeout is not None:
+            inner_req["timeout"] = duration_to_json(timeout)
+            timeout = timeout + self._pipe.timeout
+
         result = await self._pipe.get(
-            {
-                "Scpi": {
-                    "instrument": self._instrument.to_json(),
-                    "request": request,
-                    "lock": self._pipe.lock_id,
-                }
-            }
+            {"Scpi": inner_req},
+            timeout=timeout,
         )
         ComSrvError.check_raise(result)
         return result["Scpi"]
@@ -125,18 +137,26 @@ class PrologixTransport(Transport):
         self._instrument = instrument
         self._pipe = pipe
 
-    async def request(self, request: JsonType) -> JsonType:
+    async def request(
+        self,
+        request: JsonType,
+        timeout: float | None = None,
+    ) -> JsonType:
+        inner_req = {
+            "instrument": self._instrument.to_json(),
+            "request": {
+                "addr": self._instrument.gpib_address,
+                "scpi": request,
+            },
+            "lock": self._pipe.lock_id,
+        }
+        if timeout is not None:
+            inner_req["timeout"] = duration_to_json(self._pipe.timeout)
+            timeout = timeout + self._pipe.timeout
+
         result = await self._pipe.get(
-            {
-                "Prologix": {
-                    "instrument": self._instrument.to_json(),
-                    "request": {
-                        "addr": self._instrument.gpib_address,
-                        "scpi": request,
-                    },
-                    "lock": self._pipe.lock_id,
-                }
-            }
+            {"Prologix": inner_req},
+            timeout=timeout,
         )
         ComSrvError.check_raise(result)
         return result["Scpi"]
@@ -171,11 +191,15 @@ class ScpiPipe(BasePipe, ScpiPipeBase):
         self._transport: PrologixTransport | ScpiTransport = transport
         BasePipe.__init__(self, instrument.address, rpc)
 
-    async def request(self, request: JsonType) -> JsonType:
-        return await self._transport.request(request)
+    async def request(
+        self,
+        request: JsonType,
+        timeout: float | None = None,
+    ) -> JsonType:
+        return await self._transport.request(request, timeout=timeout)
 
     async def query(self, msg: str, timeout: float | None = None) -> str:
-        result = await self.request({"QueryString": msg})
+        result = await self.request({"QueryString": msg}, timeout=timeout)
         if not isinstance(result, dict):
             raise ComSrvError("Unexpected response")
         return result["String"]
@@ -184,7 +208,7 @@ class ScpiPipe(BasePipe, ScpiPipeBase):
         await self.request({"Write": msg})
 
     async def query_binary(self, msg: str, timeout: float | None = None) -> bytes:
-        result = await self.request({"QueryBinary": msg})
+        result = await self.request({"QueryBinary": msg}, timeout=timeout)
         if not isinstance(result, dict):
             raise ComSrvError("Unexpected response")
         binary = result["Binary"]
@@ -194,7 +218,7 @@ class ScpiPipe(BasePipe, ScpiPipeBase):
         return base64.b64decode(data)
 
     async def read_raw(self, timeout: float | None = None) -> bytes:
-        result = await self.request({"ReadRaw": None})
+        result = await self.request({"ReadRaw": None}, timeout=timeout)
         if not isinstance(result, dict):
             raise ComSrvError("Unexpected response")
         ComSrvError.check_raise(result)
