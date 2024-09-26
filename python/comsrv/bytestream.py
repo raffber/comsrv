@@ -257,7 +257,8 @@ class ByteStreamPipe(BasePipe):
         Read from the stream until the termination character is found.
         """
         result = await self.request(
-            {"ReadToTerm": {"term": term, "timeout": duration_to_json(timeout)}}
+            {"ReadToTerm": {"term": term, "timeout": duration_to_json(timeout)}},
+            timeout=timeout + self._timeout,
         )
         data = bytes(result["Data"])
         return data
@@ -267,7 +268,8 @@ class ByteStreamPipe(BasePipe):
         Read exactly `count` byte from the stream.
         """
         result = await self.request(
-            {"ReadExact": {"count": count, "timeout": duration_to_json(timeout)}}
+            {"ReadExact": {"count": count, "timeout": duration_to_json(timeout)}},
+            timeout=timeout + self._timeout,
         )
         data = bytes(result["Data"])
         return data
@@ -282,7 +284,10 @@ class ByteStreamPipe(BasePipe):
         """
         Read a COBS encoded frame from stream.
         """
-        result = await self.request({"CobsRead": duration_to_json(timeout)})
+        result = await self.request(
+            {"CobsRead": duration_to_json(timeout)},
+            timeout=timeout + self._timeout,
+        )
         data = bytes(result["Data"])
         return data
 
@@ -291,7 +296,8 @@ class ByteStreamPipe(BasePipe):
         This is a combination of `cobs_write` followed by a `cobs_read` call.
         """
         result = await self.request(
-            {"CobsQuery": {"data": list(data), "timeout": duration_to_json(timeout)}}
+            {"CobsQuery": {"data": list(data), "timeout": duration_to_json(timeout)}},
+            timeout=timeout + self._timeout,
         )
         data = bytes(result["Data"])
         return data
@@ -313,7 +319,8 @@ class ByteStreamPipe(BasePipe):
             assert len(term) == 1
             term = ord(term)
         result = await self.request(
-            {"ReadLine": {"term": term, "timeout": duration_to_json(timeout)}}
+            {"ReadLine": {"term": term, "timeout": duration_to_json(timeout)}},
+            timeout=timeout + self._timeout,
         )
         return result["String"]
 
@@ -336,7 +343,8 @@ class ByteStreamPipe(BasePipe):
                     "term": term,
                     "timeout": duration_to_json(timeout),
                 }
-            }
+            },
+            timeout=timeout + self._timeout,
         )
         return result["String"]
 

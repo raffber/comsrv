@@ -143,16 +143,16 @@ class PrologixTransport(Transport):
 
 
 class ScpiPipeBase:
-    async def query(self, msg: str) -> str:
+    async def query(self, msg: str, timeout: float | None = None) -> str:
         raise NotImplementedError
 
     async def write(self, msg: str) -> None:
         raise NotImplementedError
 
-    async def query_binary(self, msg: str) -> bytes:
+    async def query_binary(self, msg: str, timeout: float | None = None) -> bytes:
         raise NotImplementedError
 
-    async def read_raw(self) -> bytes:
+    async def read_raw(self, timeout: float | None = None) -> bytes:
         raise NotImplementedError
 
 
@@ -174,7 +174,7 @@ class ScpiPipe(BasePipe, ScpiPipeBase):
     async def request(self, request: JsonType) -> JsonType:
         return await self._transport.request(request)
 
-    async def query(self, msg: str) -> str:
+    async def query(self, msg: str, timeout: float | None = None) -> str:
         result = await self.request({"QueryString": msg})
         if not isinstance(result, dict):
             raise ComSrvError("Unexpected response")
@@ -183,7 +183,7 @@ class ScpiPipe(BasePipe, ScpiPipeBase):
     async def write(self, msg: str) -> None:
         await self.request({"Write": msg})
 
-    async def query_binary(self, msg: str) -> bytes:
+    async def query_binary(self, msg: str, timeout: float | None = None) -> bytes:
         result = await self.request({"QueryBinary": msg})
         if not isinstance(result, dict):
             raise ComSrvError("Unexpected response")
@@ -193,8 +193,10 @@ class ScpiPipe(BasePipe, ScpiPipeBase):
         data = binary["data"]
         return base64.b64decode(data)
 
-    async def read_raw(self) -> bytes:
-        result = await self.get("ReadRaw")
+    async def read_raw(self, timeout: float | None = None) -> bytes:
+        result = await self.request({"ReadRaw": None})
+        if not isinstance(result, dict):
+            raise ComSrvError("Unexpected response")
         ComSrvError.check_raise(result)
         data = result["Binary"]["data"]
         return base64.b64decode(data)
@@ -206,8 +208,8 @@ class SerialScpiPipe(ScpiPipeBase):
         bs_pipe: Union[str, ByteStreamInstrument, ByteStreamPipe],
         term: str = "\n",
         timeout: float = 1.0,
-        rpc: Optional[Rpc] = None,
-    ):
+        rpc: Rpc | None = None,
+    ) -> None:
         if isinstance(bs_pipe, str) or isinstance(bs_pipe, ByteStreamInstrument):
             bs_pipe = ByteStreamPipe(bs_pipe, rpc=rpc)
         assert len(term) == 1, "term must be a single character"
@@ -217,12 +219,11 @@ class SerialScpiPipe(ScpiPipeBase):
 
     @property
     def timeout(self) -> float:
-        return self._inner._timeout
+        return self._timeout
 
     @timeout.setter
     def timeout(self, value: float) -> None:
-        value = float(value)
-        self._inner.timeout = value
+        self._timeout = float(value)
 
     @property
     def term(self) -> str:
@@ -233,12 +234,14 @@ class SerialScpiPipe(ScpiPipeBase):
         assert len(value) == 1
         self._term = value
 
-    async def query(self, msg: str) -> str:
-        return await self._inner.query_line(msg, self._timeout, term=self._term)
+    async def query(self, msg: str, timeout: None | float = None) -> str:
+        timeout = timeout or self._timeout
+        return await self._inner.query_line(msg, timeout, term=self._term)
 
     async def write(self, msg: str) -> None:
         return await self._inner.write_line(msg, term=self._term)
 
-    async def read_raw(self) -> bytes:
-        ret = await self._inner.read_line(self._timeout, term=self._term)
+    async def read_raw(self, timeout: None | float = None) -> bytes:
+        timeout = timeout or self._timeout
+        ret = await self._inner.read_line(timeout, term=self._term)
         return ret.encode("utf-8")
