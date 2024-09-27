@@ -19,8 +19,8 @@ build-docker-container: ## Build the docker container
 
 
 release: ## Tag release and push
-	cd $(ROOT_DIR)
-	version=$$(./ci/get-version.sh)
+	cd $(projdir)
+	version=$$(./ci/get-version.sh --no-pre-release)
 	./ci/update-version.sh
 	if [[ $$(git rev-parse --abbrev-ref HEAD) != "main" ]]; then
 		echo "Not on main branch"
