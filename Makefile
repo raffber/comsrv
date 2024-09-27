@@ -15,3 +15,17 @@ build-docker-container: ## Build the docker container
 	cd $(projdir)
 	docker build -f deploy/Dockerfile -t comsrv:$(version) .
 	docker tag comsrv:$(version) comsrv:latest
+
+
+
+release: ## Tag release and push
+	cd $(ROOT_DIR)
+	version=$$(./ci/get-version.sh)
+	./ci/update-version.sh
+	if [[ $$(git rev-parse --abbrev-ref HEAD) != "main" ]]; then
+		echo "Not on main branch"
+		exit 1
+	fi
+	echo "Tagging release $$version"
+	git tag -a "release/$$version" -m "Release $$version"
+	git push origin "release/$$version"
