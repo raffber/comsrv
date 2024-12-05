@@ -32,7 +32,7 @@ install = "poetry install"
 run = "poetry run"
 outdated = "poetry show --outdated"
 test = "poetry run pytest"
-types = "poetry run mypy python/comsrv"
+types = "poetry run pyright python/comsrv"
 build = "poetry build --format wheel"
 check = "poetry run ruff check python/comsrv"
 
