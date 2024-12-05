@@ -46,6 +46,7 @@ impl Lock {
 
 /// The inventory uses an `InstrumentAddress` to find the matching instrument.
 /// Therefore, it must implement `Hash` as well as `PartialEq` and `Eq`.
+#[allow(unused)]
 pub trait InstrumentAddress: 'static + Clone + Send + Hash + PartialEq + Eq + Debug {}
 
 impl<T: 'static + Clone + Send + Hash + PartialEq + Eq + Debug> InstrumentAddress for T {}

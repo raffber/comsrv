@@ -228,12 +228,10 @@ impl Handler {
                 let receiver = async_can::pcan::Receiver::connect(address, *bitrate).map_err(map_error)?;
                 let receiver = CanReceiver::Bus {
                     device: Box::new(receiver),
-                    addr: instr.clone().into(),
                 };
                 let sender = async_can::pcan::Sender::connect(address, *bitrate).map_err(map_error)?;
                 let sender = CanSender::Bus {
                     device: Box::new(sender),
-                    addr: instr.clone().into(),
                 };
                 Ok((sender, receiver))
             }
@@ -242,12 +240,10 @@ impl Handler {
                 let receiver = async_can::socketcan::Receiver::connect(interface.clone()).map_err(map_error)?;
                 let receiver = CanReceiver::Bus {
                     device: Box::new(receiver),
-                    addr: instr.clone().into(),
                 };
                 let sender = async_can::socketcan::Sender::connect(interface.clone()).map_err(map_error)?;
                 let sender = CanSender::Bus {
                     device: Box::new(sender),
-                    addr: instr.clone().into(),
                 };
                 Ok((sender, receiver))
             }
@@ -258,11 +254,9 @@ impl Handler {
                 let (sender, receiver) = async_can::usr_canet::connect(addr).await.map_err(map_error)?;
                 let receiver = CanReceiver::Bus {
                     device: Box::new(receiver),
-                    addr: instr.clone().into(),
                 };
                 let sender = CanSender::Bus {
                     device: Box::new(sender),
-                    addr: instr.clone().into(),
                 };
                 Ok((sender, receiver))
             }
@@ -447,18 +441,12 @@ async fn listener_task(
 }
 pub enum CanSender {
     Loopback(LoopbackDevice),
-    Bus {
-        device: Box<dyn Sender + Send>,
-        addr: CanAddress,
-    },
+    Bus { device: Box<dyn Sender + Send> },
 }
 
 pub enum CanReceiver {
     Loopback(LoopbackDevice),
-    Bus {
-        device: Box<dyn Receiver + Send>,
-        addr: CanAddress,
-    },
+    Bus { device: Box<dyn Receiver + Send> },
 }
 
 impl CanSender {
@@ -468,7 +456,7 @@ impl CanSender {
                 lo.send(msg);
                 Ok(())
             }
-            CanSender::Bus { device, addr: _ } => {
+            CanSender::Bus { device } => {
                 let msg = into_async_can_message(msg).map_err(map_frame_error)?;
                 device.send(msg).await.map_err(map_error)
             }
@@ -480,7 +468,7 @@ impl CanReceiver {
     pub async fn recv(&mut self) -> crate::Result<CanMessage> {
         match self {
             CanReceiver::Loopback(lo) => lo.recv().await,
-            CanReceiver::Bus { device, addr: _ } => Ok(into_protocol_message(device.recv().await.map_err(map_error)?)),
+            CanReceiver::Bus { device } => Ok(into_protocol_message(device.recv().await.map_err(map_error)?)),
         }
     }
 }

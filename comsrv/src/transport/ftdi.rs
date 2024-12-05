@@ -5,7 +5,6 @@ use comsrv_protocol::ByteStreamResponse;
 use comsrv_protocol::FtdiAddress;
 use comsrv_protocol::FtdiDeviceInfo;
 
-use comsrv_protocol::SerialOptions;
 use comsrv_protocol::SerialPortConfig;
 use std::cmp::PartialOrd;
 use std::convert::TryInto;
@@ -21,7 +20,6 @@ use crate::transport::serial::SerialParams;
 pub struct FtdiRequest {
     pub request: ByteStreamRequest,
     pub port_config: SerialPortConfig,
-    pub options: Option<SerialOptions>,
 }
 
 impl FtdiRequest {

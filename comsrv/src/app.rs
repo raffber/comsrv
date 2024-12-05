@@ -213,7 +213,6 @@ impl App {
             .request(FtdiRequest {
                 request: req,
                 port_config: instr.port_config,
-                options: instr.options,
             })
             .await
             .map(Response::Bytes)

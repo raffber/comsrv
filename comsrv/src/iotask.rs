@@ -10,6 +10,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::task;
 
 /// Trait constraining the `Request` and `Response` associated types of `IoHandler`.
+#[allow(unused)]
 pub trait Message: 'static + Send {}
 
 impl<T: 'static + Send> Message for T {}
