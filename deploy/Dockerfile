@@ -1,4 +1,4 @@
-FROM rust:1.80 as builder
+FROM rust:latest-rust-1.83-bookworm as builder
 
 
 RUN apt-get update && apt-get install -y \
