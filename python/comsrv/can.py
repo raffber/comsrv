@@ -4,7 +4,8 @@ import dataclasses
 from typing import Any, Optional, Union
 
 from . import Address, Instrument, get_default_ws_url, ComSrvError
-from broadcast_wsrpc.client import Client, JsonDict, JsonType, Receiver
+from broadcast_wsrpc.client import Client, Receiver
+from broadcast_wsrpc.json import JsonObject, JsonType
 import re
 from enum import Enum
 
@@ -23,7 +24,7 @@ class PCanAddress(CanAddress):
         self.address = address
         super().__init__()
 
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return {"PCan": {"address": self.address}}
 
 
@@ -32,7 +33,7 @@ class SocketCanAddress(CanAddress):
         self._interface = interface
         super().__init__()
 
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return {"SocketCan": {"interface": self._interface}}
 
 
@@ -42,7 +43,7 @@ class UsrCanetAddress(CanAddress):
         self._port = port
         super().__init__()
 
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return {"UsrCanet": {"host": self._host, "port": self._port}}
 
 
@@ -110,22 +111,22 @@ class CanInstrument(Instrument):
 class CanMessage:
     canid: int = 0
 
-    def to_comsrv(self) -> JsonDict:
+    def to_comsrv(self) -> JsonObject:
         raise NotImplementedError
 
     @classmethod
-    def from_comsrv(cls, msg: JsonDict) -> "CanMessage":
+    def from_comsrv(cls, msg: JsonObject) -> "CanMessage":
         if "Data" in msg:
-            return DataMessage.from_comsrv(msg["Data"])
+            return DataMessage.from_comsrv(msg["Data"])  # type: ignore
         if "Remote" in msg:
-            return RemoteMessage.from_comsrv(msg["Remote"])
+            return RemoteMessage.from_comsrv(msg["Remote"])  # type: ignore
         raise ValueError("Invalid json object")
 
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return self.to_comsrv()
 
     @classmethod
-    def from_json(cls, msg: JsonDict) -> "CanMessage":
+    def from_json(cls, msg: JsonObject) -> "CanMessage":
         return CanMessage.from_comsrv(msg)
 
 
@@ -141,35 +142,35 @@ class GctMessage:
     def dst(self) -> int:
         raise NotImplementedError
 
-    def to_comsrv(self) -> JsonDict:
+    def to_comsrv(self) -> JsonObject:
         """
         Encode the message to the JSON RPC format of the comsrv.
         """
         raise NotImplementedError
 
     @classmethod
-    def from_comsrv(cls, msg: JsonDict) -> "GctMessage":
+    def from_comsrv(cls, msg: JsonObject) -> "GctMessage":
         """
         Decode the message from the comsrv RPC format
         :param msg: The JSON encoded message
         """
         if "SysCtrl" in msg:
-            return SysCtrlMessage.from_comsrv(msg["SysCtrl"])
+            return SysCtrlMessage.from_comsrv(msg["SysCtrl"])  # type: ignore
         if "MonitoringData" in msg:
-            return MonitoringData.from_comsrv(msg["MonitoringData"])
+            return MonitoringData.from_comsrv(msg["MonitoringData"])  # type: ignore
         if "MonitoringRequest" in msg:
-            return MonitoringRequest.from_comsrv(msg["MonitoringRequest"])
+            return MonitoringRequest.from_comsrv(msg["MonitoringRequest"])  # type: ignore
         if "Ddp" in msg:
-            return DdpMessage.from_comsrv(msg["Ddp"])
+            return DdpMessage.from_comsrv(msg["Ddp"])  # type: ignore
         if "Heartbeat" in msg:
-            return Heartbeat.from_comsrv(msg["Heartbeat"])
+            return Heartbeat.from_comsrv(msg["Heartbeat"])  # type: ignore
         raise ValueError("Invalid json object")
 
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return self.to_comsrv()
 
     @classmethod
-    def from_json(cls, msg: JsonDict) -> "GctMessage":
+    def from_json(cls, msg: JsonObject) -> "GctMessage":
         return GctMessage.from_comsrv(msg)
 
 
@@ -207,7 +208,7 @@ class CanBus(object):
     async def enable_loopback(self, loopback: bool = True) -> None:
         await self.rpc({"EnableLoopback": loopback})
 
-    async def rpc(self, task: JsonType, rx_reply: bool = True) -> JsonDict | None:
+    async def rpc(self, task: JsonType, rx_reply: bool = True) -> JsonObject | None:
         """
         Perform an RPC to the CAN endpoint.
 
@@ -226,7 +227,7 @@ class CanBus(object):
         ComSrvError.check_raise(resp)
         if "Can" not in resp:
             raise ComSrvError("Unexpected wire format")
-        return resp["Can"]
+        return resp["Can"]  # type: ignore
 
     async def send(self, msg: CanMessage | GctMessage, rx_reply: bool = True) -> None:
         """
@@ -240,10 +241,7 @@ class CanBus(object):
         """
         if isinstance(msg, CanMessage):
             task = {"TxRaw": msg.to_comsrv()}
-        elif isinstance(msg, GctMessage):
-            task = {"TxGct": msg.to_comsrv()}
-        else:
-            raise ComSrvError("Invalid message type.")
+        task = {"TxGct": msg.to_comsrv()}
         await self.rpc(task, rx_reply=rx_reply)
 
     async def listen_raw(self) -> None:
@@ -285,17 +283,17 @@ class DataMessage(CanMessage):
     def clone(self) -> "DataMessage":
         return dataclasses.replace(self)
 
-    def to_comsrv(self) -> JsonDict:
+    def to_comsrv(self) -> JsonObject:
         return {
             "Data": {"id": self.canid, "ext_id": self.extid, "data": list(self.data)}
         }
 
     @classmethod
-    def from_comsrv(cls, msg: JsonDict) -> "DataMessage":
+    def from_comsrv(cls, msg: JsonObject) -> "DataMessage":
         ret = cls()
-        ret.canid = msg["id"]
-        ret.extid = msg["ext_id"]
-        ret.data = msg["data"]
+        ret.canid = msg["id"]  # type: ignore
+        ret.extid = msg["ext_id"]  # type: ignore
+        ret.data = msg["data"]  # type: ignore
         return ret
 
     def __repr__(self) -> str:
@@ -323,15 +321,15 @@ class RemoteMessage(CanMessage):
     def clone(self) -> "RemoteMessage":
         return dataclasses.replace(self)
 
-    def to_comsrv(self) -> JsonDict:
+    def to_comsrv(self) -> JsonObject:
         return {"Remote": {"id": self.canid, "ext_id": self.extid, "dlc": self.dlc}}
 
     @classmethod
-    def from_comsrv(cls, msg: JsonDict) -> "RemoteMessage":
+    def from_comsrv(cls, msg: JsonObject) -> "RemoteMessage":
         ret = cls()
-        ret.canid = msg["id"]
-        ret.extid = msg["ext_id"]
-        ret.dlc = msg["dlc"]
+        ret.canid = msg["id"]  # type: ignore
+        ret.extid = msg["ext_id"]  # type: ignore
+        ret.dlc = msg["dlc"]  # type: ignore
         return ret
 
 
@@ -346,12 +344,20 @@ class SysCtrlType(Enum):
 
 @dataclass
 class SysCtrlMessage(GctMessage):
-    dst: int = 0
+    _dst: int = 0
     cmd: int = 0
     tp: SysCtrlType = SysCtrlType.EMPTY
     data: bytes = b""
 
-    def to_comsrv(self) -> JsonDict:
+    @property
+    def dst(self) -> int:
+        return self._dst
+
+    @dst.setter
+    def dst(self, value: int) -> None:
+        self._dst = value
+
+    def to_comsrv(self) -> JsonObject:
         return {
             "SysCtrl": {
                 "src": self.src,
@@ -363,11 +369,11 @@ class SysCtrlMessage(GctMessage):
         }
 
     @classmethod
-    def from_comsrv(cls, msg: JsonDict) -> "SysCtrlMessage":
+    def from_comsrv(cls, msg: JsonObject) -> "SysCtrlMessage":
         ret = cls()
-        ret.dst = msg["dst"]
-        ret.src = msg["src"]
-        ret.cmd = msg["cmd"]
+        ret.dst = msg["dst"]  # type: ignore
+        ret.src = msg["src"]  # type: ignore
+        ret.cmd = msg["cmd"]  # type: ignore
         tp = msg["tp"]
         if tp == "None":
             ret.tp = SysCtrlType.EMPTY
@@ -377,7 +383,7 @@ class SysCtrlMessage(GctMessage):
             ret.tp = SysCtrlType.QUERY
         else:
             raise ValueError("No such SysCtrl type")
-        ret.data = bytes(msg["data"])
+        ret.data = bytes(msg["data"])  # type: ignore
         return ret
 
 
@@ -391,7 +397,7 @@ class MonitoringData(GctMessage):
     def dst(self) -> int:
         return GCTCAN_BROADCAST_ADDRESS
 
-    def to_comsrv(self) -> JsonDict:
+    def to_comsrv(self) -> JsonObject:
         return {
             "MonitoringData": {
                 "src": self.src,
@@ -402,12 +408,12 @@ class MonitoringData(GctMessage):
         }
 
     @classmethod
-    def from_comsrv(cls, msg: JsonDict) -> "MonitoringData":
+    def from_comsrv(cls, msg: JsonObject) -> "MonitoringData":
         ret = cls()
-        ret.src = msg["src"]
-        ret.group_idx = msg["group_idx"]
-        ret.reading_idx = msg["reading_idx"]
-        ret.data = bytes(msg["data"])
+        ret.src = msg["src"]  # type: ignore
+        ret.group_idx = msg["group_idx"]  # type: ignore
+        ret.reading_idx = msg["reading_idx"]  # type: ignore
+        ret.data = bytes(msg["data"])  # type: ignore
         return ret
 
     def __repr__(self) -> str:
@@ -416,11 +422,19 @@ class MonitoringData(GctMessage):
 
 @dataclass
 class MonitoringRequest(GctMessage):
-    dst: int = 0
+    _dst: int = 0
     group_idx: int = 0
     readings: int = 0
 
-    def to_comsrv(self) -> JsonDict:
+    @property
+    def dst(self) -> int:
+        return self._dst
+
+    @dst.setter
+    def dst(self, value: int) -> None:
+        self._dst = value
+
+    def to_comsrv(self) -> JsonObject:
         return {
             "MonitoringRequest": {
                 "src": self.src,
@@ -431,12 +445,12 @@ class MonitoringRequest(GctMessage):
         }
 
     @classmethod
-    def from_comsrv(cls, msg: JsonDict) -> "MonitoringRequest":
+    def from_comsrv(cls, msg: JsonObject) -> "MonitoringRequest":
         ret = cls()
-        ret.src = msg["src"]
-        ret.dst = msg["dst"]
-        ret.group_idx = msg["group_idx"]
-        ret.readings = msg["readings"]
+        ret.src = msg["src"]  # type: ignore
+        ret.dst = msg["dst"]  # type: ignore
+        ret.group_idx = msg["group_idx"]  # type: ignore
+        ret.readings = msg["readings"]  # type: ignore
         return ret
 
     def __repr__(self) -> str:
@@ -447,11 +461,19 @@ class MonitoringRequest(GctMessage):
 
 @dataclass
 class DdpMessage(GctMessage):
-    dst: int = 0
+    _dst: int = 0
     data: bytes = b""
     version: int = 2
 
-    def to_comsrv(self) -> JsonDict:
+    @property
+    def dst(self) -> int:
+        return self._dst
+
+    @dst.setter
+    def dst(self, value: int) -> None:
+        self._dst = value
+
+    def to_comsrv(self) -> JsonObject:
         return {
             "Ddp": {
                 "version": self.version,
@@ -462,12 +484,12 @@ class DdpMessage(GctMessage):
         }
 
     @classmethod
-    def from_comsrv(cls, msg: JsonDict) -> "DdpMessage":
+    def from_comsrv(cls, msg: JsonObject) -> "DdpMessage":
         ret = cls()
-        ret.src = msg["src"]
-        ret.dst = msg["dst"]
-        ret.data = bytes(msg["data"])
-        ret.version = msg.get("version", 1)
+        ret.src = msg["src"]  # type: ignore
+        ret.dst = msg["dst"]  # type: ignore
+        ret.data = bytes(msg["data"])  # type: ignore
+        ret.version = msg.get("version", 1)  # type: ignore
         return ret
 
     def __repr__(self) -> str:
@@ -483,7 +505,7 @@ class DdpMessage(GctMessage):
 class Heartbeat(GctMessage):
     product_id: int = 0
 
-    def to_comsrv(self) -> JsonDict:
+    def to_comsrv(self) -> JsonObject:
         return {
             "Heartbeat": {
                 "src": self.src,
@@ -496,32 +518,36 @@ class Heartbeat(GctMessage):
         return GCTCAN_BROADCAST_ADDRESS
 
     @classmethod
-    def from_comsrv(cls, msg: JsonDict) -> "Heartbeat":
+    def from_comsrv(cls, msg: JsonObject) -> "Heartbeat":
         ret = cls()
-        ret.src = msg["src"]
-        ret.product_id = msg["product_id"]
+        ret.src = msg["src"]  # type: ignore
+        ret.product_id = msg["product_id"]  # type: ignore
         return ret
 
 
-def gct_filter(msg: JsonDict) -> GctMessage | None:
+def gct_filter(msg: JsonObject) -> GctMessage | None:
     if "Notify" not in msg:
         return None
-    if "Can" not in msg["Notify"]:
+    notify = msg["Notify"]
+    assert isinstance(notify, dict)
+    if "Can" not in notify:
         return None
-    can = msg["Notify"]["Can"]["response"]
-    if "Gct" in can:
-        msg = can["Gct"]
+    can = msg["Notify"]["Can"]["response"]  # type: ignore
+    if "Gct" in can:  # type: ignore
+        msg = can["Gct"]  # type: ignore
         return GctMessage.from_comsrv(msg)
     return None
 
 
-def raw_filter(msg: JsonDict) -> CanMessage | None:
+def raw_filter(msg: JsonObject) -> CanMessage | None:
     if "Notify" not in msg:
         return None
-    if "Can" not in msg["Notify"]:
+    notify = msg["Notify"]
+    assert isinstance(notify, dict)
+    if "Can" not in notify:
         return None
-    can = msg["Notify"]["Can"]["response"]
-    if "Raw" in can:
-        msg = can["Raw"]
+    can = msg["Notify"]["Can"]["response"]  # type: ignore
+    if "Raw" in can:  # type: ignore
+        msg = can["Raw"]  # type: ignore
         return CanMessage.from_comsrv(msg)
     return None

@@ -1,8 +1,10 @@
 from typing import List, Optional
 
 import numpy as np
+import numpy.typing as npt
 
 from . import Rpc, ComSrvError
+from broadcast_wsrpc import JsonObject
 
 
 TIMEOUT = 5.0
@@ -35,7 +37,7 @@ class SigrokDevice(object):
         samplerate: float | int = 48e6,
         num_samples: int | None = None,
         time: float | None = None,
-    ) -> tuple[np.ndarray, dict[str, np.ndarray]]:
+    ) -> tuple[npt.NDArray[np.float64], dict[str, npt.NDArray[np.float64]]]:
         if time is not None and num_samples is not None:
             raise ValueError("Specifiy only one of time or num_samples")
         if time is not None:
@@ -58,15 +60,16 @@ class SigrokDevice(object):
         }
         data = await self._rpc.get(request, TIMEOUT)
         ComSrvError.check_raise(data)
-        data = data["Sigrok"]["Data"]
-        tsample = data["tsample"]
+        data: JsonObject = data["Sigrok"]["Data"]  # type: ignore
+        tsample = float(data["tsample"])  # type: ignore
         length = data["length"]
+        assert isinstance(length, int)
         t = np.arange(0, length) * tsample
         ret = {}
-        for k, v in data["channels"].items():
+        for k, v in data["channels"].items():  # type: ignore
             base = np.array(v, dtype=np.uint8)
             ret[k] = np.unpackbits(base, count=length, bitorder="little")
-        return t, ret
+        return t, ret  # type: ignore
 
 
 async def list_devices(rpc: Optional[Rpc] = None) -> List[SigrokDevice]:
@@ -74,8 +77,8 @@ async def list_devices(rpc: Optional[Rpc] = None) -> List[SigrokDevice]:
         rpc = Rpc.make_default()
     resp = await rpc.get({"ListSigrokDevices": None}, TIMEOUT)
     ComSrvError.check_raise(resp)
-    devices = resp["Sigrok"]["Devices"]
-    ret = []
+    devices: List[JsonObject] = resp["Sigrok"]["Devices"]  # type: ignore
+    ret: List[SigrokDevice] = []
     for dev in devices:
-        ret.append(SigrokDevice(dev["addr"], desc=dev["desc"], rpc=rpc))
+        ret.append(SigrokDevice(dev["addr"], desc=dev["desc"], rpc=rpc))  # type: ignore
     return ret

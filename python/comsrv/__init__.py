@@ -10,7 +10,8 @@ from math import floor
 from typing import Any, List, Optional, Tuple, Union
 
 from aiohttp import ClientSession, ClientTimeout  # type: ignore
-from broadcast_wsrpc.client import Client, JsonDict, JsonType
+from broadcast_wsrpc.client import Client
+from broadcast_wsrpc.json import JsonObject, JsonType
 
 
 class ComSrvError(Exception):
@@ -20,9 +21,11 @@ class ComSrvError(Exception):
     """
 
     @classmethod
-    def parse(cls, data: JsonDict) -> "ComSrvError":
+    def parse(cls, data: JsonObject) -> "ComSrvError":
         if "Protocol" in data:
-            return ProtocolError.parse(data["Protocol"])
+            protocol = data["Protocol"]
+            assert isinstance(protocol, dict)
+            return ProtocolError.parse(protocol)
         if "Transport" in data:
             return TransportError(data["Transport"])
         if "Argument" in data:
@@ -32,9 +35,11 @@ class ComSrvError(Exception):
         return ComSrvError(data)
 
     @classmethod
-    def check_raise(cls, result: JsonDict) -> None:
+    def check_raise(cls, result: JsonObject) -> None:
         if "Error" in result:
-            raise ComSrvError.parse(result["Error"])
+            err = result["Error"]
+            assert isinstance(err, dict)
+            raise ComSrvError.parse(err)
 
 
 class ArgumentError(ComSrvError):
@@ -60,12 +65,15 @@ class ProtocolError(ComSrvError):
     """
 
     @classmethod
-    def parse(cls, data: JsonDict) -> "ProtocolError":
+    def parse(cls, data: JsonObject) -> "ProtocolError":
         if "Timeout" in data:
             return ProtocolTimeoutError()
         if "Other" in data:
+            other = data["Other"]
+            assert isinstance(other, dict)
             return ProtocolError(
-                data["Other"]["description"], data["Other"]["backtrace"]
+                other["description"],
+                other["backtrace"],
             )
         return ProtocolError(data)
 
@@ -156,7 +164,7 @@ class Rpc(object):
     Base class for RPC service implementations.
     """
 
-    async def get(self, request: JsonType, timeout: float) -> JsonDict:
+    async def get(self, request: JsonType, timeout: float) -> JsonObject:
         """
         Send a request and wait for the response, but for at most `timeout`.
         """
@@ -184,7 +192,7 @@ class HttpRpc(Rpc):
             url = get_default_http_url()
         self._url = url
 
-    async def get(self, request: JsonType, timeout: float) -> JsonDict:
+    async def get(self, request: JsonType, timeout: float) -> JsonObject:
         data = json.dumps(request).encode()
         to = ClientTimeout(total=None, sock_connect=timeout, sock_read=timeout)
         async with ClientSession(timeout=to) as session:
@@ -216,9 +224,9 @@ class WsRpc(Rpc):
         self._kw = kw
         self._client = Client()
 
-    async def get(self, data: JsonType, timeout: float) -> JsonDict:
+    async def get(self, request: JsonType, timeout: float) -> JsonObject:
         await self.connect(self._url)
-        ret = await self._client.request(data, timeout)
+        ret = await self._client.request(request, timeout)
         if not isinstance(ret, dict):
             raise ComSrvError(f"Got wrong JSON type. Expected dict, got {type(ret)}")
         return ret
@@ -248,7 +256,7 @@ class Address(object):
     def to_json(self) -> JsonType:
         raise NotImplementedError
 
-    def to_json_enum(self) -> JsonDict:
+    def to_json_enum(self) -> JsonObject:
         return {self.enum_name: self.to_json()}
 
     @property
@@ -271,7 +279,7 @@ class Instrument(object):
         raise NotImplementedError
 
 
-def duration_to_json(time_in_seconds: float) -> JsonDict:
+def duration_to_json(time_in_seconds: float) -> JsonObject:
     """
     Serialize a duration in seconds to a RPC `Duration` object.
     """
@@ -294,7 +302,7 @@ class BasePipe:
             rpc = Rpc.make_default()
         self._lock_time = 1.0
         self._address = address
-        self._lock = None
+        self._lock: str | None = None
         self._rpc = rpc
         self._timeout = BasePipe.DEFAULT_TIMEOUT
 
@@ -357,14 +365,18 @@ class BasePipe:
             },
             timeout=lock_time,
         )
-        self._lock = reply["Locked"]["lock_id"]
+        lock = reply["Locked"]
+        assert isinstance(lock, dict) and "lock_id" in lock
+        lock_id = lock["lock_id"]
+        assert isinstance(lock_id, str)
+        self._lock = lock_id
         return self
 
     @property
     def lock_id(self) -> str | None:
         return self._lock
 
-    async def get(self, data: JsonType, timeout: float | None = None) -> JsonDict:
+    async def get(self, data: JsonType, timeout: float | None = None) -> JsonObject:
         """
         Send a request and return the corresponding response but wait for at most `timeout`
         seconds.
@@ -479,7 +491,7 @@ class ComSrv(object):
     def rpc(self) -> Rpc:
         return self._rpc
 
-    async def get(self, data: JsonType, timeout: float | None = None) -> JsonDict:
+    async def get(self, data: JsonType, timeout: float | None = None) -> JsonObject:
         if timeout is None:
             timeout = self._timeout
         return await self._rpc.get(data, timeout)
@@ -491,11 +503,15 @@ class ComSrv(object):
     async def get_version(self) -> Tuple[int, int, int]:
         result = await self.get({"Version": None})
         ComSrvError.check_raise(result)
-        return (
-            result["Version"]["major"],
-            result["Version"]["minor"],
-            result["Version"]["build"],
+        version = result["Version"]
+        assert isinstance(version, dict)
+        major = version["major"]
+        minor = version["minor"]
+        build = version["build"]
+        assert (
+            isinstance(major, int) and isinstance(minor, int) and isinstance(build, int)
         )
+        return (major, minor, build)
 
     async def drop_all(self) -> None:
         result = await self.get({"DropAll": None})
@@ -505,10 +521,12 @@ class ComSrv(object):
         result = await self.get({"Shutdown": None})
         ComSrvError.check_raise(result)
 
-    async def list_connected_instruments(self) -> List[JsonDict]:
+    async def list_connected_instruments(self) -> List[JsonObject]:
         result = await self.get({"ListConnectedInstruments": None})
         ComSrvError.check_raise(result)
-        return result["Instruments"]
+        instruments = result["Instruments"]
+        assert isinstance(instruments, list)
+        return instruments  # type: ignore
 
     async def list_hid_devices(self) -> List[HidDeviceInfo]:
         from .hid import enumerate_hid_devices
@@ -518,15 +536,19 @@ class ComSrv(object):
     async def list_serial_ports(self) -> List[str]:
         result = await self.get({"ListSerialPorts": None})
         ComSrvError.check_raise(result)
-        return result["SerialPorts"]
+        serial_ports = result["SerialPorts"]
+        assert isinstance(serial_ports, list)
+        return serial_ports  # type: ignore
 
     async def list_ftdis(self) -> List[FtdiDeviceInfo]:
         result = await self.get({"ListFtdiDevices": None})
         ComSrvError.check_raise(result)
         ret = []
-        for x in result["FtdiDevices"]:
-            ret.append(FtdiDeviceInfo(**x))
-        return ret
+        ftdi_devices = result["FtdiDevices"]
+        assert isinstance(ftdi_devices, list)
+        for x in ftdi_devices:
+            ret.append(FtdiDeviceInfo(**x))  # type: ignore
+        return ret  # type: ignore
 
     async def list_can_devices(self) -> List[CanDevice]:
         result = await self.get(
@@ -536,13 +558,15 @@ class ComSrv(object):
         )
         ComSrvError.check_raise(result)
         ret = []
-        for x in result["CanDevices"]:
-            if x["driver_type"] == "SocketCAN":
+        can_devices = result["CanDevices"]
+        assert isinstance(can_devices, list)
+        for x in can_devices:
+            if x["driver_type"] == "SocketCAN":  # type: ignore
                 driver_type = CanDriverType.SOCKETCAN
-            elif x["driver_type"] == "PCAN":
+            elif x["driver_type"] == "PCAN":  # type: ignore
                 driver_type = CanDriverType.PCAN
-            ret.append(CanDevice(x["interface_name"], driver_type=driver_type))
-        return ret
+            ret.append(CanDevice(x["interface_name"], driver_type=driver_type))  # type: ignore
+        return ret  # type: ignore
 
 
 from .bytestream import (  # noqa: E402

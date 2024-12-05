@@ -7,14 +7,14 @@ import os
 import aiohttp
 import subprocess
 
-VERSION = "2.5.1"
+VERSION = "2.5.2"
 ON_WINDOWS = platform.system() == "Windows"
 if ON_WINDOWS:
     COMSRV_BINARY = "comsrv.exe"
     COMSRV_URL = f"https://github.com/raffber/comsrv/releases/download/release%2F{VERSION}/comsrv.exe"
 else:
-    COMSRV_BINARY = "comsrv"
-    COMSRV_URL = f"https://github.com/raffber/comsrv/releases/download/release%2F{VERSION}/comsrv"
+    COMSRV_BINARY = "comsrv"  # type: ignore
+    COMSRV_URL = f"https://github.com/raffber/comsrv/releases/download/release%2F{VERSION}/comsrv"  # type: ignore
 
 
 async def spawn(rpc: None | HttpRpc = None) -> HttpRpc:
@@ -50,7 +50,7 @@ async def check_if_running(rpc: None | HttpRpc = None) -> bool:
         return False
 
 
-def run_comsrv_process(path: str) -> subprocess.Popen:
+def run_comsrv_process(path: str) -> subprocess.Popen[bytes]:
     print("Running: ", path)
     if not ON_WINDOWS:
         return subprocess.Popen(

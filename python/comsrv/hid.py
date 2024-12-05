@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 from . import Address, BasePipe, ComSrvError, Rpc, duration_to_json, HidDeviceInfo
-from broadcast_wsrpc import JsonDict, JsonType
+from broadcast_wsrpc import JsonObject, JsonType
 
 
 class HidAddress(Address):
@@ -10,7 +10,7 @@ class HidAddress(Address):
         self.pid = pid
         self.vid = vid
 
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return {"pid": self.pid, "vid": self.vid}
 
     @property
@@ -22,7 +22,7 @@ class HidInstrument(object):
     def __init__(self, address: HidAddress) -> None:
         self._address = address
 
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return {"address": {"pid": self._address.pid, "vid": self._address.vid}}
 
     @property
@@ -35,7 +35,7 @@ class HidDevice(BasePipe):
         self._instrument = HidInstrument(HidAddress(vid, pid))
         super().__init__(address=self._instrument.address, rpc=rpc)
 
-    async def request(self, request: JsonType) -> JsonDict:
+    async def request(self, request: JsonType) -> JsonObject:
         result = await self.get(
             {
                 "Hid": {
@@ -46,17 +46,21 @@ class HidDevice(BasePipe):
             }
         )
         ComSrvError.check_raise(result)
-        return result["Hid"]
+        hid = result["Hid"]
+        assert isinstance(hid, dict)
+        return hid
 
     async def get_info(self) -> HidDeviceInfo:
         result = await self.request("GetInfo")
-        dev = result["Hid"]["Info"]
+        hid = result["Hid"]
+        assert isinstance(hid, dict)
+        dev = hid["Info"]
         return HidDeviceInfo(
-            vid=dev["idn"]["vid"],
-            pid=dev["idn"]["pid"],
-            manufacturer=dev.get("manufacturer"),
-            product=dev.get("product"),
-            serial_number=dev.get("serial_number"),
+            vid=dev["idn"]["vid"],  # type: ignore
+            pid=dev["idn"]["pid"],  # type: ignore
+            manufacturer=dev.get("manufacturer"),  # type: ignore
+            product=dev.get("product"),  # type: ignore
+            serial_number=dev.get("serial_number"),  # type: ignore
         )
 
     async def write(self, data: bytes) -> None:
@@ -66,7 +70,7 @@ class HidDevice(BasePipe):
     async def read(self, timeout: float = 0.1) -> bytes:
         result = await self.get({"Read": {"timeout": duration_to_json(timeout)}})
         ComSrvError.check_raise(result)
-        return bytes(result["Hid"]["Data"])
+        return bytes(result["Hid"]["Data"])  # type: ignore
 
 
 async def enumerate_hid_devices(
@@ -77,16 +81,16 @@ async def enumerate_hid_devices(
         rpc = Rpc.make_default()
     result = await rpc.get({"ListHidDevices": None}, timeout)
     if "Error" in result:
-        raise ComSrvError(result["Error"]["Hid"])
-    devices = result["Hid"]["List"]
-    ret = []
+        raise ComSrvError(result["Error"]["Hid"])  # type: ignore
+    devices: List[JsonObject] = result["Hid"]["List"]  # type: ignore
+    ret: List[HidDeviceInfo] = []
     for dev in devices:
         x = HidDeviceInfo(
-            vid=dev["idn"]["vid"],
-            pid=dev["idn"]["pid"],
-            manufacturer=dev.get("manufacturer"),
-            product=dev.get("product"),
-            serial_number=dev.get("serial_number"),
+            vid=dev["idn"]["vid"],  # type: ignore
+            pid=dev["idn"]["pid"],  # type: ignore
+            manufacturer=dev.get("manufacturer"),  # type: ignore
+            product=dev.get("product"),  # type: ignore
+            serial_number=dev.get("serial_number"),  # type: ignore
         )
         ret.append(x)
     return ret

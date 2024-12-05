@@ -1,6 +1,6 @@
 import asyncio
 import struct
-from typing import Any, List, Set, Union, Iterable, Optional
+from typing import Any, Dict, List, Set, Union, Iterable, Optional
 from broadcast_wsrpc.client import Receiver  # type: ignore
 
 from .can import (
@@ -129,16 +129,18 @@ class GctCanBus(object):
         with self.can_bus.gct().map(flt) as listener:
             await self.can_bus.send(req)
             return await asyncio.wait_for(
-                self._receive_readings(listener, len(unified_idx)), timeout=0.1
+                self._receive_readings(listener, len(unified_idx)),
+                timeout=0.1,
             )
 
     async def _receive_readings(
-        self, listener: Receiver, num_unique: int
+        self,
+        listener: Receiver[MonitoringData],
+        num_unique: int,
     ) -> List[MonitoringData]:
-        ret = {}
+        ret: Dict[int, MonitoringData] = {}
         while True:
             msg = await listener.next()
-            assert isinstance(msg, MonitoringData)
             ret[msg.reading_idx] = msg
             if len(ret) == num_unique:
                 break
@@ -149,7 +151,7 @@ class GctCanBus(object):
 
     async def read_single_and_decode(
         self, src: int, group_idx: int, idx: int, format: str
-    ) -> tuple:
+    ) -> tuple[Any, ...]:
         data = await self.read_single(src, group_idx, idx)
         return struct.unpack(format, data.data)
 
@@ -162,7 +164,7 @@ class GctCanBus(object):
     ) -> bytes | None:
         assert len(data) > 0
         msg = DdpMessage(version=self._version)
-        data = bytearray(data)
+        data = bytes(data)
         want_response = (data[0] & 0x80) != 0
         msg.data = bytes(data)
         msg.src = src_addr

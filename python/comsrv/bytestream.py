@@ -1,6 +1,6 @@
 import asyncio
 from typing import Any, Optional, Union
-from broadcast_wsrpc import Client, JsonType, JsonDict
+from broadcast_wsrpc import Client, JsonType, JsonObject
 from . import (
     Address,
     BasePipe,
@@ -80,7 +80,7 @@ class ByteStreamInstrument(Instrument):
         )
 
     @classmethod
-    def _parse_serial_path(cls, match: re.Match) -> tuple[str, int, str]:
+    def _parse_serial_path(cls, match: re.Match[str]) -> tuple[str, int, str]:
         baudrate = int(match.group("baudrate"))
         path = match.group("path")
         config = match.group("config")
@@ -91,7 +91,7 @@ class FtdiAddress(ByteStreamAddress):
     def __init__(self, port: str) -> None:
         self.port = port
 
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return {"port": self.port}
 
     @property
@@ -103,7 +103,7 @@ class SerialAddress(ByteStreamAddress):
     def __init__(self, port: str) -> None:
         self.port = port
 
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return {"port": self.port}
 
     @property
@@ -116,7 +116,7 @@ class TcpAddress(ByteStreamAddress):
         self.port = port
         self.host = host
 
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return {"port": self.port, "host": self.host}
 
     @property
@@ -133,7 +133,7 @@ class TcpInstrument(ByteStreamInstrument):
     def address(self) -> Address:
         return self._address
 
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return {"Tcp": {"address": self.address.to_json()}}
 
 
@@ -142,7 +142,7 @@ class SerialPortConfig(object):
         self.config = config
         self.baudrate = baudrate
 
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return {"config": self.config, "baudrate": self.baudrate}
 
 
@@ -152,7 +152,7 @@ class FtdiInstrument(ByteStreamInstrument):
         self._address = address
         self._port_config = port_config
 
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return {
             "Ftdi": {
                 "address": self.address.to_json(),
@@ -171,7 +171,7 @@ class SerialInstrument(ByteStreamInstrument):
         self._address = address
         self._port_config = port_config
 
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return {
             "Serial": {
                 "address": self.address.to_json(),
@@ -220,7 +220,7 @@ class ByteStreamPipe(BasePipe):
         self,
         request: JsonType,
         timeout: float | None = None,
-    ) -> JsonDict:
+    ) -> JsonObject:
         """
         Send an RPC request to the bytestream handler of the RPC protocol.
         """
@@ -235,7 +235,7 @@ class ByteStreamPipe(BasePipe):
             timeout=timeout,
         )
         ComSrvError.check_raise(result)
-        return result["Bytes"]
+        return result["Bytes"]  # type: ignore
 
     async def write(self, data: bytes) -> None:
         """
@@ -249,7 +249,7 @@ class ByteStreamPipe(BasePipe):
         blocking on the stream.
         """
         result = await self.request("ReadAll")
-        data = bytes(result["Data"])
+        data = bytes(result["Data"])  # type: ignore
         return data
 
     async def read_to_term(self, term: int, timeout: float) -> bytes:
@@ -260,7 +260,7 @@ class ByteStreamPipe(BasePipe):
             {"ReadToTerm": {"term": term, "timeout": duration_to_json(timeout)}},
             timeout=timeout + self._timeout,
         )
-        data = bytes(result["Data"])
+        data = bytes(result["Data"])  # type: ignore
         return data
 
     async def read_exact(self, count: int, timeout: float) -> bytes:
@@ -271,7 +271,7 @@ class ByteStreamPipe(BasePipe):
             {"ReadExact": {"count": count, "timeout": duration_to_json(timeout)}},
             timeout=timeout + self._timeout,
         )
-        data = bytes(result["Data"])
+        data = bytes(result["Data"])  # type: ignore
         return data
 
     async def cobs_write(self, data: bytes) -> None:
@@ -288,7 +288,7 @@ class ByteStreamPipe(BasePipe):
             {"CobsRead": duration_to_json(timeout)},
             timeout=timeout + self._timeout,
         )
-        data = bytes(result["Data"])
+        data = bytes(result["Data"])  # type: ignore
         return data
 
     async def cobs_query(self, data: bytes, timeout: float) -> bytes:
@@ -299,7 +299,7 @@ class ByteStreamPipe(BasePipe):
             {"CobsQuery": {"data": list(data), "timeout": duration_to_json(timeout)}},
             timeout=timeout + self._timeout,
         )
-        data = bytes(result["Data"])
+        data = bytes(result["Data"])  # type: ignore
         return data
 
     async def write_line(self, line: str, term: str | int = "\n") -> None:
@@ -322,7 +322,7 @@ class ByteStreamPipe(BasePipe):
             {"ReadLine": {"term": term, "timeout": duration_to_json(timeout)}},
             timeout=timeout + self._timeout,
         )
-        return result["String"]
+        return result["String"]  # type: ignore
 
     async def query_line(
         self,
@@ -346,7 +346,7 @@ class ByteStreamPipe(BasePipe):
             },
             timeout=timeout + self._timeout,
         )
-        return result["String"]
+        return result["String"]  # type: ignore
 
     async def disconnect(self) -> None:
         """
@@ -377,7 +377,7 @@ class CobsStream:
         if client is None:
             client = Client()
         self._client = client
-        self._receiver: asyncio.Queue = asyncio.Queue(maxsize=maxsize)
+        self._receiver: asyncio.Queue[bytes] = asyncio.Queue(maxsize=maxsize)
         self.receiver_overflow = False
 
     async def connect(self, url: str | None = None, **kw: Any) -> None:
@@ -392,7 +392,7 @@ class CobsStream:
         self._receiver_task = asyncio.create_task(self._receive_loop())
         await self.rpc({"Start": {"use_crc": self._use_crc}})
 
-    async def rpc(self, request: JsonType) -> JsonDict:
+    async def rpc(self, request: JsonType) -> JsonObject:
         await self.connect()
         resp = await self._client.request(
             {
@@ -407,10 +407,10 @@ class CobsStream:
         ComSrvError.check_raise(resp)
         if "CobsStream" not in resp:
             raise ComSrvError("Unexpected wire format")
-        return resp["CobsStream"]
+        return resp["CobsStream"]  # type: ignore
 
     async def _receive_loop(self) -> None:
-        def filter(x: JsonType) -> JsonDict | None:
+        def filter(x: JsonType) -> JsonObject | None:
             if not isinstance(x, dict):
                 return None
             # TODO: this should also filter on the instrument
@@ -421,7 +421,7 @@ class CobsStream:
                 return None
             if "MessageReceived" not in x:
                 return None
-            return x["MessageReceived"]
+            return x["MessageReceived"]  # type: ignore
 
         rx = self._client.notifications().map(filter)
         with rx:

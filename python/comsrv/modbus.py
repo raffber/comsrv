@@ -31,7 +31,7 @@ MODBUS_TCP_RE = re.compile(
 
 
 def parse_serial_modbus(
-    match: re.Match, rpc: Rpc | None
+    match: re.Match[str], rpc: Rpc | None
 ) -> Tuple[ByteStreamPipe, int, ModBusProtocol]:
     protocol = match.group("protocol")
     if protocol == "rtu":
@@ -56,7 +56,7 @@ def parse_serial_modbus(
 
 
 def parse_tcp_modbus(
-    match: re.Match, rpc: Rpc | None
+    match: re.Match[str], rpc: Rpc | None
 ) -> Tuple[ByteStreamPipe, int, ModBusProtocol]:
     protocol = match.group("protocol")
     if protocol == "rtu":
@@ -208,7 +208,7 @@ class ModBusDevice(object):
         assert isinstance(result, dict)
         ret = result["Number"]
         assert isinstance(ret, list)
-        return ret
+        return ret  # type: ignore
 
     async def read_coil(self, addr: int, count: int = 1) -> List[bool]:
         assert count > 0
@@ -223,7 +223,7 @@ class ModBusDevice(object):
         assert isinstance(result, dict)
         ret = result["Bool"]
         assert isinstance(ret, list)
-        return ret
+        return ret  # type: ignore
 
     async def read_discrete(self, addr: int, count: int = 1) -> List[bool]:
         assert count > 0
@@ -238,7 +238,7 @@ class ModBusDevice(object):
         assert isinstance(result, dict)
         ret = result["Bool"]
         assert isinstance(ret, list)
-        return ret
+        return ret  # type: ignore
 
     async def read_input(self, addr: int, count: int = 1) -> List[int]:
         assert count > 0
@@ -253,7 +253,7 @@ class ModBusDevice(object):
         assert isinstance(result, dict)
         ret = result["Number"]
         assert isinstance(ret, list)
-        return ret
+        return ret  # type: ignore
 
     async def ddp(
         self,
@@ -274,4 +274,4 @@ class ModBusDevice(object):
         )
         assert isinstance(result, dict)
         d = result["Data"]
-        return bytes(d)
+        return bytes(d)  # type: ignore

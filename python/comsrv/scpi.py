@@ -3,7 +3,7 @@ from typing import Optional, Union
 
 from . import Address, ComSrvError, BasePipe, Instrument, Rpc, duration_to_json
 from .bytestream import ByteStreamInstrument, ByteStreamPipe, SerialAddress
-from broadcast_wsrpc import JsonType, JsonDict
+from broadcast_wsrpc import JsonType, JsonObject
 
 
 class ScpiAddress(Address):
@@ -72,12 +72,12 @@ class ScpiInstrument(Instrument):
 
 
 class VxiInstrument(ScpiInstrument):
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return {"Vxi": {"host": self._address.to_json()}}
 
 
 class VisaInstrument(ScpiInstrument):
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return {"Visa": {"address": self._address.to_json()}}
 
 
@@ -90,7 +90,7 @@ class PrologixInstrument(ScpiInstrument):
     def gpib_address(self) -> int:
         return self._gpib_address
 
-    def to_json(self) -> JsonDict:
+    def to_json(self) -> JsonObject:
         return {"address": self._address.to_json()}
 
 
@@ -202,7 +202,7 @@ class ScpiPipe(BasePipe, ScpiPipeBase):
         result = await self.request({"QueryString": msg}, timeout=timeout)
         if not isinstance(result, dict):
             raise ComSrvError("Unexpected response")
-        return result["String"]
+        return result["String"]  # type: ignore
 
     async def write(self, msg: str) -> None:
         await self.request({"Write": msg})
@@ -215,15 +215,15 @@ class ScpiPipe(BasePipe, ScpiPipeBase):
         if not isinstance(binary, dict):
             raise ComSrvError("Unexpected response")
         data = binary["data"]
-        return base64.b64decode(data)
+        return base64.b64decode(data)  # type: ignore
 
     async def read_raw(self, timeout: float | None = None) -> bytes:
         result = await self.request({"ReadRaw": None}, timeout=timeout)
         if not isinstance(result, dict):
             raise ComSrvError("Unexpected response")
         ComSrvError.check_raise(result)
-        data = result["Binary"]["data"]
-        return base64.b64decode(data)
+        data = result["Binary"]["data"]  # type: ignore
+        return base64.b64decode(data)  # type: ignore
 
 
 class SerialScpiPipe(ScpiPipeBase):
