@@ -1,5 +1,4 @@
-FROM rust:1.83-bookworm as builder
-
+FROM rust:1.83-bookworm AS builder
 
 RUN apt-get update && apt-get install -y \
     libudev-dev libclang-dev \
