@@ -21,7 +21,9 @@ class ComSrvError(Exception):
     """
 
     @classmethod
-    def parse(cls, data: JsonObject) -> "ComSrvError":
+    def parse(cls, data: JsonType) -> "ComSrvError":
+        if not isinstance(data, dict):
+            return ComSrvError(data)
         if "Protocol" in data:
             protocol = data["Protocol"]
             assert isinstance(protocol, dict)
@@ -38,7 +40,6 @@ class ComSrvError(Exception):
     def check_raise(cls, result: JsonObject) -> None:
         if "Error" in result:
             err = result["Error"]
-            assert isinstance(err, dict)
             raise ComSrvError.parse(err)
 
 
