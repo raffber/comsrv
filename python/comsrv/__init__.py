@@ -66,7 +66,8 @@ class ProtocolError(ComSrvError):
     """
 
     @classmethod
-    def parse(cls, data: JsonObject) -> "ProtocolError":
+    def parse(cls, data: JsonType) -> "ProtocolError":
+        assert isinstance(data, dict)
         if "Timeout" in data:
             return ProtocolTimeoutError()
         if "Other" in data:
