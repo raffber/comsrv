@@ -15,3 +15,4 @@ tmp/
 dist/
 .pyprojectx
 *.user.*
+.env
