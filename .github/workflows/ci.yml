@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install Helm
         uses: azure/setup-helm@v4
@@ -66,7 +66,7 @@ jobs:
         run: docker run -v ${{ github.workspace }}:/workspace comsrv-agent ci/check-python.sh
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: comsrv
           path: |
