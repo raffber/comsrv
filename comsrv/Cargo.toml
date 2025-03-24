@@ -1,6 +1,6 @@
 [package]
 name = "comsrv"
-version = "2.5.3"
+version = "2.5.4"
 authors = ["Raphael Bernhard <beraphae@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"

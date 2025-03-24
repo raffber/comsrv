@@ -7,7 +7,7 @@ import os
 import aiohttp
 import subprocess
 
-VERSION = "2.5.3"
+VERSION = "2.5.4"
 ON_WINDOWS = platform.system() == "Windows"
 if ON_WINDOWS:
     COMSRV_BINARY = "comsrv.exe"
